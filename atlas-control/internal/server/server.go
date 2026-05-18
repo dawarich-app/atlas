@@ -21,7 +21,6 @@ import (
 )
 
 type Config struct {
-	ComposeProject string
 	ComposeFile    string
 	HostProjectDir string
 	EnvFile        string

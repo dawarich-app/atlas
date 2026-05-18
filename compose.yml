@@ -47,7 +47,6 @@ services:
     pull_policy: ${ATLAS_CONTROL_PULL_POLICY:-always}
     container_name: atlas-control
     environment:
-      COMPOSE_PROJECT_NAME: atlas
       COMPOSE_FILE:         /work/compose.yml
       HOST_PROJECT_DIR:     ${HOST_PROJECT_DIR:-${PWD}}
       DATA_DIR:             /work/data

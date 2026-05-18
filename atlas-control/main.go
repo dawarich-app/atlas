@@ -10,7 +10,6 @@ import (
 
 func main() {
 	cfg := server.Config{
-		ComposeProject: envOr("COMPOSE_PROJECT", "atlas"),
 		ComposeFile:    envOr("COMPOSE_FILE", "/work/compose.yml"),
 		HostProjectDir: os.Getenv("HOST_PROJECT_DIR"),
 		EnvFile:        envOr("ENV_FILE", "/work/.env"),
