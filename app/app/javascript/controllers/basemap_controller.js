@@ -217,7 +217,7 @@ export default class extends Controller {
 
   notifyMap() {
     // Map controller listens and reloads its style.
-    window.dispatchEvent(new CustomEvent("apocalymaps:basemap:changed"))
+    window.dispatchEvent(new CustomEvent("atlas:basemap:changed"))
   }
 
   showStatus(text) {

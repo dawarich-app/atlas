@@ -34,16 +34,16 @@ export default class extends Controller {
     this.setDestHandler = (e) => this.setEndpoint({ ...e.detail, role: "to" })
     this.setEndpointHandler = (e) => this.setEndpoint(e.detail)
     this.pickRequestHandler = (e) => this.handleMapPick(e.detail)
-    document.addEventListener("apocalymaps:routing:set-destination", this.setDestHandler)
-    document.addEventListener("apocalymaps:routing:set-endpoint",   this.setEndpointHandler)
-    document.addEventListener("apocalymaps:map:click",              this.pickRequestHandler)
+    document.addEventListener("atlas:routing:set-destination", this.setDestHandler)
+    document.addEventListener("atlas:routing:set-endpoint",   this.setEndpointHandler)
+    document.addEventListener("atlas:map:click",              this.pickRequestHandler)
   }
 
   disconnect() {
     Object.values(this.timers).forEach(t => t && clearTimeout(t))
-    document.removeEventListener("apocalymaps:routing:set-destination", this.setDestHandler)
-    document.removeEventListener("apocalymaps:routing:set-endpoint",   this.setEndpointHandler)
-    document.removeEventListener("apocalymaps:map:click",              this.pickRequestHandler)
+    document.removeEventListener("atlas:routing:set-destination", this.setDestHandler)
+    document.removeEventListener("atlas:routing:set-endpoint",   this.setEndpointHandler)
+    document.removeEventListener("atlas:map:click",              this.pickRequestHandler)
   }
 
   setEndpoint({ lat, lon, label, role = "to" }) {
@@ -69,14 +69,14 @@ export default class extends Controller {
     document.body.classList.add("apo-picking")
     const btn = this.element.querySelector(`[data-action$="${role === "from" ? "pickFrom" : "pickTo"}"]`)
     if (btn) btn.classList.add("btn-primary", "ring-2", "ring-primary/40")
-    document.dispatchEvent(new CustomEvent("apocalymaps:map:pick-mode", { detail: { active: true } }))
+    document.dispatchEvent(new CustomEvent("atlas:map:pick-mode", { detail: { active: true } }))
   }
   cancelPick() {
     document.body.classList.remove("apo-picking")
     this.element.querySelectorAll("[data-pick-on-map]").forEach(b => {
       b.classList.remove("btn-primary", "ring-2", "ring-primary/40")
     })
-    document.dispatchEvent(new CustomEvent("apocalymaps:map:pick-mode", { detail: { active: false } }))
+    document.dispatchEvent(new CustomEvent("atlas:map:pick-mode", { detail: { active: false } }))
     this.pickingRole = null
   }
   handleMapPick({ lat, lon, label }) {
@@ -222,7 +222,7 @@ export default class extends Controller {
     this.dispatchClear("from")
     this.dispatchClear("to")
     this.dispatchClearRoute()
-    this.element.dispatchEvent(new CustomEvent("apocalymaps:routing:close", { bubbles: true }))
+    this.element.dispatchEvent(new CustomEvent("atlas:routing:close", { bubbles: true }))
   }
 
   // ---- submit ----
@@ -291,7 +291,7 @@ export default class extends Controller {
     if (list.length === 0) {
       this.showStatus("No transit options found.")
       this.itinerariesTarget.classList.add("hidden")
-      this.element.dispatchEvent(new CustomEvent("apocalymaps:routing:clear", { bubbles: true }))
+      this.element.dispatchEvent(new CustomEvent("atlas:routing:clear", { bubbles: true }))
       return
     }
 
@@ -331,7 +331,7 @@ export default class extends Controller {
     })
     const it = list[idx]
     if (!it) return
-    this.element.dispatchEvent(new CustomEvent("apocalymaps:routing:transit", {
+    this.element.dispatchEvent(new CustomEvent("atlas:routing:transit", {
       detail: { legs: it.legs || [] }, bubbles: true
     }))
   }
@@ -353,7 +353,7 @@ export default class extends Controller {
     const shapeStrs = legs.map(l => l.shape).filter(Boolean)
 
     // Each leg has its own encoded polyline; concatenate decoded segments.
-    this.element.dispatchEvent(new CustomEvent("apocalymaps:routing:show", {
+    this.element.dispatchEvent(new CustomEvent("atlas:routing:show", {
       detail: { shapes: shapeStrs, summary }, bubbles: true
     }))
 
@@ -401,18 +401,18 @@ export default class extends Controller {
 
   // ---- events to map ----
   dispatchEndpoint(role, coords) {
-    this.element.dispatchEvent(new CustomEvent("apocalymaps:routing:endpoint", {
+    this.element.dispatchEvent(new CustomEvent("atlas:routing:endpoint", {
       detail: { role, lon: coords.lon, lat: coords.lat, color: ENDPOINT_COLORS[role] },
       bubbles: true
     }))
   }
   dispatchClear(role) {
-    this.element.dispatchEvent(new CustomEvent("apocalymaps:routing:clearendpoint", {
+    this.element.dispatchEvent(new CustomEvent("atlas:routing:clearendpoint", {
       detail: { role }, bubbles: true
     }))
   }
   dispatchClearRoute() {
-    this.element.dispatchEvent(new CustomEvent("apocalymaps:routing:clear", { bubbles: true }))
+    this.element.dispatchEvent(new CustomEvent("atlas:routing:clear", { bubbles: true }))
   }
 
   showStatus(text) { this.statusTarget.textContent = text; this.statusTarget.classList.remove("hidden") }

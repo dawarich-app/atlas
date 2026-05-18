@@ -21,14 +21,14 @@ export default class extends Controller {
       if (this.selected.size === 0) return
       this.fetchAndRender()
     }
-    window.addEventListener("apocalymaps:map:moved", this.moveHandler)
+    window.addEventListener("atlas:map:moved", this.moveHandler)
 
     await this.loadCatalog()
     this.renderAll()
   }
 
   disconnect() {
-    if (this.moveHandler) window.removeEventListener("apocalymaps:map:moved", this.moveHandler)
+    if (this.moveHandler) window.removeEventListener("atlas:map:moved", this.moveHandler)
   }
 
   async loadCatalog() {
@@ -193,7 +193,7 @@ export default class extends Controller {
     this.selected.clear()
     if (this.hasNameSearchTarget) this.nameSearchTarget.value = ""
     this.nameQuery = ""
-    this.element.dispatchEvent(new CustomEvent("apocalymaps:places:clear", { bubbles: true }))
+    this.element.dispatchEvent(new CustomEvent("atlas:places:clear", { bubbles: true }))
     this.resultsTarget.innerHTML = ""
     this.statusTarget.textContent = ""
     this.statusTarget.classList.add("hidden")
@@ -202,7 +202,7 @@ export default class extends Controller {
 
   async fetchAndRender() {
     if (this.selected.size === 0) {
-      this.element.dispatchEvent(new CustomEvent("apocalymaps:places:clear", { bubbles: true }))
+      this.element.dispatchEvent(new CustomEvent("atlas:places:clear", { bubbles: true }))
       this.resultsTarget.innerHTML = ""
       this.statusTarget.classList.add("hidden")
       return
@@ -227,7 +227,7 @@ export default class extends Controller {
       const body = await res.json()
       const features = body.data?.features || []
       this.renderResults(features)
-      this.element.dispatchEvent(new CustomEvent("apocalymaps:places:show", {
+      this.element.dispatchEvent(new CustomEvent("atlas:places:show", {
         detail: { features }, bubbles: true
       }))
       this.showStatus(`${features.length} place${features.length === 1 ? "" : "s"} found`)
@@ -239,11 +239,11 @@ export default class extends Controller {
   askBbox() {
     return new Promise(resolve => {
       const handler = (e) => {
-        window.removeEventListener("apocalymaps:map:bbox", handler)
+        window.removeEventListener("atlas:map:bbox", handler)
         resolve(e.detail)
       }
-      window.addEventListener("apocalymaps:map:bbox", handler, { once: true })
-      window.dispatchEvent(new CustomEvent("apocalymaps:map:bbox-request"))
+      window.addEventListener("atlas:map:bbox", handler, { once: true })
+      window.dispatchEvent(new CustomEvent("atlas:map:bbox-request"))
     })
   }
 
@@ -254,7 +254,7 @@ export default class extends Controller {
       const li = document.createElement("li")
       li.className = "border-b border-base-200 last:border-b-0 py-2 cursor-pointer hover:bg-base-200/50 px-2 flex items-center gap-2"
       li.addEventListener("click", () => {
-        this.element.dispatchEvent(new CustomEvent("apocalymaps:flyto", {
+        this.element.dispatchEvent(new CustomEvent("atlas:flyto", {
           detail: f.coords, bubbles: true
         }))
       })

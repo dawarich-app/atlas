@@ -40,12 +40,12 @@ export default class extends Controller {
       if (q.length < MIN_QUERY_LENGTH) return
       this.fetchResults(q)
     }
-    window.addEventListener("apocalymaps:map:moved", this.moveHandler)
+    window.addEventListener("atlas:map:moved", this.moveHandler)
   }
 
   disconnect() {
     if (this.timer) clearTimeout(this.timer)
-    if (this.moveHandler) window.removeEventListener("apocalymaps:map:moved", this.moveHandler)
+    if (this.moveHandler) window.removeEventListener("atlas:map:moved", this.moveHandler)
   }
 
   query() {
@@ -92,13 +92,13 @@ export default class extends Controller {
   async askBbox() {
     return new Promise(resolve => {
       const handler = (e) => {
-        window.removeEventListener("apocalymaps:map:bbox", handler)
+        window.removeEventListener("atlas:map:bbox", handler)
         resolve(e.detail)
       }
-      window.addEventListener("apocalymaps:map:bbox", handler, { once: true })
-      window.dispatchEvent(new CustomEvent("apocalymaps:map:bbox-request"))
+      window.addEventListener("atlas:map:bbox", handler, { once: true })
+      window.dispatchEvent(new CustomEvent("atlas:map:bbox-request"))
       // Give the map 200ms to respond; carry on without bbox if it doesn't.
-      setTimeout(() => { window.removeEventListener("apocalymaps:map:bbox", handler); resolve(null) }, 200)
+      setTimeout(() => { window.removeEventListener("atlas:map:bbox", handler); resolve(null) }, 200)
     })
   }
 
@@ -207,7 +207,7 @@ export default class extends Controller {
     this.inputTarget.value = item.label || item.name || ""
     this.lastQuery = this.inputTarget.value
     this.hideResults()
-    this.dispatch("flyto", { detail: item.coords, prefix: "apocalymaps", bubbles: true })
+    this.dispatch("flyto", { detail: item.coords, prefix: "atlas", bubbles: true })
     this.broadcastResults([item])
   }
 
@@ -227,7 +227,7 @@ export default class extends Controller {
   }
 
   broadcastResults(features) {
-    const event = new CustomEvent("apocalymaps:setresults", { detail: features, bubbles: true })
+    const event = new CustomEvent("atlas:setresults", { detail: features, bubbles: true })
     this.element.dispatchEvent(event)
   }
 }

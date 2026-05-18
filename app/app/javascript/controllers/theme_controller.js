@@ -1,7 +1,7 @@
 import { Controller } from "@hotwired/stimulus"
 import { lucide } from "../lib/lucide_icons"
 
-const STORAGE_KEY = "apocalymaps:theme"
+const STORAGE_KEY = "atlas:theme"
 const LIGHT = "forest-patina"
 const DARK  = "bunker-brutalist"
 
@@ -22,7 +22,7 @@ export default class extends Controller {
     this.theme = this.isDark() ? LIGHT : DARK
     localStorage.setItem(STORAGE_KEY, this.theme)
     this.apply()
-    window.dispatchEvent(new CustomEvent("apocalymaps:theme:changed", {
+    window.dispatchEvent(new CustomEvent("atlas:theme:changed", {
       detail: { theme: this.theme, isDark: this.isDark() }
     }))
   }

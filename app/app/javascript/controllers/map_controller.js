@@ -66,7 +66,7 @@ export default class extends Controller {
       clearTimeout(this.moveTimer)
       this.moveTimer = setTimeout(() => {
         const b = this.map.getBounds()
-        window.dispatchEvent(new CustomEvent("apocalymaps:map:moved", {
+        window.dispatchEvent(new CustomEvent("atlas:map:moved", {
           detail: { south: b.getSouth(), west: b.getWest(), north: b.getNorth(), east: b.getEast() }
         }))
       }, 400)
@@ -78,19 +78,19 @@ export default class extends Controller {
 
     this.markers = []
     this.routeEndpoints = {}
-    this.element.addEventListener("apocalymaps:flyto",      (e) => this.flyTo(e.detail))
-    this.element.addEventListener("apocalymaps:setresults", (e) => this.renderResults(e.detail))
-    this.element.addEventListener("apocalymaps:routing:endpoint",      (e) => this.setRouteEndpoint(e.detail))
-    this.element.addEventListener("apocalymaps:routing:clearendpoint", (e) => this.clearRouteEndpoint(e.detail.role))
-    this.element.addEventListener("apocalymaps:routing:show",          (e) => this.showRoute(e.detail))
-    this.element.addEventListener("apocalymaps:routing:transit",       (e) => this.showTransit(e.detail))
-    this.element.addEventListener("apocalymaps:routing:clear",         ()  => this.clearRoute())
-    this.element.addEventListener("apocalymaps:places:show",           (e) => this.showPlaces(e.detail.features))
-    this.element.addEventListener("apocalymaps:places:clear",          ()  => this.clearPlaces())
+    this.element.addEventListener("atlas:flyto",      (e) => this.flyTo(e.detail))
+    this.element.addEventListener("atlas:setresults", (e) => this.renderResults(e.detail))
+    this.element.addEventListener("atlas:routing:endpoint",      (e) => this.setRouteEndpoint(e.detail))
+    this.element.addEventListener("atlas:routing:clearendpoint", (e) => this.clearRouteEndpoint(e.detail.role))
+    this.element.addEventListener("atlas:routing:show",          (e) => this.showRoute(e.detail))
+    this.element.addEventListener("atlas:routing:transit",       (e) => this.showTransit(e.detail))
+    this.element.addEventListener("atlas:routing:clear",         ()  => this.clearRoute())
+    this.element.addEventListener("atlas:places:show",           (e) => this.showPlaces(e.detail.features))
+    this.element.addEventListener("atlas:places:clear",          ()  => this.clearPlaces())
 
     // Swap to a dark map variant on global theme change. For OpenFreeMap we
     // know the style URLs; for pmtiles we toggle the protomaps theme.
-    window.addEventListener("apocalymaps:theme:changed", (e) => {
+    window.addEventListener("atlas:theme:changed", (e) => {
       const newTheme = e.detail?.isDark ? "dark" : "light"
       this.themeValue = newTheme
       const url = this.tilesUrlValue
@@ -111,7 +111,7 @@ export default class extends Controller {
     })
 
     // Live-reload basemap style when admin switches sources.
-    window.addEventListener("apocalymaps:basemap:changed", async () => {
+    window.addEventListener("atlas:basemap:changed", async () => {
       try {
         const r = await fetch("/admin/tiles", { headers: { Accept: "application/json" } })
         const body = await r.json()
@@ -128,13 +128,13 @@ export default class extends Controller {
     // Pick-on-map mode (driven by the routing controller). When active, the
     // next single click dispatches the coords and exits mode.
     this.pickModeActive = false
-    document.addEventListener("apocalymaps:map:pick-mode", (e) => {
+    document.addEventListener("atlas:map:pick-mode", (e) => {
       this.pickModeActive = !!e.detail.active
       this.canvasTarget.style.cursor = this.pickModeActive ? "crosshair" : ""
     })
     this.map.on("click", (e) => {
       if (!this.pickModeActive) return
-      document.dispatchEvent(new CustomEvent("apocalymaps:map:click", {
+      document.dispatchEvent(new CustomEvent("atlas:map:click", {
         detail: { lat: e.lngLat.lat, lon: e.lngLat.lng }
       }))
     })
@@ -151,11 +151,11 @@ export default class extends Controller {
     this.bboxRequestHandler = () => {
       if (!this.map) return
       const b = this.map.getBounds()
-      window.dispatchEvent(new CustomEvent("apocalymaps:map:bbox", {
+      window.dispatchEvent(new CustomEvent("atlas:map:bbox", {
         detail: { south: b.getSouth(), west: b.getWest(), north: b.getNorth(), east: b.getEast() }
       }))
     }
-    window.addEventListener("apocalymaps:map:bbox-request", this.bboxRequestHandler)
+    window.addEventListener("atlas:map:bbox-request", this.bboxRequestHandler)
 
     // Delegated click handler for popup buttons that carry a data-apo-action.
     this.popupActionHandler = (e) => {
@@ -164,7 +164,7 @@ export default class extends Controller {
       const action = trigger.dataset.apoAction
       try {
         const detail = trigger.dataset.apoPayload ? JSON.parse(trigger.dataset.apoPayload) : {}
-        document.dispatchEvent(new CustomEvent(`apocalymaps:${action}`, { detail }))
+        document.dispatchEvent(new CustomEvent(`atlas:${action}`, { detail }))
       } catch (_) { /* malformed payload — ignore */ }
     }
     document.addEventListener("click", this.popupActionHandler)
@@ -176,7 +176,7 @@ export default class extends Controller {
 
   disconnect() {
     if (this.regionObserver) this.regionObserver.disconnect()
-    if (this.bboxRequestHandler) window.removeEventListener("apocalymaps:map:bbox-request", this.bboxRequestHandler)
+    if (this.bboxRequestHandler) window.removeEventListener("atlas:map:bbox-request", this.bboxRequestHandler)
     if (this.popupActionHandler) document.removeEventListener("click", this.popupActionHandler)
     if (this.map) this.map.remove()
   }
@@ -462,7 +462,7 @@ export default class extends Controller {
       .addTo(this.map)
     marker.on("dragend", () => {
       const ll = marker.getLngLat()
-      document.dispatchEvent(new CustomEvent("apocalymaps:routing:set-endpoint", {
+      document.dispatchEvent(new CustomEvent("atlas:routing:set-endpoint", {
         detail: { lat: ll.lat, lon: ll.lng, role, label: `${ll.lat.toFixed(5)}, ${ll.lng.toFixed(5)}` }
       }))
     })

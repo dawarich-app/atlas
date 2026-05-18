@@ -5,14 +5,14 @@ export default class extends Controller {
   static values  = { open: Boolean }
 
   connect() {
-    const stored = localStorage.getItem("apocalymaps:panel-open")
+    const stored = localStorage.getItem("atlas:panel-open")
     if (stored === "true") this.openValue = true
     this.render()
   }
 
   toggle() {
     this.openValue = !this.openValue
-    localStorage.setItem("apocalymaps:panel-open", this.openValue)
+    localStorage.setItem("atlas:panel-open", this.openValue)
     this.render()
   }
 
