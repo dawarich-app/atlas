@@ -2,13 +2,13 @@ SHELL := /usr/bin/env bash
 .DEFAULT_GOAL := help
 
 DC      := docker compose
-APP_URL ?= http://localhost:8000
+APP_URL ?= http://localhost:8484
 
 # ─── Help ─────────────────────────────────────────────────────────────────
 
 .PHONY: help
 help: ## Show this help
-	@awk 'BEGIN { FS = ":.*##"; print "Apocalymaps targets:\n" } \
+	@awk 'BEGIN { FS = ":.*##"; print "Atlas targets:\n" } \
 		/^[a-zA-Z0-9_.-]+:.*##/ { printf "  \033[36m%-22s\033[0m %s\n", $$1, $$2 }' $(MAKEFILE_LIST)
 	@echo
 	@echo "Common flows:"

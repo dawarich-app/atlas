@@ -1,6 +1,6 @@
 # atlas-control
 
-Small Go sidecar that owns `docker compose` + `osmium` exec for the Apocalymaps admin panel.
+Small Go sidecar that owns `docker compose` + `osmium` exec for the Dawarich Atlas admin panel.
 
 ## Endpoints
 

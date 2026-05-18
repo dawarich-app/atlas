@@ -96,7 +96,7 @@ Only Caddy is published. Everything else is reachable inside the Docker network 
 
 | Port | Exposed | Service |
 |------|---------|---------|
-| 8000 | yes | Caddy (fronts Rails + serves PMTiles) |
+| 8484 | yes | Caddy (fronts Atlas + serves PMTiles) |
 | 3000 (internal) | no | Rails app |
 | 2322 (internal) | no | Photon |
 | 3000 (internal) | no | Placeholder |
@@ -167,7 +167,7 @@ make tiles-local              # point app at /tiles/basemap.pmtiles
 
 # 3. Bare stack
 make up           # caddy + app only, no data services
-                  # Visit http://localhost:8000 — map loads immediately
+                  # Visit http://localhost:8484 — map loads immediately
 
 # 4. Add data layers (each can run for hours on first boot)
 make geocoding    # Photon + Placeholder + libpostal (includes WOF download + Placeholder build)
@@ -204,7 +204,7 @@ APP_IMAGE=atlas-app:dev APP_PULL_POLICY=never docker compose up -d
 2. **`docker compose --profile all up -d`** — starts every map service in parallel
 3. **Status check** — prints `docker compose ps`
 
-After step 3 the **map page is live immediately** at `http://localhost:8000`, but the data services take hours on first boot to be query-ready. Watch the progress with `make logs` or `docker compose logs -f photon valhalla overpass`.
+After step 3 the **map page is live immediately** at `http://localhost:8484`, but the data services take hours on first boot to be query-ready. Watch the progress with `make logs` or `docker compose logs -f photon valhalla overpass`.
 
 ### Realistic first-boot timings for Germany (`COUNTRY_CODE=de`)
 
@@ -228,7 +228,7 @@ Total disk for Germany with all defaults: **~70 GB** under `data/`. Planet: **~1
 
 ## Configuring for any city or country
 
-Apocalymaps is region-agnostic — the same compose stack serves Berlin, Germany, Europe, or the entire planet depending on the data you point it at. Configuration is **one preset file per region** under `regions/`.
+Atlas is region-agnostic — the same compose stack serves Berlin, Germany, Europe, or the entire planet depending on the data you point it at. Configuration is **one preset file per region** under `regions/`.
 
 ### Scenario A: a single city
 
@@ -269,7 +269,7 @@ make region NAME=france
 
 ### Scenario C: multiple countries (or cities)
 
-When you want a few countries together — say DE+AT+CH for German-speaking-Europe — Apocalymaps downloads each PBF separately and merges them with [osmium-tool](https://osmcode.org/osmium-tool/) before the data services see it.
+When you want a few countries together — say DE+AT+CH for German-speaking-Europe — Atlas downloads each PBF separately and merges them with [osmium-tool](https://osmcode.org/osmium-tool/) before the data services see it.
 
 ```bash
 # (1) Use a built-in multi-region preset
@@ -794,7 +794,7 @@ OpenAPI for the admin endpoints: `http://localhost:8484/api-docs/admin/swagger.y
 ## TODO
 
 ### Infrastructure
-- [x] Pick name (Apocalymaps)
+- [x] Pick name (Dawarich Atlas)
 - [x] Define layer architecture
 - [x] Pick tech stack (Rails 8 + Hotwire + Tailwind v4 + DaisyUI v5 + MapLibre)
 - [x] Create directory structure
@@ -925,7 +925,7 @@ curl -X POST -H "Content-Type: application/json" \
     ],
     "lang": "en"
   }' \
-  http://localhost:8000/api/v1/reverse/batch
+  http://localhost:8484/api/v1/reverse/batch
 ```
 
 Response:

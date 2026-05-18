@@ -1,6 +1,6 @@
-# Apocalymaps — Rails app
+# Dawarich Atlas — Rails app
 
-The full-stack Rails 8 app for Apocalymaps. Serves the map UI (Hotwire + Stimulus + MapLibre) and exposes the orchestration API (`/api/search`, `/api/whats-here`, `/api/route`).
+The full-stack Rails 8 app for Dawarich Atlas. Serves the map UI (Hotwire + Stimulus + MapLibre) and exposes the orchestration API (`/api/search`, `/api/whats-here`, `/api/route`).
 
 ## Bootstrap
 
@@ -51,11 +51,11 @@ In `app/assets/tailwind/application.css` (Tailwind v4 CSS-first config):
 @import "tailwindcss";
 @plugin "daisyui";
 @plugin "daisyui/theme" {
-  name: "apocalymaps-light";
+  name: "atlas-light";
   default: true;
 }
 @plugin "daisyui/theme" {
-  name: "apocalymaps-dark";
+  name: "atlas-dark";
   prefersdark: true;
 }
 ```
@@ -134,7 +134,7 @@ app/
 DATABASE_URL=sqlite3:/data/app.sqlite3
 
 # PostgreSQL
-DATABASE_URL=postgres://user:pass@host:5432/apocalymaps
+DATABASE_URL=postgres://user:pass@host:5432/atlas
 ```
 
 Rails 8 + ActiveRecord handles the rest. Migrations are DB-agnostic.
@@ -143,5 +143,5 @@ Rails 8 + ActiveRecord handles the rest. Migrations are DB-agnostic.
 
 ```bash
 bin/rspec                 # Ruby specs
-# E2E via Playwright lives in apocalymaps/e2e/ (TBD)
+# E2E via Playwright lives in atlas/e2e/ (TBD)
 ```

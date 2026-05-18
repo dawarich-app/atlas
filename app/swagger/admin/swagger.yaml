@@ -1,7 +1,7 @@
 ---
 openapi: 3.0.3
 info:
-  title: Apocalymaps Admin API
+  title: Dawarich Atlas Admin API
   version: admin
   description: Admin panel endpoints (HTTP Basic auth via ADMIN_USERNAME / ADMIN_PASSWORD).
 servers:
@@ -13,7 +13,7 @@ servers:
       - http
       - https
     host:
-      default: localhost:8000
+      default: localhost:8484
 components:
   securitySchemes:
     basicAuth:

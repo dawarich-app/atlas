@@ -1,7 +1,7 @@
 ---
 openapi: 3.0.3
 info:
-  title: Apocalymaps API
+  title: Dawarich Atlas API
   version: v1
   description: Local-first geocoding, routing, and POI lookup. All endpoints aggregate
     one or more upstream OSM-derived services (Photon, Placeholder, libpostal, Valhalla,
@@ -15,7 +15,7 @@ servers:
       - http
       - https
     host:
-      default: localhost:8000
+      default: localhost:8484
 paths:
   "/api/v1/geocode":
     get:

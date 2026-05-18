@@ -7,7 +7,7 @@ RSpec.configure do |config|
     "v1/swagger.yaml" => {
       openapi: "3.0.3",
       info: {
-        title: "Apocalymaps API",
+        title: "Dawarich Atlas API",
         version: "v1",
         description: "Local-first geocoding, routing, and POI lookup. " \
                      "All endpoints aggregate one or more upstream OSM-derived services " \
@@ -16,7 +16,7 @@ RSpec.configure do |config|
       servers: [
         { url: "{scheme}://{host}", variables: {
             scheme: { default: "http", enum: %w[http https] },
-            host:   { default: "localhost:8000" }
+            host:   { default: "localhost:8484" }
         } }
       ],
       paths: {},
@@ -196,14 +196,14 @@ RSpec.configure do |config|
     "admin/swagger.yaml" => {
       openapi: "3.0.3",
       info: {
-        title: "Apocalymaps Admin API",
+        title: "Dawarich Atlas Admin API",
         version: "admin",
         description: "Admin panel endpoints (HTTP Basic auth via ADMIN_USERNAME / ADMIN_PASSWORD)."
       },
       servers: [
         { url: "{scheme}://{host}",
           variables: { scheme: { default: "http", enum: %w[http https] },
-                       host: { default: "localhost:8000" } } }
+                       host: { default: "localhost:8484" } } }
       ],
       components: {
         securitySchemes: {

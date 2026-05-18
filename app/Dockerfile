@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1
 # check=error=true
 
-# Multi-stage build for Apocalymaps Rails app.
+# Multi-stage build for Dawarich Atlas Rails app.
 # Bump RUBY_VERSION to the current 3.4.x patch when newer releases ship.
 
 ARG RUBY_VERSION=3.4.6

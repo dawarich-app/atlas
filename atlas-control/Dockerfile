@@ -33,7 +33,7 @@ WORKDIR /app
 COPY --from=build /out/apo-control /usr/local/bin/apo-control
 
 ENV LISTEN_ADDR=":8090" \
-    COMPOSE_PROJECT="apocalymaps" \
+    COMPOSE_PROJECT="atlas" \
     COMPOSE_FILE="/work/compose.yml" \
     STATE_DIR="/var/lib/apo-control" \
     DATA_DIR="/work/data" \
