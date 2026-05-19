@@ -25,7 +25,7 @@ Visit [http://localhost:8484](http://localhost:8484). The map page is live as so
 
 City scale boots in minutes; country takes hours of background ingest; planet takes days.
 
-**[Full walkthrough →](https://atlas.dawarich.com/docs/quickstart)**
+**[Full walkthrough →](https://atlas.dawarich.app/docs/quickstart)**
 
 ## Documentation
 
@@ -33,12 +33,12 @@ Every operational topic has a dedicated page on the website. The README is inten
 
 | Topic | Where to read |
 |---|---|
-| What it is, capability list, response envelope | [Introduction](https://atlas.dawarich.com/docs/) |
-| Clone → boot → data layers, admin panel auth, offline basemap | [Quickstart](https://atlas.dawarich.com/docs/quickstart) |
-| Design principles, tech stack, topology, Go sidecar, Nominatim decision | [Architecture](https://atlas.dawarich.com/docs/architecture) |
-| Region presets, multi-region auto-merge, scaling tables (Germany / France / USA / planet) | [Regions](https://atlas.dawarich.com/docs/regions) |
-| Compose profiles, graceful degradation, ports | [Compose profiles](https://atlas.dawarich.com/docs/compose-profiles) |
-| Full OpenAPI spec (Redoc-rendered) | [Public API](https://atlas.dawarich.com/api/v1/) · [Admin API](https://atlas.dawarich.com/api/admin/) |
+| What it is, capability list, response envelope | [Introduction](https://atlas.dawarich.app/docs/) |
+| Clone → boot → data layers, admin panel auth, offline basemap | [Quickstart](https://atlas.dawarich.app/docs/quickstart) |
+| Design principles, tech stack, topology, Go sidecar, Nominatim decision | [Architecture](https://atlas.dawarich.app/docs/architecture) |
+| Region presets, multi-region auto-merge, scaling tables (Germany / France / USA / planet) | [Regions](https://atlas.dawarich.app/docs/regions) |
+| Compose profiles, graceful degradation, ports | [Compose profiles](https://atlas.dawarich.app/docs/compose-profiles) |
+| Full OpenAPI spec (Redoc-rendered) | [Public API](https://atlas.dawarich.app/api/v1/) · [Admin API](https://atlas.dawarich.app/api/admin/) |
 
 Docs source: [`dawarich-app/atlas-website`](https://github.com/dawarich-app/atlas-website).
 
