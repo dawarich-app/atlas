@@ -51,15 +51,6 @@ export default class extends Controller {
     this.projection = "globe"
     this.map.on("load", () => this.map.setProjection({ type: this.projection }))
 
-    // Floating toggles for theme + projection. Mounted bottom-left above the
-    // scale control, away from the side panel.
-    this.map.addControl(new MapToggleControl({
-      onToggleTheme: () => this.toggleTheme(),
-      onToggleProjection: () => this.toggleProjection(),
-      getTheme: () => this.themeValue,
-      getProjection: () => this.projection
-    }), "bottom-left")
-
     // Broadcast bbox changes (debounced) so listeners like the Places panel
     // can re-query for the new viewport.
     this.map.on("moveend", () => {
@@ -73,7 +64,6 @@ export default class extends Controller {
     })
 
     this.map.addControl(new maplibregl.NavigationControl({ visualizePitch: true }), "bottom-right")
-    this.map.addControl(new maplibregl.GlobeControl(), "bottom-right")
     this.map.addControl(new maplibregl.ScaleControl({ unit: "metric" }), "bottom-left")
 
     this.markers = []
@@ -454,20 +444,6 @@ export default class extends Controller {
     `
   }
 
-  toggleTheme() {
-    this.themeValue = this.themeValue === "dark" ? "light" : "dark"
-    this.map.setStyle(this.buildStyle())
-    // Restore any temporary state (route, transit, POI markers) on style reload.
-    this.map.once("styledata", () => {
-      // Sources and layers get cleared on setStyle; consumers re-fire on next interaction.
-    })
-  }
-
-  toggleProjection() {
-    this.projection = this.projection === "globe" ? "mercator" : "globe"
-    this.map.setProjection({ type: this.projection })
-  }
-
   setRouteEndpoint({ role, lon, lat, color }) {
     if (!this.map || typeof lon !== "number" || typeof lat !== "number") return
     if (this.routeEndpoints[role]) this.routeEndpoints[role].remove()
@@ -596,40 +572,6 @@ function escapeText(s) {
   return String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]))
 }
 function escapeAttr(s) { return escapeText(s) }
-
-// Custom MapLibre control: two buttons (theme + projection).
-class MapToggleControl {
-  constructor(opts) { this.opts = opts }
-  onAdd() {
-    const c = document.createElement("div")
-    c.className = "maplibregl-ctrl maplibregl-ctrl-group apo-map-controls"
-    this.themeBtn = document.createElement("button")
-    this.themeBtn.type = "button"
-    this.themeBtn.title = "Toggle light/dark"
-    this.themeBtn.innerHTML = this.opts.getTheme() === "dark" ? sunIcon() : moonIcon()
-    this.themeBtn.addEventListener("click", () => {
-      this.opts.onToggleTheme()
-      this.themeBtn.innerHTML = this.opts.getTheme() === "dark" ? sunIcon() : moonIcon()
-    })
-    this.projBtn = document.createElement("button")
-    this.projBtn.type = "button"
-    this.projBtn.title = "Toggle globe/flat"
-    this.projBtn.innerHTML = this.opts.getProjection() === "globe" ? mapIcon() : globeIcon()
-    this.projBtn.addEventListener("click", () => {
-      this.opts.onToggleProjection()
-      this.projBtn.innerHTML = this.opts.getProjection() === "globe" ? mapIcon() : globeIcon()
-    })
-    c.appendChild(this.themeBtn)
-    c.appendChild(this.projBtn)
-    return c
-  }
-  onRemove() { /* maplibre cleans up */ }
-}
-const CONTROL_ICON = "w-[18px] h-[18px]"
-function sunIcon()   { return lucide("sun",   CONTROL_ICON) }
-function moonIcon()  { return lucide("moon",  CONTROL_ICON) }
-function globeIcon() { return lucide("globe", CONTROL_ICON) }
-function mapIcon()   { return lucide("map",   CONTROL_ICON) }
 
 function stripHttp(url) { return String(url || "").replace(/^https?:\/\/(www\.)?/, "").replace(/\/$/, "") }
 

@@ -20,12 +20,6 @@ module Admin
         partial: "home/region_meta",
         locals: { region: region }
       )
-      Turbo::StreamsChannel.broadcast_replace_to(
-        "region_channel",
-        target: "region_pill",
-        partial: "home/region_pill",
-        locals: { region: region }
-      )
 
       respond_to do |format|
         format.html { head :ok }
