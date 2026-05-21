@@ -29,20 +29,39 @@ jobs:
         run: |
           set -euo pipefail
 
-          version="$(grep -m1 -oE '^## \[[0-9]+\.[0-9]+\.[0-9]+\]' CHANGELOG.md | tr -d '[]' | awk '{print $2}')"
-          if [ -z "$version" ]; then
-            echo "::error::No version heading like '## [x.y.z]' found at the top of CHANGELOG.md"
+          heading="$(grep -m1 -E '^## \[[0-9]+\.[0-9]+\.[0-9]+\]' CHANGELOG.md || true)"
+          if [ -z "$heading" ]; then
+            echo "::error::No version heading like '## [x.y.z] - YYYY-MM-DD' found in CHANGELOG.md"
             exit 1
           fi
 
+          version="$(echo "$heading" | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1)"
           tag="v${version}"
+          suffix="$(echo "$heading" | sed -E 's/^## \[[0-9]+\.[0-9]+\.[0-9]+\][[:space:]]*//')"
+
           echo "version=${version}" >> "$GITHUB_OUTPUT"
           echo "tag=${tag}" >> "$GITHUB_OUTPUT"
 
+          # Case-insensitive "Unreleased" anywhere in the suffix → skip cleanly.
+          if echo "$suffix" | grep -qiE 'unreleased'; then
+            echo "Top entry ${version} is marked Unreleased — nothing to do."
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          # Validate: any dash variant (- ‐ ‑ ‒ – — ― −) + ISO date.
+          if ! echo "$suffix" | grep -qE '^[-‐‑‒–—―−][[:space:]]+[0-9]{4}-[0-9]{2}-[0-9]{2}'; then
+            echo "::error::Heading for ${version} must end with '<dash> YYYY-MM-DD' or contain 'Unreleased' (got: ${heading})"
+            exit 1
+          fi
+
+          # Extract this version's section body, stopping at the next ## heading
+          # or the reference-link footer (e.g. '[0.1.0]: https://...').
           awk -v ver="${version}" '
-            $0 ~ "^## \\[" ver "\\]" { capture = 1; next }
-            capture && /^## \[/        { exit }
-            capture                    { print }
+            $0 ~ "^## \\[" ver "\\]"                  { capture = 1; next }
+            capture && /^## \[/                       { exit }
+            capture && /^\[[0-9]+\.[0-9]+\.[0-9]+\]:/ { exit }
+            capture                                   { print }
           ' CHANGELOG.md > /tmp/release-body.md
 
           if [ ! -s /tmp/release-body.md ]; then
@@ -50,15 +69,11 @@ jobs:
             exit 1
           fi
 
-          {
-            echo "body<<RELEASE_BODY_EOF"
-            cat /tmp/release-body.md
-            echo "RELEASE_BODY_EOF"
-          } >> "$GITHUB_OUTPUT"
-
+          echo "skip=false" >> "$GITHUB_OUTPUT"
           echo "Parsed version: ${version} -> tag ${tag}"
 
-      - name: Skip if tag already exists
+      - name: Check tag existence
+        if: steps.parse.outputs.skip == 'false'
         id: exists
         env:
           TAG: ${{ steps.parse.outputs.tag }}
@@ -71,7 +86,7 @@ jobs:
           fi
 
       - name: Create tag
-        if: steps.exists.outputs.skip == 'false'
+        if: steps.parse.outputs.skip == 'false' && steps.exists.outputs.skip == 'false'
         env:
           TAG: ${{ steps.parse.outputs.tag }}
         run: |
@@ -81,7 +96,7 @@ jobs:
           git push origin "${TAG}"
 
       - name: Create GitHub release
-        if: steps.exists.outputs.skip == 'false'
+        if: steps.parse.outputs.skip == 'false' && steps.exists.outputs.skip == 'false'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAG: ${{ steps.parse.outputs.tag }}
