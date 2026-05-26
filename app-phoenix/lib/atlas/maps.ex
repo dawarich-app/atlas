@@ -1,5 +1,5 @@
 defmodule Atlas.Maps do
   use Boundary,
     deps: [Req, Cachex, Logger, Task],
-    exports: [Result, Search, Reverse, Route, Transit, Geocode]
+    exports: [Result, Search, Reverse, Route, Transit, WhatsHere, Geocode]
 end
