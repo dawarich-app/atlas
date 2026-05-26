@@ -20,7 +20,7 @@ defmodule Atlas.Maps.Upstream.Client do
   def get(req, path, params \\ []) do
     case Req.get(req, url: path, params: params) do
       {:ok, %{status: s, body: body}} when s in 200..299 ->
-        {:ok, body}
+        {:ok, maybe_decode(body)}
 
       {:ok, %{status: s}} ->
         {:error, %BadResponse{message: "#{s} from #{req.options[:base_url]}#{path}", status: s}}
@@ -33,7 +33,7 @@ defmodule Atlas.Maps.Upstream.Client do
   def post(req, path, body) do
     case Req.post(req, url: path, json: body) do
       {:ok, %{status: s, body: response_body}} when s in 200..299 ->
-        {:ok, response_body}
+        {:ok, maybe_decode(response_body)}
 
       {:ok, %{status: s}} ->
         {:error, %BadResponse{message: "#{s} from #{req.options[:base_url]}#{path}", status: s}}
@@ -42,4 +42,13 @@ defmodule Atlas.Maps.Upstream.Client do
         {:error, %Unavailable{message: Exception.message(exception)}}
     end
   end
+
+  defp maybe_decode(body) when is_binary(body) do
+    case Jason.decode(body) do
+      {:ok, decoded} -> decoded
+      {:error, _} -> body
+    end
+  end
+
+  defp maybe_decode(body), do: body
 end
