@@ -43,6 +43,19 @@ defmodule Atlas.Maps.Upstream.Client do
     end
   end
 
+  def post_raw(req, path, body, content_type \\ "text/plain") do
+    case Req.post(req, url: path, body: body, headers: [{"content-type", content_type}]) do
+      {:ok, %{status: s, body: response_body}} when s in 200..299 ->
+        {:ok, maybe_decode(response_body)}
+
+      {:ok, %{status: s}} ->
+        {:error, %BadResponse{message: "#{s} from #{req.options[:base_url]}#{path}", status: s}}
+
+      {:error, exception} ->
+        {:error, %Unavailable{message: Exception.message(exception)}}
+    end
+  end
+
   defp maybe_decode(body) when is_binary(body) do
     case Jason.decode(body) do
       {:ok, decoded} -> decoded
