@@ -1,4 +1,6 @@
 defmodule Atlas do
+  use Boundary, top_level?: true, deps: [], exports: []
+
   @moduledoc """
   Atlas keeps the contexts that define your domain
   and business logic.

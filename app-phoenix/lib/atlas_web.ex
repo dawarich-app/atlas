@@ -1,4 +1,9 @@
 defmodule AtlasWeb do
+  use Boundary,
+    top_level?: true,
+    deps: [Atlas, Phoenix, Phoenix.Controller, Plug],
+    exports: [Endpoint, Router]
+
   @moduledoc """
   The entrypoint for defining your web interface, such
   as controllers, components, channels, and so on.
