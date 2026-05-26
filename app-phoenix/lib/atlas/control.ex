@@ -20,6 +20,8 @@ defmodule Atlas.Control do
       ServiceState,
       ServiceSupervisor,
       LogTailer,
-      SnapshotPersister
+      SnapshotPersister,
+      TilesDownloader,
+      RegionApplier
     ]
 end
