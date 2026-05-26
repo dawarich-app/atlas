@@ -23,16 +23,24 @@ end
 config :atlas, AtlasWeb.Endpoint, http: [port: String.to_integer(System.get_env("PORT", "4000"))]
 
 if config_env() == :prod do
-  database_path =
-    System.get_env("DATABASE_PATH") ||
-      raise """
-      environment variable DATABASE_PATH is missing.
-      For example: /etc/atlas/atlas.db
-      """
+  database_url = System.get_env("DATABASE_URL")
 
-  config :atlas, Atlas.Repo,
-    database: database_path,
-    pool_size: String.to_integer(System.get_env("POOL_SIZE") || "5")
+  database_config =
+    case database_url do
+      url when is_binary(url) and (binary_part(url, 0, 8) == "postgres" or binary_part(url, 0, 10) == "postgresql") ->
+        [url: url, pool_size: String.to_integer(System.get_env("POOL_SIZE") || "10")]
+
+      _ ->
+        [
+          database: System.get_env("DATABASE_PATH") || "/data/atlas.sqlite3",
+          pool_size: String.to_integer(System.get_env("POOL_SIZE") || "5"),
+          journal_mode: :wal,
+          cache_size: -64_000,
+          temp_store: :memory
+        ]
+    end
+
+  config :atlas, Atlas.Repo, database_config
 
   # The secret key base is used to sign/encrypt cookies and other secrets.
   # A default value is used in config/dev.exs and config/test.exs but you
