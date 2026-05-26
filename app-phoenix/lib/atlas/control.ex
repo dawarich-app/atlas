@@ -19,6 +19,7 @@ defmodule Atlas.Control do
       Osmium,
       ServiceState,
       ServiceSupervisor,
-      LogTailer
+      LogTailer,
+      SnapshotPersister
     ]
 end
