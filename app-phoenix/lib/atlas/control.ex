@@ -10,5 +10,15 @@ defmodule Atlas.Control do
       Ecto,
       Ecto.Query
     ],
-    exports: [Service, RegionSelection, Parser, Registry, DockerCompose, Osmium, ServiceState]
+    exports: [
+      Service,
+      RegionSelection,
+      Parser,
+      Registry,
+      DockerCompose,
+      Osmium,
+      ServiceState,
+      ServiceSupervisor,
+      LogTailer
+    ]
 end
