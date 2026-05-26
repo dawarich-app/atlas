@@ -1,6 +1,23 @@
 defmodule AtlasWeb.Api.V1.PoisController do
   use AtlasWeb.Api.V1.BaseController
   alias Atlas.Maps.Poi
+  alias AtlasWeb.Schemas
+
+  import OpenApiSpex.Operation, only: [parameter: 5, response: 3]
+
+  operation(:index,
+    summary: "List POIs within a bounding box",
+    parameters: [
+      parameter(:bbox, :query, :string, "BBox 'w,s,e,n'", required: true),
+      parameter(:types, :query, :string, "Comma-separated POI type ids", required: false),
+      parameter(:limit, :query, :integer, "Max results (1-1000)", required: false),
+      parameter(:lang, :query, :string, "Language code", required: false)
+    ],
+    responses: %{
+      200 => response("POI results", "application/json", Schemas.Response),
+      400 => response("Missing bbox", "application/json", Schemas.Error)
+    }
+  )
 
   def index(conn, params) do
     case parse_bbox(params["bbox"]) do
@@ -27,6 +44,13 @@ defmodule AtlasWeb.Api.V1.PoisController do
         |> json(%{error: %{code: "MISSING_PARAM", message: "bbox required as 'w,s,e,n'"}})
     end
   end
+
+  operation(:categories,
+    summary: "List the POI category catalog",
+    responses: %{
+      200 => response("POI category catalog", "application/json", Schemas.Response)
+    }
+  )
 
   def categories(conn, _params) do
     sections = Atlas.Maps.Poi.Catalog.sections() |> Enum.map(&serialize_section/1)

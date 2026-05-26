@@ -1,6 +1,23 @@
 defmodule AtlasWeb.Api.V1.WhatsHereController do
   use AtlasWeb.Api.V1.BaseController
   alias Atlas.Maps.WhatsHere
+  alias AtlasWeb.Schemas
+
+  import OpenApiSpex.Operation, only: [parameter: 5, response: 3]
+
+  operation(:index,
+    summary: "Describe what is at a coordinate (reverse + nearby fan-out)",
+    parameters: [
+      parameter(:lat, :query, :number, "Latitude", required: true),
+      parameter(:lon, :query, :number, "Longitude", required: true),
+      parameter(:radius, :query, :integer, "Search radius in meters (10-2000)", required: false),
+      parameter(:lang, :query, :string, "Language code", required: false)
+    ],
+    responses: %{
+      200 => response("WhatsHere result", "application/json", Schemas.Response),
+      400 => response("Missing parameter", "application/json", Schemas.Error)
+    }
+  )
 
   def index(conn, params) do
     with lat when not is_nil(lat) <- parse_float(params["lat"]),

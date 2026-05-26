@@ -2,6 +2,7 @@ defmodule AtlasWeb.Api.V1.BaseController do
   defmacro __using__(_) do
     quote do
       use AtlasWeb, :controller
+      use OpenApiSpex.ControllerSpecs
 
       import AtlasWeb.Api.V1.BaseController,
         only: [

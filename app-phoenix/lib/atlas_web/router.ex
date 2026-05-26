@@ -3,6 +3,7 @@ defmodule AtlasWeb.Router do
 
   pipeline :api do
     plug :accepts, ["json"]
+    plug OpenApiSpex.Plug.PutApiSpec, module: AtlasWeb.ApiSpec
   end
 
   scope "/api/v1", AtlasWeb.Api.V1 do
@@ -17,5 +18,10 @@ defmodule AtlasWeb.Router do
     get "/pois", PoisController, :index
     get "/pois/categories", PoisController, :categories
     get "/geocode", GeocodeController, :index
+  end
+
+  scope "/api" do
+    pipe_through :api
+    get "/v1/openapi.json", OpenApiSpex.Plug.RenderSpec, []
   end
 end
