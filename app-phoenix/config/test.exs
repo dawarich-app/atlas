@@ -30,3 +30,7 @@ config :phoenix,
 # Oban — use manual mode in tests so cron jobs don't fire and we can use
 # Oban.Testing helpers to assert enqueued jobs and run them synchronously.
 config :atlas, Oban, testing: :manual
+
+# Don't auto-start Atlas.Control.Supervisor in test env; the integration test
+# brings the tree up explicitly via `start_supervised!/1`.
+config :atlas, :control_supervisor_autostart, false
