@@ -24,4 +24,8 @@ defmodule AtlasWeb.Router do
     pipe_through :api
     get "/v1/openapi.json", OpenApiSpex.Plug.RenderSpec, []
   end
+
+  scope "/", AtlasWeb do
+    get "/up", HealthController, :show
+  end
 end
