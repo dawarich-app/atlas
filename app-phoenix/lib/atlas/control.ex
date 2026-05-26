@@ -10,5 +10,5 @@ defmodule Atlas.Control do
       Ecto,
       Ecto.Query
     ],
-    exports: [Service, RegionSelection, Parser]
+    exports: [Service, RegionSelection, Parser, Registry]
 end
