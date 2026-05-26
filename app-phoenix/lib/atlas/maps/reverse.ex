@@ -2,6 +2,12 @@ defmodule Atlas.Maps.Reverse do
   require Logger
   alias Atlas.Maps.{Result, Upstream.Photon, Upstream.Placeholder, Upstream.Client}
 
+  @max_coords 1000
+  @grid_decimals 6
+
+  def max_coords, do: @max_coords
+  def grid_decimals, do: @grid_decimals
+
   def lookup(opts) do
     %{lat: lat, lon: lon} = Map.new(opts)
     lang = opts[:lang]
@@ -56,6 +62,54 @@ defmodule Atlas.Maps.Reverse do
         nil -> admin
         placeholder_admin -> Map.merge(placeholder_admin, admin)
       end
+    end
+  end
+
+  def batch(%{coords: coords} = opts) do
+    lang = opts[:lang]
+    capped = Enum.take(coords, @max_coords)
+
+    keys = Enum.map(capped, &grid_key/1)
+
+    keys
+    |> Task.async_stream(
+         fn key -> lookup_with_cache(key, lang) end,
+         max_concurrency: 16, ordered: true, timeout: 5_000, on_timeout: :kill_task
+       )
+    |> Enum.zip(capped)
+    |> Enum.reduce(%{results: [], cache_hits: 0, cache_misses: 0, upstream_errors: 0}, fn
+      {{:ok, {:hit, result}}, _coord}, acc ->
+        %{acc | results: acc.results ++ [result], cache_hits: acc.cache_hits + 1}
+
+      {{:ok, {:miss_ok, result}}, _coord}, acc ->
+        %{acc | results: acc.results ++ [result], cache_misses: acc.cache_misses + 1}
+
+      {{:ok, :miss_error}, coord}, acc ->
+        %{acc | results: acc.results ++ [%{coord: coord, error: "upstream"}], upstream_errors: acc.upstream_errors + 1}
+
+      {{:exit, _}, coord}, acc ->
+        %{acc | results: acc.results ++ [%{coord: coord, error: "timeout"}], upstream_errors: acc.upstream_errors + 1}
+    end)
+  end
+
+  defp grid_key(%{lat: lat, lon: lon}) do
+    {Float.round(lat / 1.0, @grid_decimals), Float.round(lon / 1.0, @grid_decimals)}
+  end
+
+  defp lookup_with_cache({lat, lon} = key, lang) do
+    case Cachex.get(:reverse_cache, key) do
+      {:ok, nil} ->
+        case lookup(lat: lat, lon: lon, lang: lang) do
+          %{upstream_status: "ok"} = result ->
+            Cachex.put(:reverse_cache, key, result.features)
+            {:miss_ok, %{coord: %{lat: lat, lon: lon}, here: result.features.here, admin: result.features.admin}}
+
+          _ ->
+            :miss_error
+        end
+
+      {:ok, cached} ->
+        {:hit, %{coord: %{lat: lat, lon: lon}, here: cached.here, admin: cached.admin}}
     end
   end
 end

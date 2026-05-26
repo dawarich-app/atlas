@@ -10,12 +10,22 @@ defmodule Atlas.Maps.Upstream.Client do
   def build(base_url, opts \\ []) do
     Req.new(
       base_url: base_url,
-      connect_options: [timeout: Keyword.get(opts, :open_timeout, 2_000)],
+      connect_options: [
+        timeout: Keyword.get(opts, :open_timeout, 2_000),
+        protocols: [:http1]
+      ],
       receive_timeout: Keyword.get(opts, :timeout, 5_000),
-      retry: false,
+      retry: &retry_only_pool/2,
+      max_retries: 2,
+      retry_delay: 10,
       decode_json: [keys: :strings]
     )
   end
+
+  # Retry only on Finch pool exhaustion. All other errors (connect refused,
+  # 5xx, etc.) fail fast so Bypass-down tests stay quick.
+  defp retry_only_pool(_req, %Req.HTTPError{reason: :pool_not_available}), do: true
+  defp retry_only_pool(_req, _other), do: false
 
   def get(req, path, params \\ []) do
     case Req.get(req, url: path, params: params) do

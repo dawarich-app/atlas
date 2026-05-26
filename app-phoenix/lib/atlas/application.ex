@@ -5,6 +5,8 @@ defmodule Atlas.Application do
 
   use Application
 
+  import Cachex.Spec, only: [expiration: 1]
+
   @impl true
   def start(_type, _args) do
     children = [
@@ -14,6 +16,8 @@ defmodule Atlas.Application do
        repos: Application.fetch_env!(:atlas, :ecto_repos), skip: skip_migrations?()},
       {DNSCluster, query: Application.get_env(:atlas, :dns_cluster_query) || :ignore},
       {Phoenix.PubSub, name: Atlas.PubSub},
+      {Cachex,
+       name: :reverse_cache, expiration: expiration(default: :timer.minutes(60))},
       # Start a worker by calling: Atlas.Worker.start_link(arg)
       # {Atlas.Worker, arg},
       # Start to serve requests, typically the last entry
