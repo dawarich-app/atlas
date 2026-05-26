@@ -4,9 +4,9 @@ set -euo pipefail
 # Captures byte-stable JSON responses from the running Rails app for use as
 # regression fixtures against Phoenix. Run with the Rails app and its sidecars up.
 #
-# Usage:
-#   cd ~/projects/dawarich/atlas/app && bin/rails server &
-#   bash ../app-phoenix/scripts/capture_rails_goldens.sh http://localhost:3000
+# Usage (from the atlas repo root):
+#   (cd app && bin/rails server) &
+#   bash app-phoenix/scripts/capture_rails_goldens.sh http://localhost:3000
 
 RAILS_BASE="${1:-http://localhost:3000}"
 OUT_DIR="$(dirname "$0")/../test/fixtures/goldens"
