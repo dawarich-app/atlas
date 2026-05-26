@@ -41,14 +41,25 @@ defmodule Atlas.MixProject do
     [
       {:phoenix, "~> 1.8.7"},
       {:phoenix_ecto, "~> 4.5"},
+      {:phoenix_live_view, "~> 1.0"},
       {:ecto_sql, "~> 3.13"},
       {:ecto_sqlite3, ">= 0.0.0"},
+      {:postgrex, "~> 0.19"},
       {:telemetry_metrics, "~> 1.0"},
       {:telemetry_poller, "~> 1.0"},
       {:gettext, "~> 1.0"},
       {:jason, "~> 1.2"},
       {:dns_cluster, "~> 0.2.0"},
-      {:bandit, "~> 1.5"}
+      {:bandit, "~> 1.5"},
+      {:req, "~> 0.5"},
+      {:cachex, "~> 4.0"},
+      {:boundary, "~> 0.10", runtime: false},
+      {:open_api_spex, "~> 3.21"},
+      {:oban, "~> 2.18"},
+      {:crontab, "~> 1.1"},
+      {:credo, "~> 1.7", only: [:dev, :test], runtime: false},
+      {:dialyxir, "~> 1.4", only: [:dev, :test], runtime: false},
+      {:mox, "~> 1.2", only: :test}
     ]
   end
 
