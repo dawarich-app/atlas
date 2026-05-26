@@ -23,3 +23,6 @@ data/*
 
 # Local planning / design notes — kept on disk, not shipped to the public repo
 /superpowers/
+
+# Worktrees for isolated feature work
+.worktrees/
