@@ -22,6 +22,8 @@ defmodule Atlas.Control do
       LogTailer,
       SnapshotPersister,
       TilesDownloader,
-      RegionApplier
+      RegionApplier,
+      Jobs.AutoUpdateScan,
+      Jobs.UpdateService
     ]
 end
