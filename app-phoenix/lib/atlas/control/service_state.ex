@@ -58,6 +58,7 @@ defmodule Atlas.Control.ServiceState do
   def disable(name), do: GenServer.call(Registry.via(name), :disable)
   def begin_update(name), do: GenServer.call(Registry.via(name), :begin_update)
   def finish_update(name, opts), do: GenServer.cast(Registry.via(name), {:finish_update, opts})
+  def set_auto_update(name, enabled), do: GenServer.call(Registry.via(name), {:set_auto_update, enabled})
 
   ## Callbacks
 
@@ -115,6 +116,13 @@ defmodule Atlas.Control.ServiceState do
   def handle_call(:begin_update, _from, state) do
     new_state = %{state | update_status: "running"}
     persist_user_field!(new_state, :last_update_status, "running")
+    broadcast(new_state)
+    {:reply, :ok, new_state}
+  end
+
+  def handle_call({:set_auto_update, enabled}, _from, state) do
+    new_state = %{state | auto_update_enabled?: enabled}
+    persist_user_field!(new_state, :auto_update_enabled, enabled)
     broadcast(new_state)
     {:reply, :ok, new_state}
   end
