@@ -48,7 +48,7 @@ defmodule AtlasWeb.Router do
 
     live_session :admin, layout: {AtlasWeb.Layouts, :admin} do
       live "/services", ServicesLive, :index
-      live "/services/:name/logs", PlaceholderLive, :show
+      live "/services/:name/logs", ServiceLogsLive, :show
       live "/regions", PlaceholderLive, :index
       live "/tiles", PlaceholderLive, :index
       live "/apply", PlaceholderLive, :index
