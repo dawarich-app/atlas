@@ -50,7 +50,7 @@ defmodule AtlasWeb.Router do
       live "/services", ServicesLive, :index
       live "/services/:name/logs", ServiceLogsLive, :show
       live "/regions", RegionsLive, :index
-      live "/tiles", PlaceholderLive, :index
+      live "/tiles", TilesLive, :index
       live "/apply", PlaceholderLive, :index
     end
   end
