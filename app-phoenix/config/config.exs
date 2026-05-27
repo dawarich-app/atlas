@@ -30,6 +30,24 @@ config :logger, :default_formatter,
 # Use Jason for JSON parsing in Phoenix
 config :phoenix, :json_library, Jason
 
+# Configure esbuild (the version is required)
+config :esbuild,
+  version: "0.21.5",
+  atlas: [
+    args:
+      ~w(js/app.js --bundle --target=es2022 --outdir=../priv/static/assets --external:/fonts/* --external:/images/*),
+    cd: Path.expand("../assets", __DIR__),
+    env: %{"NODE_PATH" => Path.expand("../deps", __DIR__)}
+  ]
+
+# Configure tailwind (the version is required)
+config :tailwind,
+  version: "4.0.9",
+  atlas: [
+    args: ~w(--input=css/app.css --output=../priv/static/assets/app.css),
+    cd: Path.expand("../assets", __DIR__)
+  ]
+
 # Oban — background jobs (auto-update scan cron + per-service update jobs).
 config :atlas, Oban,
   repo: Atlas.Repo,

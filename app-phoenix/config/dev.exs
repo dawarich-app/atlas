@@ -21,7 +21,19 @@ config :atlas, AtlasWeb.Endpoint,
   code_reloader: true,
   debug_errors: true,
   secret_key_base: "P7cjipdfNAUeSbdCKzyI46HbDwmucYU22GJeQfQmJUTtlIHako6vCBtiHXemU1Mh",
-  watchers: []
+  watchers: [
+    esbuild: {Esbuild, :install_and_run, [:atlas, ~w(--sourcemap=inline --watch)]},
+    tailwind: {Tailwind, :install_and_run, [:atlas, ~w(--watch)]}
+  ]
+
+# Watch static and templates for browser reloading.
+config :atlas, AtlasWeb.Endpoint,
+  live_reload: [
+    patterns: [
+      ~r"priv/static/(?!uploads/).*(js|css|png|jpeg|jpg|gif|svg)$",
+      ~r"lib/atlas_web/(controllers|live|components)/.*(ex|heex)$"
+    ]
+  ]
 
 # ## SSL Support
 #

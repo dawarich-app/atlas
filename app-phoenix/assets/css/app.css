@@ -1,0 +1,28 @@
+@import "tailwindcss";
+
+@plugin "../vendor/daisyui" {
+  themes: false;
+}
+
+@plugin "../vendor/daisyui-theme" {
+  name: "atlas-light";
+  default: true;
+  prefersdark: false;
+  color-scheme: light;
+}
+
+@plugin "../vendor/daisyui-theme" {
+  name: "atlas-dark";
+  prefersdark: true;
+  color-scheme: dark;
+}
+
+/* Atlas-specific overrides */
+html, body { height: 100%; }
+
+.degradation-banner {
+  background-color: oklch(var(--color-warning, 80% 0.18 80));
+  color: oklch(var(--color-warning-content, 20% 0 0));
+  padding: 0.5rem 1rem;
+  font-size: 0.875rem;
+}
