@@ -1,0 +1,15 @@
+<div class="flex h-screen">
+  <aside class="w-64 bg-base-200 p-4">
+    <h1 class="text-xl font-bold mb-4">Atlas Admin</h1>
+    <ul class="menu">
+      <li><.link navigate={~p"/admin/services"}>Services</.link></li>
+      <li><.link navigate={~p"/admin/regions"}>Regions</.link></li>
+      <li><.link navigate={~p"/admin/tiles"}>Tiles</.link></li>
+      <li><.link navigate={~p"/admin/apply"}>Apply</.link></li>
+    </ul>
+  </aside>
+  <main class="flex-1 p-6 overflow-y-auto">
+    <.flash_group flash={@flash} />
+    {@inner_content}
+  </main>
+</div>

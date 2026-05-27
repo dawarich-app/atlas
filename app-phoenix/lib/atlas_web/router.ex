@@ -6,6 +6,15 @@ defmodule AtlasWeb.Router do
     plug OpenApiSpex.Plug.PutApiSpec, module: AtlasWeb.ApiSpec
   end
 
+  pipeline :browser do
+    plug :accepts, ["html"]
+    plug :fetch_session
+    plug :fetch_live_flash
+    plug :put_root_layout, html: {AtlasWeb.Layouts, :root}
+    plug :protect_from_forgery
+    plug :put_secure_browser_headers
+  end
+
   scope "/api/v1", AtlasWeb.Api.V1 do
     pipe_through :api
 
@@ -23,6 +32,11 @@ defmodule AtlasWeb.Router do
   scope "/api" do
     pipe_through :api
     get "/v1/openapi.json", OpenApiSpex.Plug.RenderSpec, []
+  end
+
+  scope "/", AtlasWeb do
+    pipe_through :browser
+    # MapLive at "/" lands in Task 5
   end
 
   scope "/", AtlasWeb do
