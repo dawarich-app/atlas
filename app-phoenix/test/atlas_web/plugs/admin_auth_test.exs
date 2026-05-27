@@ -33,8 +33,8 @@ defmodule AtlasWeb.Plugs.AdminAuthTest do
       |> put_req_header("authorization", "Basic " <> Base.encode64("admin:s3cret"))
       |> get("/admin/services")
 
-    # Auth passed → status is no longer 401. The exact body comes from the
-    # PlaceholderLive until the real ServicesLive lands in Task 6.
+    # Auth passed → status is no longer 401. The exact body comes from
+    # Admin.ServicesLive.
     refute conn.status == 401
   end
 

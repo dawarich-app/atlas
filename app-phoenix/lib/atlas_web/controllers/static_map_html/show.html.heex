@@ -1,0 +1,77 @@
+<div class="static-map-wrapper" style={"width:#{@width}px"}>
+  <div
+    id="static-map"
+    style={"width:#{@width}px;height:#{@height}px"}
+    data-tiles-url={@tiles_url}
+    data-theme={@theme}
+    data-lat={@lat}
+    data-lon={@lon}
+    data-zoom={@zoom}
+    data-route={@route}
+    data-fit={if @fit, do: "1", else: "0"}
+  >
+  </div>
+
+  <%= if @title != "" do %>
+    <h1 class="static-map-title">{@title}</h1>
+  <% end %>
+  <%= if @subtitle != "" do %>
+    <p class="static-map-subtitle">{@subtitle}</p>
+  <% end %>
+  <p class="static-map-brand">{@brand}</p>
+</div>
+
+<script type="text/javascript">
+  (function () {
+    var el = document.getElementById("static-map");
+    if (!el || typeof window.maplibregl === "undefined") return;
+
+    var lat = parseFloat(el.dataset.lat);
+    var lon = parseFloat(el.dataset.lon);
+    var zoom = parseFloat(el.dataset.zoom);
+    var tilesUrl = el.dataset.tilesUrl;
+    var route = el.dataset.route;
+    var fit = el.dataset.fit === "1";
+
+    var map = new window.maplibregl.Map({
+      container: el,
+      style: tilesUrl,
+      center: [lon, lat],
+      zoom: zoom,
+      interactive: false
+    });
+
+    map.on("load", function () {
+      if (route && route.length > 0) {
+        try {
+          var coords = route.split(";").map(function (pair) {
+            var parts = pair.split(",");
+            return [parseFloat(parts[1]), parseFloat(parts[0])];
+          }).filter(function (c) { return !isNaN(c[0]) && !isNaN(c[1]); });
+
+          if (coords.length >= 2) {
+            map.addSource("route", {
+              type: "geojson",
+              data: {
+                type: "Feature",
+                geometry: { type: "LineString", coordinates: coords }
+              }
+            });
+            map.addLayer({
+              id: "route-line",
+              type: "line",
+              source: "route",
+              paint: { "line-color": "#3b82f6", "line-width": 4 }
+            });
+
+            if (fit) {
+              var bounds = coords.reduce(function (b, c) { return b.extend(c); },
+                new window.maplibregl.LngLatBounds(coords[0], coords[0]));
+              map.fitBounds(bounds, { padding: 40, animate: false });
+            }
+          }
+        } catch (e) { /* ignore route parse failures */ }
+      }
+    });
+  })();
+</script>

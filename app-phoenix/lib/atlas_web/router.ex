@@ -41,6 +41,7 @@ defmodule AtlasWeb.Router do
   scope "/", AtlasWeb do
     pipe_through :browser
     live "/", MapLive, :index
+    get "/static_map", StaticMapController, :show
   end
 
   scope "/admin", AtlasWeb.Admin, as: :admin do
