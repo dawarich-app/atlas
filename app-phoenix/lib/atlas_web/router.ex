@@ -15,6 +15,10 @@ defmodule AtlasWeb.Router do
     plug :put_secure_browser_headers
   end
 
+  pipeline :admin_auth do
+    plug AtlasWeb.Plugs.AdminAuth
+  end
+
   scope "/api/v1", AtlasWeb.Api.V1 do
     pipe_through :api
 
@@ -37,6 +41,19 @@ defmodule AtlasWeb.Router do
   scope "/", AtlasWeb do
     pipe_through :browser
     # MapLive at "/" lands in Task 5
+  end
+
+  scope "/admin", AtlasWeb.Admin, as: :admin do
+    pipe_through [:browser, :admin_auth]
+
+    live_session :admin, layout: {AtlasWeb.Layouts, :admin} do
+      # Placeholder routes — replaced by real LiveViews in Tasks 6-10.
+      live "/services", PlaceholderLive, :index
+      live "/services/:name/logs", PlaceholderLive, :show
+      live "/regions", PlaceholderLive, :index
+      live "/tiles", PlaceholderLive, :index
+      live "/apply", PlaceholderLive, :index
+    end
   end
 
   scope "/", AtlasWeb do
