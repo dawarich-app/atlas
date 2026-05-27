@@ -47,8 +47,7 @@ defmodule AtlasWeb.Router do
     pipe_through [:browser, :admin_auth]
 
     live_session :admin, layout: {AtlasWeb.Layouts, :admin} do
-      # Placeholder routes — replaced by real LiveViews in Tasks 6-10.
-      live "/services", PlaceholderLive, :index
+      live "/services", ServicesLive, :index
       live "/services/:name/logs", PlaceholderLive, :show
       live "/regions", PlaceholderLive, :index
       live "/tiles", PlaceholderLive, :index
