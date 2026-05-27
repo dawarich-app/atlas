@@ -1,3 +1,4 @@
+@import "../vendor/maplibre-gl.css";
 @import "tailwindcss";
 
 @plugin "../vendor/daisyui" {
