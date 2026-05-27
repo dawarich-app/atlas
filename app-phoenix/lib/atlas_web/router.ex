@@ -40,7 +40,7 @@ defmodule AtlasWeb.Router do
 
   scope "/", AtlasWeb do
     pipe_through :browser
-    # MapLive at "/" lands in Task 5
+    live "/", MapLive, :index
   end
 
   scope "/admin", AtlasWeb.Admin, as: :admin do

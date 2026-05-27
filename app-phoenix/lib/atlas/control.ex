@@ -17,6 +17,7 @@ defmodule Atlas.Control do
       Registry,
       DockerCompose,
       Osmium,
+      Seeder,
       ServiceState,
       ServiceSupervisor,
       LogTailer,

@@ -1,7 +1,17 @@
 defmodule AtlasWeb do
   use Boundary,
     top_level?: true,
-    deps: [Atlas, Atlas.Control, Phoenix, Phoenix.Controller, Phoenix.LiveView, Plug],
+    deps: [
+      Atlas,
+      Atlas.Control,
+      Atlas.Maps,
+      Atlas.Settings,
+      Phoenix,
+      Phoenix.Controller,
+      Phoenix.LiveView,
+      Phoenix.PubSub,
+      Plug
+    ],
     exports: [Endpoint, Router]
 
   @moduledoc """
