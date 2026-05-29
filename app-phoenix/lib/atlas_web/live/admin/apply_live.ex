@@ -4,7 +4,8 @@ defmodule AtlasWeb.Admin.ApplyLive do
   import Ecto.Query
 
   alias Atlas.Repo
-  alias Atlas.Control.{RegionApplier, RegionSelection}
+  alias Atlas.Control.{RegionApplier, RegionCatalog, RegionSelection}
+  import AtlasWeb.AdminErrorComponents
 
   @impl true
   def mount(_params, _session, socket) do
@@ -13,6 +14,7 @@ defmodule AtlasWeb.Admin.ApplyLive do
        selected: load_selected(),
        apply_state: :idle,
        projection: nil,
+       missing_region: nil,
        job_id: nil,
        error: nil,
        page_title: "Apply"
@@ -22,9 +24,15 @@ defmodule AtlasWeb.Admin.ApplyLive do
   @impl true
   def handle_event("project", _params, socket) do
     region_names = Enum.map(socket.assigns.selected, & &1.region_name)
-    projection = RegionApplier.project(region_names, [])
 
-    {:noreply, assign(socket, apply_state: :projected, projection: projection)}
+    case missing_region(region_names) do
+      nil ->
+        projection = RegionApplier.project(region_names, [])
+        {:noreply, assign(socket, apply_state: :projected, projection: projection, missing_region: nil)}
+
+      name ->
+        {:noreply, assign(socket, apply_state: :error, missing_region: name)}
+    end
   end
 
   @impl true
@@ -114,6 +122,12 @@ defmodule AtlasWeb.Admin.ApplyLive do
     |> where(active: true)
     |> order_by(:position)
     |> Repo.all()
+  end
+
+  defp missing_region(names) do
+    Enum.find(names, fn name ->
+      is_nil(RegionCatalog.find(name))
+    end)
   end
 
   @impl true
@@ -221,10 +235,17 @@ defmodule AtlasWeb.Admin.ApplyLive do
 
   defp render_state(%{apply_state: :error} = assigns) do
     ~H"""
+    <%= if @missing_region do %>
+      <.region_not_found name={@missing_region} available={available_region_names()} />
+    <% end %>
     <button phx-click="project" class="btn btn-primary">Retry</button>
     <%= if @error do %>
       <p class="text-error mt-2 text-sm">{@error}</p>
     <% end %>
     """
+  end
+
+  defp available_region_names do
+    RegionCatalog.all() |> Enum.map(& &1.name)
   end
 end

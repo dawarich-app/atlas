@@ -133,6 +133,16 @@ defmodule AtlasWeb.Admin.ApplyLiveTest do
     assert_receive {:runner_called, ["berlin.osm.pbf"]}, 1_000
   end
 
+  test "project event renders region_not_found error for unknown region", %{conn: conn} do
+    Repo.insert!(%RegionSelection{region_name: "atlantis", active: true, position: 0})
+
+    {:ok, view, _html} = live(conn, ~p"/admin/apply")
+    html = view |> render_click("project", %{})
+
+    assert html =~ "Region not available"
+    assert html =~ "atlantis"
+  end
+
   test "cancel_projection returns to idle state", %{conn: conn} do
     Repo.insert!(%RegionSelection{region_name: "berlin", active: true, position: 0})
 
