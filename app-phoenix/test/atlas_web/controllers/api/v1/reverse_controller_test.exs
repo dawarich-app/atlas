@@ -47,6 +47,12 @@ defmodule AtlasWeb.Api.V1.ReverseControllerTest do
     assert resp["error"]["code"] == "MISSING_PARAM"
   end
 
+  test "GET /api/v1/reverse returns 422 VALIDATION_ERROR when lat non-numeric", %{conn: conn} do
+    resp = conn |> get(~p"/api/v1/reverse?lat=abc&lon=13.4") |> json_response(422)
+    assert resp["error"]["code"] == "VALIDATION_ERROR"
+    assert resp["error"]["message"] =~ "lat"
+  end
+
   test "POST /api/v1/reverse/batch returns 422 VALIDATION_ERROR on coord missing lat", %{conn: conn} do
     resp =
       conn

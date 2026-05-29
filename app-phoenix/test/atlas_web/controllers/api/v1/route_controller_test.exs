@@ -22,4 +22,10 @@ defmodule AtlasWeb.Api.V1.RouteControllerTest do
     resp = conn |> get(~p"/api/v1/route") |> json_response(400)
     assert resp["error"]["code"] == "MISSING_PARAM"
   end
+
+  test "GET /api/v1/route returns 422 VALIDATION_ERROR when from is unparseable", %{conn: conn} do
+    resp = conn |> get(~p"/api/v1/route?from=garbage&to=52.6,13.5") |> json_response(422)
+    assert resp["error"]["code"] == "VALIDATION_ERROR"
+    assert resp["error"]["message"] =~ "from"
+  end
 end

@@ -40,4 +40,10 @@ defmodule AtlasWeb.Api.V1.WhatsHereControllerTest do
     resp = conn |> get(~p"/api/v1/whats-here") |> json_response(400)
     assert resp["error"]["code"] == "MISSING_PARAM"
   end
+
+  test "GET /api/v1/whats-here returns 422 VALIDATION_ERROR when lat is non-numeric", %{conn: conn} do
+    resp = conn |> get(~p"/api/v1/whats-here?lat=abc&lon=13.4") |> json_response(422)
+    assert resp["error"]["code"] == "VALIDATION_ERROR"
+    assert resp["error"]["message"] =~ "lat"
+  end
 end

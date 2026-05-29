@@ -29,6 +29,12 @@ defmodule AtlasWeb.Api.V1.PoisControllerTest do
     assert resp["error"]["code"] == "MISSING_PARAM"
   end
 
+  test "GET /api/v1/pois returns 422 VALIDATION_ERROR when bbox is malformed", %{conn: conn} do
+    resp = conn |> get(~p"/api/v1/pois?bbox=garbage") |> json_response(422)
+    assert resp["error"]["code"] == "VALIDATION_ERROR"
+    assert resp["error"]["message"] =~ "bbox"
+  end
+
   test "GET /api/v1/pois/categories returns nested sections", %{conn: conn} do
     resp = conn |> get(~p"/api/v1/pois/categories") |> json_response(200)
     sections = resp["data"]["sections"]
