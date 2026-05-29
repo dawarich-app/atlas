@@ -26,15 +26,15 @@ defmodule Atlas.Maps.Search do
              end)
           |> Enum.reject(&is_nil/1)
 
-        %Result{features: features, upstream_status: "ok"}
+        {:ok, %Result{features: features, upstream_status: "ok"}}
 
       {:error, %Client.Unavailable{} = e} ->
         Logger.warning("photon unavailable: #{Exception.message(e)}")
-        %Result{features: [], upstream_status: "unavailable"}
+        {:error, e}
 
       {:error, %Client.BadResponse{} = e} ->
         Logger.warning("photon bad response: #{Exception.message(e)}")
-        %Result{features: [], upstream_status: "error"}
+        {:error, e}
     end
   end
 

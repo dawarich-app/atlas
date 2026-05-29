@@ -16,15 +16,15 @@ defmodule Atlas.Maps.Reverse do
       {:ok, geojson} ->
         feature = normalize_feature(geojson)
         admin = if feature, do: maybe_enrich_admin(feature, lang), else: %{}
-        %Result{features: %{here: feature, admin: admin}, upstream_status: "ok"}
+        {:ok, %Result{features: %{here: feature, admin: admin}, upstream_status: "ok"}}
 
       {:error, %Client.Unavailable{} = e} ->
         Logger.warning("photon unavailable: #{Exception.message(e)}")
-        %Result{features: %{here: nil, admin: %{}}, upstream_status: "unavailable"}
+        {:error, e}
 
       {:error, %Client.BadResponse{} = e} ->
         Logger.warning("photon bad response: #{Exception.message(e)}")
-        %Result{features: %{here: nil, admin: %{}}, upstream_status: "error"}
+        {:error, e}
     end
   end
 
@@ -100,7 +100,7 @@ defmodule Atlas.Maps.Reverse do
     case Cachex.get(:reverse_cache, key) do
       {:ok, nil} ->
         case lookup(lat: lat, lon: lon, lang: lang) do
-          %{upstream_status: "ok"} = result ->
+          {:ok, %{upstream_status: "ok"} = result} ->
             Cachex.put(:reverse_cache, key, result.features)
             {:miss_ok, %{coord: %{lat: lat, lon: lon}, here: result.features.here, admin: result.features.admin}}
 
@@ -113,7 +113,7 @@ defmodule Atlas.Maps.Reverse do
 
       {:error, _} ->
         case lookup(lat: lat, lon: lon, lang: lang) do
-          %{upstream_status: "ok"} = result ->
+          {:ok, %{upstream_status: "ok"} = result} ->
             {:miss_ok, %{coord: %{lat: lat, lon: lon}, here: result.features.here, admin: result.features.admin}}
 
           _ ->

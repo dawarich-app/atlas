@@ -11,24 +11,24 @@ defmodule Atlas.Maps.Poi do
 
     cond do
       is_nil(bbox) or length(bbox) != 4 ->
-        %Result{features: [], upstream_status: "error"}
+        {:error, :invalid, "bbox required as 'w,s,e,n'", %{}}
 
       selectors == [] ->
-        %Result{features: [], upstream_status: "error"}
+        {:error, :invalid, "no known types in #{inspect(types)}", %{types: types}}
 
       true ->
         case Overpass.bbox(bbox: bbox, filters: selectors, limit: opts[:limit] || 300) do
           {:ok, %{"elements" => elements}} ->
             features = Enum.map(elements, &poi_feature(&1, types))
-            %Result{features: features, upstream_status: "ok"}
+            {:ok, %Result{features: features, upstream_status: "ok"}}
 
           {:error, %Client.Unavailable{} = e} ->
             Logger.warning("overpass unavailable: #{Exception.message(e)}")
-            %Result{features: [], upstream_status: "unavailable"}
+            {:error, e}
 
           {:error, %Client.BadResponse{} = e} ->
             Logger.warning("overpass bad response: #{Exception.message(e)}")
-            %Result{features: [], upstream_status: "error"}
+            {:error, e}
         end
     end
   end

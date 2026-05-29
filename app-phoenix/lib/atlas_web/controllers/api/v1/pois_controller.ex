@@ -1,5 +1,7 @@
 defmodule AtlasWeb.Api.V1.PoisController do
   use AtlasWeb.Api.V1.BaseController
+  action_fallback AtlasWeb.Api.V1.FallbackController
+
   alias Atlas.Maps.Poi
   alias AtlasWeb.Schemas
 
@@ -20,12 +22,12 @@ defmodule AtlasWeb.Api.V1.PoisController do
   )
 
   def index(conn, params) do
-    case parse_bbox(params["bbox"]) do
-      [_, _, _, _] = bbox ->
-        types = parse_types(params["types"])
-        limit = clamp_int(params["limit"], 300, 1, 1000)
-        result = Poi.nearby(bbox: bbox, types: types, limit: limit, lang: params["lang"])
+    with {:ok, bbox} <- require_bbox(params["bbox"]) do
+      types = parse_types(params["types"])
+      limit = clamp_int(params["limit"], 300, 1, 1000)
 
+      with {:ok, result} <-
+             Poi.nearby(bbox: bbox, types: types, limit: limit, lang: params["lang"]) do
         json(conn, %{
           data: %{features: result.features},
           meta:
@@ -37,9 +39,17 @@ defmodule AtlasWeb.Api.V1.PoisController do
               count: length(result.features)
             })
         })
+      end
+    end
+  end
 
-      _ ->
-        missing_param(conn, "bbox")
+  defp require_bbox(nil), do: {:error, :missing, "bbox"}
+  defp require_bbox(""), do: {:error, :missing, "bbox"}
+
+  defp require_bbox(raw) when is_binary(raw) do
+    case parse_bbox(raw) do
+      [_, _, _, _] = bbox -> {:ok, bbox}
+      _ -> {:error, :invalid, "bbox must be 'w,s,e,n'", %{param: "bbox"}}
     end
   end
 

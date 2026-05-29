@@ -20,7 +20,7 @@ defmodule Atlas.Maps.WhatsHereTest do
       end
     end)
 
-    %Result{features: %{here: here, admin: _admin, nearby: [first_poi]}, upstream_status: "ok"} =
+    {:ok, %Result{features: %{here: here, admin: _admin, nearby: [first_poi]}, upstream_status: "ok"}} =
       WhatsHere.lookup(lat: 52.5, lon: 13.4, radius: 200)
 
     assert here.name == "BG"
@@ -37,7 +37,9 @@ defmodule Atlas.Maps.WhatsHereTest do
       end
     end)
 
-    %Result{features: %{nearby: nearby}, upstream_status: "ok"} = WhatsHere.lookup(lat: 52.5, lon: 13.4, radius: 200)
+    {:ok, %Result{features: %{nearby: nearby}, upstream_status: "ok"}} =
+      WhatsHere.lookup(lat: 52.5, lon: 13.4, radius: 200)
+
     assert nearby == []
   end
 end

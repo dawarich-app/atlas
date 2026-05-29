@@ -4,10 +4,19 @@ defmodule Atlas.Maps.Geocode do
 
   def lookup(opts) do
     case Photon.search(query: opts[:query], limit: 1, lang: opts[:lang]) do
-      {:ok, %{"features" => [first | _]}} -> %Result{features: normalize(first), upstream_status: "ok"}
-      {:ok, _} -> %Result{features: nil, upstream_status: "ok"}
-      {:error, %Client.Unavailable{} = e} -> Logger.warning("photon unavailable: #{Exception.message(e)}"); %Result{features: nil, upstream_status: "unavailable"}
-      {:error, %Client.BadResponse{} = e} -> Logger.warning("photon bad response: #{Exception.message(e)}"); %Result{features: nil, upstream_status: "error"}
+      {:ok, %{"features" => [first | _]}} ->
+        {:ok, %Result{features: normalize(first), upstream_status: "ok"}}
+
+      {:ok, _} ->
+        {:ok, %Result{features: nil, upstream_status: "ok"}}
+
+      {:error, %Client.Unavailable{} = e} ->
+        Logger.warning("photon unavailable: #{Exception.message(e)}")
+        {:error, e}
+
+      {:error, %Client.BadResponse{} = e} ->
+        Logger.warning("photon bad response: #{Exception.message(e)}")
+        {:error, e}
     end
   end
 

@@ -11,12 +11,12 @@ defmodule Atlas.Maps.GeocodeTest do
 
   test "lookup returns first feature on Photon success", %{bypass: bypass} do
     Bypass.expect_once(bypass, "GET", "/api", fn conn -> Plug.Conn.resp(conn, 200, ~s({"features":[{"geometry":{"coordinates":[13.4,52.5]},"properties":{"name":"X"}}]})) end)
-    assert %Result{features: feature, upstream_status: "ok"} = Geocode.lookup(query: "X")
+    assert {:ok, %Result{features: feature, upstream_status: "ok"}} = Geocode.lookup(query: "X")
     assert feature.name == "X"
   end
 
-  test "lookup returns nil + unavailable when down", %{bypass: bypass} do
+  test "lookup returns {:error, %Unavailable{}} when down", %{bypass: bypass} do
     Bypass.down(bypass)
-    assert %Result{features: nil, upstream_status: "unavailable"} = Geocode.lookup(query: "X")
+    assert {:error, %Atlas.Maps.Upstream.Client.Unavailable{}} = Geocode.lookup(query: "X")
   end
 end

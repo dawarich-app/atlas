@@ -39,24 +39,34 @@ defmodule AtlasWeb.MapLive do
     if trimmed == "" do
       {:noreply, assign(socket, search_query: q, search_results: [])}
     else
-      result =
-        Maps.Search.autocomplete(%{
-          query: trimmed,
-          limit: 8,
-          lang: nil,
-          lat: nil,
-          lon: nil,
-          bbox: nil
-        })
+      case Maps.Search.autocomplete(%{
+             query: trimmed,
+             limit: 8,
+             lang: nil,
+             lat: nil,
+             lon: nil,
+             bbox: nil
+           }) do
+        {:ok, result} ->
+          {:noreply,
+           socket
+           |> assign(
+             search_query: q,
+             search_results: result.features,
+             upstream_status: result.upstream_status
+           )
+           |> push_event("map:clear_markers", %{})}
 
-      {:noreply,
-       socket
-       |> assign(
-         search_query: q,
-         search_results: result.features,
-         upstream_status: result.upstream_status
-       )
-       |> push_event("map:clear_markers", %{})}
+        {:error, _e} ->
+          {:noreply,
+           socket
+           |> assign(
+             search_query: q,
+             search_results: [],
+             upstream_status: "unavailable"
+           )
+           |> push_event("map:clear_markers", %{})}
+      end
     end
   end
 
@@ -91,14 +101,13 @@ defmodule AtlasWeb.MapLive do
     mode = Map.get(params, "mode", socket.assigns.mode)
 
     with {:ok, from_coords} <- parse_latlon(from),
-         {:ok, to_coords} <- parse_latlon(to) do
-      result =
-        Maps.Route.plan(
-          from: from_coords,
-          to: to_coords,
-          mode: mode
-        )
-
+         {:ok, to_coords} <- parse_latlon(to),
+         {:ok, result} <-
+           Maps.Route.plan(
+             from: from_coords,
+             to: to_coords,
+             mode: mode
+           ) do
       case result.features do
         %{trip: %{"legs" => legs}} when is_list(legs) ->
           geojson = legs_to_geojson(legs)
@@ -120,6 +129,12 @@ defmodule AtlasWeb.MapLive do
         {:noreply,
          socket
          |> put_flash(:error, "Could not parse from/to as lat,lon")}
+
+      {:error, _e} ->
+        {:noreply,
+         socket
+         |> assign(directions: %{trip: nil}, upstream_status: "unavailable")
+         |> put_flash(:error, "Routing service unavailable")}
     end
   end
 

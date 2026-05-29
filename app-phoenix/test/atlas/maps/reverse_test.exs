@@ -19,15 +19,17 @@ defmodule Atlas.Maps.ReverseTest do
       end
     end)
 
-    assert %Result{features: %{here: feature, admin: admin}, upstream_status: "ok"} =
+    assert {:ok, %Result{features: %{here: feature, admin: admin}, upstream_status: "ok"}} =
              Reverse.lookup(lat: 52.5, lon: 13.4)
 
     assert feature.name == "Brandenburg Gate"
     assert admin.city == "Berlin"
   end
 
-  test "lookup returns unavailable when Photon down", %{bypass: bypass} do
+  test "lookup returns {:error, %Unavailable{}} when Photon down", %{bypass: bypass} do
     Bypass.down(bypass)
-    assert %Result{upstream_status: "unavailable"} = Reverse.lookup(lat: 52.5, lon: 13.4)
+
+    assert {:error, %Atlas.Maps.Upstream.Client.Unavailable{}} =
+             Reverse.lookup(lat: 52.5, lon: 13.4)
   end
 end
