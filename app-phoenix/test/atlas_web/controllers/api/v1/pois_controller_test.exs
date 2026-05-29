@@ -57,6 +57,28 @@ defmodule AtlasWeb.Api.V1.PoisControllerTest do
     assert resp["meta"]["q"] == "bistro"
   end
 
+  test "GET /api/v1/pois with empty types defaults to first 2 pinned catalog items", %{conn: conn, bypass: bypass} do
+    Bypass.expect_once(bypass, "POST", "/api/interpreter", fn c ->
+      Plug.Conn.resp(c, 200, ~s({"elements":[]}))
+    end)
+
+    resp = conn |> get(~p"/api/v1/pois?bbox=52.0,13.0,53.0,14.0") |> json_response(200)
+
+    types = resp["meta"]["types"]
+    assert is_list(types)
+    assert length(types) > 0
+    assert length(types) <= 2
+
+    pinned_ids = Atlas.Maps.Poi.Catalog.pinned() |> Enum.take(2) |> Enum.map(& &1.id)
+    assert types == pinned_ids
+  end
+
+  test "GET /api/v1/pois returns 422 when all types are unknown", %{conn: conn} do
+    resp = conn |> get(~p"/api/v1/pois?bbox=52.0,13.0,53.0,14.0&types=does-not-exist,also-bogus") |> json_response(422)
+    assert resp["error"]["code"] == "VALIDATION_ERROR"
+    assert resp["error"]["message"] =~ "no recognised types"
+  end
+
   test "GET /api/v1/pois/categories returns nested sections", %{conn: conn} do
     resp = conn |> get(~p"/api/v1/pois/categories") |> json_response(200)
     sections = resp["data"]["sections"]
