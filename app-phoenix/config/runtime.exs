@@ -25,6 +25,18 @@ config :atlas, AtlasWeb.Endpoint, http: [port: String.to_integer(System.get_env(
 if config_env() == :prod do
   database_url = System.get_env("DATABASE_URL")
 
+  if is_binary(database_url) and
+       (String.starts_with?(database_url, "postgres://") or
+          String.starts_with?(database_url, "postgresql://")) and
+       Atlas.Repo.__adapter__() != Ecto.Adapters.Postgres do
+    raise """
+    DATABASE_URL points to Postgres, but the release was built with the SQLite3 adapter.
+
+    Rebuild with `ATLAS_DB_ADAPTER=postgres MIX_ENV=prod mix release` to enable
+    Postgres support, or unset DATABASE_URL to use SQLite.
+    """
+  end
+
   database_config =
     case database_url do
       url when is_binary(url) and (binary_part(url, 0, 8) == "postgres" or binary_part(url, 0, 10) == "postgresql") ->
