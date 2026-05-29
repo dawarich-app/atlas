@@ -32,4 +32,16 @@ defmodule Atlas.Maps.ReverseTest do
     assert {:error, %Atlas.Maps.Upstream.Client.Unavailable{}} =
              Reverse.lookup(lat: 52.5, lon: 13.4)
   end
+
+  test "lookup feature.label includes state component and dedupes via uniq", %{bypass: bypass} do
+    Bypass.expect(bypass, fn conn ->
+      case conn.request_path do
+        "/reverse" -> Plug.Conn.resp(conn, 200, ~s({"features":[{"geometry":{"coordinates":[13.4,52.5]},"properties":{"osm_id":2,"osm_type":"N","name":"Mitte","city":"Berlin","state":"Berlin","country":"Germany"}}]}))
+        "/parser/search" -> Plug.Conn.resp(conn, 200, "[]")
+      end
+    end)
+
+    assert {:ok, %Result{features: %{here: feature}}} = Reverse.lookup(lat: 52.5, lon: 13.4)
+    assert feature.label == "Mitte, Berlin, Germany"
+  end
 end
