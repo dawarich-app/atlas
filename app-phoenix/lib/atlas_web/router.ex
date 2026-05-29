@@ -54,6 +54,12 @@ defmodule AtlasWeb.Router do
       live "/tiles", TilesLive, :index
       live "/apply", ApplyLive, :index
     end
+
+    get "/tiles.json", TilesController, :show
+    post "/tiles.json", TilesController, :update
+    patch "/tiles.json", TilesController, :update
+    post "/regions.json", RegionsController, :update
+    patch "/regions.json", RegionsController, :update
   end
 
   scope "/", AtlasWeb do
