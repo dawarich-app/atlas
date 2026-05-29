@@ -50,17 +50,15 @@ defmodule AtlasWeb.Api.V1.ReverseController do
   )
 
   def batch(conn, %{"coords" => coords} = params) when is_list(coords) do
-    with {:ok, normalized} <- normalize_coords(coords) do
-      result = Reverse.batch(%{coords: normalized, lang: params["lang"]})
-
+    with {:ok, summary} <- Reverse.batch(%{coords: coords, lang: params["lang"]}) do
       json(conn, %{
-        data: result.results,
+        data: summary.results,
         meta:
           meta(conn, %{
-            count: length(result.results),
-            cache_hits: result.cache_hits,
-            cache_misses: result.cache_misses,
-            upstream_errors: result.upstream_errors,
+            count: length(summary.results),
+            cache_hits: summary.cache_hits,
+            cache_misses: summary.cache_misses,
+            upstream_errors: summary.upstream_errors,
             grid_precision: Reverse.grid_decimals(),
             max_coords: Reverse.max_coords()
           })
@@ -74,26 +72,6 @@ defmodule AtlasWeb.Api.V1.ReverseController do
     case parse_float(raw) do
       nil -> {:error, :invalid, "#{name} must be numeric", %{param: name}}
       f -> {:ok, f}
-    end
-  end
-
-  defp normalize_coords(coords) do
-    coords
-    |> Enum.with_index()
-    |> Enum.reduce_while({:ok, []}, fn {coord, idx}, {:ok, acc} ->
-      case coord do
-        %{"lat" => lat, "lon" => lon} when is_number(lat) and is_number(lon) ->
-          {:cont, {:ok, [%{lat: lat * 1.0, lon: lon * 1.0} | acc]}}
-
-        _ ->
-          {:halt,
-           {:error, :invalid, "coord at index #{idx} is missing lat/lon or has invalid values",
-            %{coord_index: idx}}}
-      end
-    end)
-    |> case do
-      {:ok, acc} -> {:ok, Enum.reverse(acc)}
-      err -> err
     end
   end
 end
