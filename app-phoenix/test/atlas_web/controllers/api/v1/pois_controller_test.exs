@@ -15,7 +15,7 @@ defmodule AtlasWeb.Api.V1.PoisControllerTest do
 
     resp =
       conn
-      |> get(~p"/api/v1/pois?bbox=13.0,52.0,14.0,53.0&types=cafe")
+      |> get(~p"/api/v1/pois?bbox=52.0,13.0,53.0,14.0&types=cafe")
       |> json_response(200)
 
     assert [%{"name" => "Café Berlin", "category" => "cafe"}] = resp["data"]["features"]

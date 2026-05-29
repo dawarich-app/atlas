@@ -37,7 +37,7 @@ defmodule Atlas.Maps.PoiTest do
     end)
 
     assert {:ok, %Result{features: [feat], upstream_status: "ok"}} =
-             Poi.nearby(bbox: [13.0, 52.0, 14.0, 53.0], types: ["restaurant"])
+             Poi.nearby(bbox: [52.0, 13.0, 53.0, 14.0], types: ["restaurant"])
 
     assert feat.id == "node/1"
     assert feat.name == "Brandenburger Bistro"
@@ -47,7 +47,7 @@ defmodule Atlas.Maps.PoiTest do
 
   test "nearby/1 returns {:error, :invalid, ...} when types resolve to no selectors" do
     assert {:error, :invalid, _msg, _details} =
-             Poi.nearby(bbox: [13.0, 52.0, 14.0, 53.0], types: ["does-not-exist"])
+             Poi.nearby(bbox: [52.0, 13.0, 53.0, 14.0], types: ["does-not-exist"])
   end
 
   test "nearby/1 returns {:error, :invalid, ...} when bbox missing" do

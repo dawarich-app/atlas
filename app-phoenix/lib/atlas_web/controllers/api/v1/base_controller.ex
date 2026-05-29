@@ -72,8 +72,8 @@ defmodule AtlasWeb.Api.V1.BaseController do
 
   def parse_bbox(v) when is_binary(v) do
     case String.split(v, ",") do
-      [w, s, e, n] ->
-        parsed = Enum.map([w, s, e, n], &parse_float/1)
+      [a, b, c, d] ->
+        parsed = Enum.map([a, b, c, d], &parse_float/1)
         if Enum.any?(parsed, &is_nil/1), do: nil, else: parsed
 
       _ ->

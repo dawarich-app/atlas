@@ -10,7 +10,7 @@ defmodule AtlasWeb.Api.V1.PoisController do
   operation(:index,
     summary: "List POIs within a bounding box",
     parameters: [
-      parameter(:bbox, :query, :string, "BBox 'w,s,e,n'", required: true),
+      parameter(:bbox, :query, :string, "BBox 's,w,n,e' (south,west,north,east)", required: true),
       parameter(:types, :query, :string, "Comma-separated POI type ids", required: false),
       parameter(:limit, :query, :integer, "Max results (1-1000)", required: false),
       parameter(:lang, :query, :string, "Language code", required: false)
@@ -49,7 +49,7 @@ defmodule AtlasWeb.Api.V1.PoisController do
   defp require_bbox(raw) when is_binary(raw) do
     case parse_bbox(raw) do
       [_, _, _, _] = bbox -> {:ok, bbox}
-      _ -> {:error, :invalid, "bbox must be 'w,s,e,n'", %{param: "bbox"}}
+      _ -> {:error, :invalid, "bbox must be 's,w,n,e'", %{param: "bbox"}}
     end
   end
 
