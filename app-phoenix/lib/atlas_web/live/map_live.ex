@@ -1,9 +1,12 @@
 defmodule AtlasWeb.MapLive do
   use AtlasWeb, :live_view
 
+  import Ecto.Query
+
   alias Atlas.Maps
+  alias Atlas.Repo
   alias Atlas.Settings
-  alias Atlas.Control.{Seeder, ServiceState}
+  alias Atlas.Control.{RegionSelection, Seeder, ServiceState}
 
   @impl true
   def mount(_params, _session, socket) do
@@ -28,6 +31,7 @@ defmodule AtlasWeb.MapLive do
        mode: "auto",
        places: [],
        service_status: %{},
+       active_regions: load_active_regions(),
        upstream_status: "ok"
      )}
   end
@@ -171,6 +175,16 @@ defmodule AtlasWeb.MapLive do
 
   def handle_info(_other, socket), do: {:noreply, socket}
 
+  defp load_active_regions do
+    RegionSelection
+    |> where(active: true)
+    |> order_by(:position)
+    |> Repo.all()
+    |> Enum.map(& &1.region_name)
+  rescue
+    _ -> []
+  end
+
   defp safely_snapshot(name) do
     ServiceState.snapshot(name)
   rescue
@@ -249,6 +263,7 @@ defmodule AtlasWeb.MapLive do
           tiles_url={@tiles_url}
           theme={@theme}
           service_status={@service_status}
+          active_regions={@active_regions}
         />
         <%= if @upstream_status != "ok" do %>
           <.live_component
