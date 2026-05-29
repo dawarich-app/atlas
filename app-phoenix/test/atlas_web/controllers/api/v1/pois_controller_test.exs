@@ -88,4 +88,15 @@ defmodule AtlasWeb.Api.V1.PoisControllerTest do
     restaurant = Enum.find(food["items"], &(&1["id"] == "restaurant"))
     assert restaurant["pinned"] == true
   end
+
+  test "GET /api/v1/pois/categories inlines icon_svg bytes per section + item", %{conn: conn} do
+    resp = conn |> get(~p"/api/v1/pois/categories") |> json_response(200)
+    [section | _] = resp["data"]["sections"]
+    assert is_binary(section["icon_svg"])
+    assert section["icon_svg"] =~ "<svg"
+
+    [item | _] = section["items"]
+    assert is_binary(item["icon_svg"])
+    assert item["icon_svg"] =~ "<svg"
+  end
 end

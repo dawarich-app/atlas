@@ -112,9 +112,16 @@ defmodule AtlasWeb.Api.V1.PoisController do
       id: section.id,
       label: section.label,
       icon: section.icon,
+      icon_svg: Catalog.icon_svg(section.icon),
       items:
         Enum.map(section.items, fn item ->
-          %{id: item.id, label: item.label, icon: item.icon, pinned: item.pinned}
+          %{
+            id: item.id,
+            label: item.label,
+            icon: item.icon,
+            icon_svg: Catalog.icon_svg(item.icon),
+            pinned: item.pinned
+          }
         end)
     }
   end
