@@ -59,7 +59,11 @@ defmodule Atlas.Maps.Search do
     %{
       id: [props["osm_type"], props["osm_id"]] |> Enum.reject(&is_nil/1) |> Enum.join(":"),
       name: props["name"],
-      label: [props["name"], props["city"], props["country"]] |> Enum.reject(&is_nil/1) |> Enum.join(", "),
+      label:
+        [props["name"], props["city"], props["state"], props["country"]]
+        |> Enum.reject(&is_nil/1)
+        |> Enum.uniq()
+        |> Enum.join(", "),
       type: props["osm_value"] || props["osm_key"],
       coords: %{lon: lon, lat: lat},
       admin: admin
