@@ -7,6 +7,8 @@ defmodule AtlasWeb.Api.V1.RouteController do
 
   import OpenApiSpex.Operation, only: [parameter: 5, response: 3]
 
+  @valid_modes ~w(auto bicycle pedestrian motorcycle bus truck)
+
   operation(:show,
     summary: "Plan a route between two coordinates",
     parameters: [
@@ -29,16 +31,18 @@ defmodule AtlasWeb.Api.V1.RouteController do
   def show(conn, params) do
     with {:ok, from} <- parse_endpoint(params["from"], "from"),
          {:ok, to} <- parse_endpoint(params["to"], "to"),
+         {:ok, mode} <- parse_mode(params["mode"]),
+         opts = options(params),
          {:ok, result} <-
            Route.plan(
              from: from,
              to: to,
-             mode: params["mode"] || "auto",
-             options: options(params)
+             mode: mode,
+             options: opts
            ) do
       json(conn, %{
         data: result.features,
-        meta: meta(conn, %{upstream: result.upstream_status})
+        meta: meta(conn, %{upstream: result.upstream_status, mode: mode, options: opts})
       })
     end
   end
@@ -53,13 +57,26 @@ defmodule AtlasWeb.Api.V1.RouteController do
     end
   end
 
-  defp options(params) do
-    %{}
-    |> add_if(params["avoid_tolls"] in ["1", "true"], :avoid_tolls, true)
-    |> add_if(params["avoid_highways"] in ["1", "true"], :avoid_highways, true)
-    |> add_if(params["avoid_ferries"] in ["1", "true"], :avoid_ferries, true)
+  defp parse_mode(nil), do: {:ok, "auto"}
+  defp parse_mode(""), do: {:ok, "auto"}
+
+  defp parse_mode(m) when is_binary(m) do
+    if m in @valid_modes do
+      {:ok, m}
+    else
+      {:error, :invalid, "mode must be one of #{Enum.join(@valid_modes, ", ")}",
+       %{param: "mode", allowed: @valid_modes}}
+    end
   end
 
-  defp add_if(map, false, _key, _val), do: map
-  defp add_if(map, true, key, val), do: Map.put(map, key, val)
+  defp options(params) do
+    %{
+      avoid_tolls: truthy?(params["avoid_tolls"]),
+      avoid_highways: truthy?(params["avoid_highways"]),
+      avoid_ferries: truthy?(params["avoid_ferries"])
+    }
+  end
+
+  defp truthy?(v) when v in ["1", "true", "TRUE", "True", "yes", "on", true], do: true
+  defp truthy?(_), do: false
 end
