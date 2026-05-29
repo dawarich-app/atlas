@@ -4,20 +4,31 @@ defmodule AtlasWeb.ApiParityTest do
 
   Phased gate:
 
-  * **M1 (this milestone)** — structural parity only. When a captured Rails
-    golden exists in `test/fixtures/goldens/<name>.json` we assert the
-    top-level envelope keys (`data`, `meta`, ...) match. No goldens are
-    captured at M1, so these assertions are inert — the harness wiring is
-    what matters here.
+  * **M1** — structural parity only. When a captured Rails golden exists in
+    `test/fixtures/goldens/<name>.json` we assert the top-level envelope
+    keys (`data`, `meta`, ...) match. No goldens are captured at M1, so
+    these assertions are inert — the harness wiring is what matters here.
 
-  * **M5 (Phase A)** — upstream errors now map to 502/503 via
+  * **M5 Phase A** — upstream errors now map to 502/503 via
     `FallbackController`. Each test stubs Bypass so the endpoint returns
-    200 with a valid envelope. Real golden capture lands in M5 Phase E.
+    200 with a valid envelope.
 
-  * **M4 (cutover)** — byte-diff parity. Capture Rails traffic with
-    `vcr`-style recording, stub the upstream HTTP responses identically
-    against Phoenix, then enable `GoldenHelper.diff/2` to require full
-    JSON equality (modulo volatile `meta` fields).
+  * **M5 Phase E (this milestone)** — byte-diff parity gate is wired via
+    `GoldenHelper.assert_byte_diff/2`. Until Rails goldens are captured
+    manually (see `scripts/M5_GOLDENS_CAPTURE.md`), `assert_byte_diff/2`
+    is a no-op against `nil`. Once `scripts/capture_rails_goldens.sh` has
+    populated `test/fixtures/goldens/`, the harness asserts full JSON
+    equality (modulo volatile `meta.timestamp` and `meta.request_id`).
+
+  ## Manual capture procedure (run BEFORE the M4 §Task 9 destructive swap)
+
+      cd ../app && bin/rails server -p 3000 &
+      sleep 10
+      cd ../app-phoenix
+      bash scripts/capture_rails_goldens.sh http://localhost:3000
+      mix test --only parity
+
+  Full procedure: `scripts/M5_GOLDENS_CAPTURE.md`.
   """
   use AtlasWeb.ConnCase, async: false
   alias AtlasWeb.GoldenHelper
@@ -63,6 +74,7 @@ defmodule AtlasWeb.ApiParityTest do
       actual = conn |> get(~p"/api/v1/search?q=berlin&limit=5") |> json_response(200)
       expected = GoldenHelper.load("search-berlin")
       GoldenHelper.assert_envelope_shape(actual, expected)
+      GoldenHelper.assert_byte_diff(actual, expected)
     end
   end
 
@@ -75,6 +87,7 @@ defmodule AtlasWeb.ApiParityTest do
 
       expected = GoldenHelper.load("search-with-bbox")
       GoldenHelper.assert_envelope_shape(actual, expected)
+      GoldenHelper.assert_byte_diff(actual, expected)
     end
   end
 
@@ -83,6 +96,7 @@ defmodule AtlasWeb.ApiParityTest do
       actual = conn |> get(~p"/api/v1/reverse?lat=52.5163&lon=13.3777") |> json_response(200)
       expected = GoldenHelper.load("reverse-brandenburg")
       GoldenHelper.assert_envelope_shape(actual, expected)
+      GoldenHelper.assert_byte_diff(actual, expected)
     end
   end
 
@@ -97,6 +111,7 @@ defmodule AtlasWeb.ApiParityTest do
 
       expected = GoldenHelper.load("reverse-batch-two")
       GoldenHelper.assert_envelope_shape(actual, expected)
+      GoldenHelper.assert_byte_diff(actual, expected)
     end
   end
 
@@ -109,6 +124,7 @@ defmodule AtlasWeb.ApiParityTest do
 
       expected = GoldenHelper.load("route-auto")
       GoldenHelper.assert_envelope_shape(actual, expected)
+      GoldenHelper.assert_byte_diff(actual, expected)
     end
   end
 
@@ -121,6 +137,7 @@ defmodule AtlasWeb.ApiParityTest do
 
       expected = GoldenHelper.load("transit-default")
       GoldenHelper.assert_envelope_shape(actual, expected)
+      GoldenHelper.assert_byte_diff(actual, expected)
     end
   end
 
@@ -129,6 +146,7 @@ defmodule AtlasWeb.ApiParityTest do
       actual = conn |> get(~p"/api/v1/whats-here?lat=52.5&lon=13.4") |> json_response(200)
       expected = GoldenHelper.load("whats-here-default")
       GoldenHelper.assert_envelope_shape(actual, expected)
+      GoldenHelper.assert_byte_diff(actual, expected)
     end
   end
 
@@ -141,6 +159,7 @@ defmodule AtlasWeb.ApiParityTest do
 
       expected = GoldenHelper.load("pois-food")
       GoldenHelper.assert_envelope_shape(actual, expected)
+      GoldenHelper.assert_byte_diff(actual, expected)
     end
   end
 
@@ -149,6 +168,7 @@ defmodule AtlasWeb.ApiParityTest do
       actual = conn |> get(~p"/api/v1/pois/categories") |> json_response(200)
       expected = GoldenHelper.load("pois-categories")
       GoldenHelper.assert_envelope_shape(actual, expected)
+      GoldenHelper.assert_byte_diff(actual, expected)
     end
   end
 
@@ -157,6 +177,7 @@ defmodule AtlasWeb.ApiParityTest do
       actual = conn |> get(~p"/api/v1/geocode?q=berlin") |> json_response(200)
       expected = GoldenHelper.load("geocode-berlin")
       GoldenHelper.assert_envelope_shape(actual, expected)
+      GoldenHelper.assert_byte_diff(actual, expected)
     end
   end
 end
