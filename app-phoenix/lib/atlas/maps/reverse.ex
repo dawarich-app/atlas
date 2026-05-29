@@ -69,11 +69,11 @@ defmodule Atlas.Maps.Reverse do
     lang = opts[:lang]
     capped = Enum.take(coords, @max_coords)
 
-    keys = Enum.map(capped, &grid_key/1)
+    keys = Enum.map(capped, &grid_key(&1, lang))
 
     keys
     |> Task.async_stream(
-         fn key -> lookup_with_cache(key, lang) end,
+         fn key -> lookup_with_cache(key) end,
          max_concurrency: 16, ordered: true, timeout: 5_000, on_timeout: :kill_task
        )
     |> Enum.zip(capped)
@@ -92,11 +92,11 @@ defmodule Atlas.Maps.Reverse do
     end)
   end
 
-  defp grid_key(%{lat: lat, lon: lon}) do
-    {Float.round(lat / 1.0, @grid_decimals), Float.round(lon / 1.0, @grid_decimals)}
+  defp grid_key(%{lat: lat, lon: lon}, lang) do
+    {Float.round(lat / 1.0, @grid_decimals), Float.round(lon / 1.0, @grid_decimals), lang}
   end
 
-  defp lookup_with_cache({lat, lon} = key, lang) do
+  defp lookup_with_cache({lat, lon, lang} = key) do
     case Cachex.get(:reverse_cache, key) do
       {:ok, nil} ->
         case lookup(lat: lat, lon: lon, lang: lang) do
@@ -110,6 +110,15 @@ defmodule Atlas.Maps.Reverse do
 
       {:ok, cached} ->
         {:hit, %{coord: %{lat: lat, lon: lon}, here: cached.here, admin: cached.admin}}
+
+      {:error, _} ->
+        case lookup(lat: lat, lon: lon, lang: lang) do
+          %{upstream_status: "ok"} = result ->
+            {:miss_ok, %{coord: %{lat: lat, lon: lon}, here: result.features.here, admin: result.features.admin}}
+
+          _ ->
+            :miss_error
+        end
     end
   end
 end

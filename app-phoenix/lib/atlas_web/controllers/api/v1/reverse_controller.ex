@@ -49,30 +49,56 @@ defmodule AtlasWeb.Api.V1.ReverseController do
   )
 
   def batch(conn, %{"coords" => coords} = params) when is_list(coords) do
-    normalized =
-      Enum.map(coords, fn
-        %{"lat" => lat, "lon" => lon} -> %{lat: lat * 1.0, lon: lon * 1.0}
-      end)
+    case normalize_coords(coords) do
+      {:ok, normalized} ->
+        result = Reverse.batch(%{coords: normalized, lang: params["lang"]})
 
-    result = Reverse.batch(%{coords: normalized, lang: params["lang"]})
-
-    json(conn, %{
-      data: result.results,
-      meta:
-        meta(conn, %{
-          count: length(result.results),
-          cache_hits: result.cache_hits,
-          cache_misses: result.cache_misses,
-          upstream_errors: result.upstream_errors,
-          grid_precision: Reverse.grid_decimals(),
-          max_coords: Reverse.max_coords()
+        json(conn, %{
+          data: result.results,
+          meta:
+            meta(conn, %{
+              count: length(result.results),
+              cache_hits: result.cache_hits,
+              cache_misses: result.cache_misses,
+              upstream_errors: result.upstream_errors,
+              grid_precision: Reverse.grid_decimals(),
+              max_coords: Reverse.max_coords()
+            })
         })
-    })
+
+      {:error, idx} ->
+        conn
+        |> put_status(:bad_request)
+        |> json(%{
+          error: %{
+            code: "INVALID_COORD",
+            message: "coord at index #{idx} is missing lat/lon or has invalid values"
+          }
+        })
+    end
   end
 
   def batch(conn, _params) do
     conn
     |> put_status(:bad_request)
     |> json(%{error: %{code: "MISSING_PARAM", param: "coords", message: "coords array required"}})
+  end
+
+  defp normalize_coords(coords) do
+    coords
+    |> Enum.with_index()
+    |> Enum.reduce_while({:ok, []}, fn {coord, idx}, {:ok, acc} ->
+      case coord do
+        %{"lat" => lat, "lon" => lon} when is_number(lat) and is_number(lon) ->
+          {:cont, {:ok, [%{lat: lat * 1.0, lon: lon * 1.0} | acc]}}
+
+        _ ->
+          {:halt, {:error, idx}}
+      end
+    end)
+    |> case do
+      {:ok, acc} -> {:ok, Enum.reverse(acc)}
+      err -> err
+    end
   end
 end
