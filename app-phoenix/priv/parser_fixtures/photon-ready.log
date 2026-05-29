@@ -1,0 +1,3 @@
+2026-05-14 21:42:30,573 - d.k.p.App - INFO - Database cluster is now ready.
+2026-05-14 21:42:30,850 - i.j.Javalin - INFO - Listening on http://0.0.0.0:2322/
+2026-05-14 21:42:32,738 - root - INFO - Photon ready after 5.0 seconds

@@ -1,0 +1,2 @@
+12:05:01.789 INFO (GtfsModule) Loaded GTFS feed from /var/otp/graphs/gtfs.zip
+12:05:02.012 INFO (GtfsModule) Trips: 5421

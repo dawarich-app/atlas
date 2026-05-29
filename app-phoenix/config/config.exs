@@ -38,6 +38,19 @@ config :logger, :default_formatter,
 # Use Jason for JSON parsing in Phoenix
 config :phoenix, :json_library, Jason
 
+# Oban — background jobs (auto-update scan cron + per-service update jobs).
+config :atlas, Oban,
+  repo: Atlas.Repo,
+  engine: Oban.Engines.Lite,
+  queues: [default: 10, control: 5],
+  plugins: [
+    Oban.Plugins.Pruner,
+    {Oban.Plugins.Cron,
+     crontab: [
+       {"* * * * *", Atlas.Control.Jobs.AutoUpdateScan}
+     ]}
+  ]
+
 # Import environment specific config. This must remain at the bottom
 # of this file so it overrides the configuration defined above.
 import_config "#{config_env()}.exs"
