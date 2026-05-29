@@ -109,7 +109,7 @@ defmodule AtlasWeb.MapLive do
              mode: mode
            ) do
       case result.features do
-        %{trip: %{"legs" => legs}} when is_list(legs) ->
+        %{legs: legs} when is_list(legs) and legs != [] ->
           geojson = legs_to_geojson(legs)
 
           {:noreply,
@@ -193,12 +193,33 @@ defmodule AtlasWeb.MapLive do
 
   defp parse_latlon(_), do: :error
 
-  # M3.1 follow-up: full polyline decoder. Valhalla returns `shape` as a Google-polyline-encoded
-  # string per leg. For M3 we emit an empty FeatureCollection — the actual shape decoding can be
-  # done client-side (smaller bundle hit) or via a pure-Elixir port of the polyline algorithm.
-  defp legs_to_geojson(_legs) do
-    %{type: "FeatureCollection", features: []}
+  defp legs_to_geojson(legs) when is_list(legs) do
+    features =
+      Enum.flat_map(legs, fn leg ->
+        case leg["shape"] do
+          shape when is_binary(shape) and shape != "" ->
+            coords =
+              shape
+              |> Atlas.Geometry.Polyline.decode(6)
+              |> Enum.map(fn {lat, lon} -> [lon, lat] end)
+
+            [
+              %{
+                type: "Feature",
+                geometry: %{type: "LineString", coordinates: coords},
+                properties: %{}
+              }
+            ]
+
+          _ ->
+            []
+        end
+      end)
+
+    %{type: "FeatureCollection", features: features}
   end
+
+  defp legs_to_geojson(_), do: %{type: "FeatureCollection", features: []}
 
   @impl true
   def render(assigns) do
