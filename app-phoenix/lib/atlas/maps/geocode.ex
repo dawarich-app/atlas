@@ -1,28 +1,47 @@
 defmodule Atlas.Maps.Geocode do
-  alias Atlas.Maps.{Result, Upstream.Photon, Upstream.Client}
-  require Logger
+  @moduledoc """
+  Dual-mode geocode dispatch — forward via Search (when `q` is given) or
+  reverse via Reverse (when `lat+lon` are given). Mirrors Rails behavior.
+  """
+  alias Atlas.Maps.{Search, Reverse}
 
+  @doc """
+  Returns one of:
+
+      {:ok, :forward, %Result{features: [<features>], upstream_status: _}}
+      {:ok, :reverse, %Result{features: %{here, admin}, upstream_status: _}}
+      {:error, :missing, "q or lat+lon"}
+      {:error, %Client.*{}}
+  """
   def lookup(opts) do
-    case Photon.search(query: opts[:query], limit: 1, lang: opts[:lang]) do
-      {:ok, %{"features" => [first | _]}} ->
-        {:ok, %Result{features: normalize(first), upstream_status: "ok"}}
+    q = opts[:query]
+    lat = opts[:lat]
+    lon = opts[:lon]
+    lang = opts[:lang]
 
-      {:ok, _} ->
-        {:ok, %Result{features: nil, upstream_status: "ok"}}
+    cond do
+      is_binary(q) and String.trim(q) != "" ->
+        forward_lookup(q, lat, lon, lang, opts[:limit] || 8)
 
-      {:error, %Client.Unavailable{} = e} ->
-        Logger.warning("photon unavailable: #{Exception.message(e)}")
-        {:error, e}
+      is_number(lat) and is_number(lon) ->
+        reverse_lookup(lat, lon, lang)
 
-      {:error, %Client.BadResponse{} = e} ->
-        Logger.warning("photon bad response: #{Exception.message(e)}")
-        {:error, e}
+      true ->
+        {:error, :missing, "q or lat+lon"}
     end
   end
 
-  defp normalize(%{"properties" => props, "geometry" => geom}) do
-    coords = Map.get(geom, "coordinates", [])
-    [lon, lat | _] = coords ++ [nil, nil]
-    %{name: props["name"], coords: %{lat: lat, lon: lon}, label: props["name"]}
+  defp forward_lookup(q, lat, lon, lang, limit) do
+    case Search.autocomplete(%{query: String.trim(q), limit: limit, lang: lang, lat: lat, lon: lon}) do
+      {:ok, result} -> {:ok, :forward, result}
+      err -> err
+    end
+  end
+
+  defp reverse_lookup(lat, lon, lang) do
+    case Reverse.lookup(lat: lat, lon: lon, lang: lang) do
+      {:ok, result} -> {:ok, :reverse, result}
+      err -> err
+    end
   end
 end
