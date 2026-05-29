@@ -7,6 +7,14 @@
 # General application configuration
 import Config
 
+db_adapter =
+  case System.get_env("ATLAS_DB_ADAPTER") do
+    adapter when adapter in ["postgres", "postgresql"] -> Ecto.Adapters.Postgres
+    _ -> Ecto.Adapters.SQLite3
+  end
+
+config :atlas, Atlas.Repo, adapter: db_adapter
+
 config :atlas,
   ecto_repos: [Atlas.Repo],
   generators: [timestamp_type: :utc_datetime]
