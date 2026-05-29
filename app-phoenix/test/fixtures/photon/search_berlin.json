@@ -1,0 +1,20 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "geometry": { "type": "Point", "coordinates": [13.4050, 52.5200] },
+      "properties": {
+        "osm_id": 240109189,
+        "osm_type": "R",
+        "country": "Germany",
+        "city": "Berlin",
+        "state": "Berlin",
+        "name": "Berlin",
+        "osm_key": "place",
+        "osm_value": "city",
+        "postcode": "10115"
+      }
+    }
+  ]
+}
