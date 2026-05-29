@@ -21,6 +21,6 @@ defmodule AtlasWeb.Api.V1.GeocodeControllerTest do
   test "GET /api/v1/geocode returns 400 without q", %{conn: conn} do
     resp = conn |> get(~p"/api/v1/geocode") |> json_response(400)
     assert resp["error"]["code"] == "MISSING_PARAM"
-    assert resp["error"]["param"] == "q"
+    assert resp["error"]["details"]["param"] == "q"
   end
 end

@@ -47,24 +47,25 @@ defmodule AtlasWeb.Api.V1.ReverseControllerTest do
     assert resp["error"]["code"] == "MISSING_PARAM"
   end
 
-  test "POST /api/v1/reverse/batch returns 400 on coord missing lat", %{conn: conn} do
+  test "POST /api/v1/reverse/batch returns 422 VALIDATION_ERROR on coord missing lat", %{conn: conn} do
     resp =
       conn
       |> put_req_header("content-type", "application/json")
       |> post(~p"/api/v1/reverse/batch", Jason.encode!(%{coords: [%{lat: 52.5, lon: 13.4}, %{lon: 11.5}]}))
-      |> json_response(400)
+      |> json_response(422)
 
-    assert resp["error"]["code"] == "INVALID_COORD"
+    assert resp["error"]["code"] == "VALIDATION_ERROR"
     assert resp["error"]["message"] =~ "index 1"
+    assert resp["error"]["details"]["coord_index"] == 1
   end
 
-  test "POST /api/v1/reverse/batch returns 400 on coord with non-numeric lat", %{conn: conn} do
+  test "POST /api/v1/reverse/batch returns 422 on coord with non-numeric lat", %{conn: conn} do
     resp =
       conn
       |> put_req_header("content-type", "application/json")
       |> post(~p"/api/v1/reverse/batch", Jason.encode!(%{coords: [%{lat: "abc", lon: 13.4}]}))
-      |> json_response(400)
+      |> json_response(422)
 
-    assert resp["error"]["code"] == "INVALID_COORD"
+    assert resp["error"]["code"] == "VALIDATION_ERROR"
   end
 end

@@ -26,10 +26,10 @@ defmodule AtlasWeb.Api.V1.SearchControllerTest do
     assert meta["count"] == 1
   end
 
-  test "GET /api/v1/search returns 400 when q is missing", %{conn: conn} do
+  test "GET /api/v1/search returns 400 MISSING_PARAM with details.param when q missing", %{conn: conn} do
     resp = conn |> get(~p"/api/v1/search") |> json_response(400)
     assert resp["error"]["code"] == "MISSING_PARAM"
-    assert resp["error"]["param"] == "q"
+    assert resp["error"]["details"]["param"] == "q"
   end
 
   test "GET /api/v1/search returns 400 when q is blank", %{conn: conn} do

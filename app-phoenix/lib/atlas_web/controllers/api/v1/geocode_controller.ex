@@ -28,9 +28,7 @@ defmodule AtlasWeb.Api.V1.GeocodeController do
         })
 
       {:error, :missing} ->
-        conn
-        |> put_status(:bad_request)
-        |> json(%{error: %{code: "MISSING_PARAM", param: "q"}})
+        missing_param(conn, "q")
     end
   end
 end

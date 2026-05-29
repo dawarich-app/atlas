@@ -31,9 +31,7 @@ defmodule AtlasWeb.Api.V1.WhatsHereController do
       })
     else
       _ ->
-        conn
-        |> put_status(:bad_request)
-        |> json(%{error: %{code: "MISSING_PARAM", message: "lat and lon required"}})
+        missing_param(conn, "lat or lon")
     end
   end
 end

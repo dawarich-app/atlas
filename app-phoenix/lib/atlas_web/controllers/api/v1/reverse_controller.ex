@@ -31,9 +31,7 @@ defmodule AtlasWeb.Api.V1.ReverseController do
       })
     else
       _ ->
-        conn
-        |> put_status(:bad_request)
-        |> json(%{error: %{code: "MISSING_PARAM", message: "lat and lon required"}})
+        missing_param(conn, "lat or lon")
     end
   end
 
@@ -67,21 +65,14 @@ defmodule AtlasWeb.Api.V1.ReverseController do
         })
 
       {:error, idx} ->
-        conn
-        |> put_status(:bad_request)
-        |> json(%{
-          error: %{
-            code: "INVALID_COORD",
-            message: "coord at index #{idx} is missing lat/lon or has invalid values"
-          }
-        })
+        validation_error(conn, "coord at index #{idx} is missing lat/lon or has invalid values",
+          %{coord_index: idx}
+        )
     end
   end
 
   def batch(conn, _params) do
-    conn
-    |> put_status(:bad_request)
-    |> json(%{error: %{code: "MISSING_PARAM", param: "coords", message: "coords array required"}})
+    missing_param(conn, "coords")
   end
 
   defp normalize_coords(coords) do

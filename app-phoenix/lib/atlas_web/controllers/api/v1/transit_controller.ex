@@ -38,9 +38,7 @@ defmodule AtlasWeb.Api.V1.TransitController do
       })
     else
       _ ->
-        conn
-        |> put_status(:bad_request)
-        |> json(%{error: %{code: "MISSING_PARAM", message: "from and to required as 'lat,lon'"}})
+        missing_param(conn, "from or to")
     end
   end
 end

@@ -24,9 +24,7 @@ defmodule AtlasWeb.Api.V1.SearchController do
   def index(conn, params) do
     case require_param(conn, "q") do
       {:error, :missing} ->
-        conn
-        |> put_status(:bad_request)
-        |> json(%{error: %{code: "MISSING_PARAM", param: "q", message: "param q is required"}})
+        missing_param(conn, "q")
 
       {:ok, q} ->
         opts = %{

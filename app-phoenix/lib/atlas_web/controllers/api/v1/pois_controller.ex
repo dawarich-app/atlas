@@ -39,9 +39,7 @@ defmodule AtlasWeb.Api.V1.PoisController do
         })
 
       _ ->
-        conn
-        |> put_status(:bad_request)
-        |> json(%{error: %{code: "MISSING_PARAM", message: "bbox required as 'w,s,e,n'"}})
+        missing_param(conn, "bbox")
     end
   end
 
