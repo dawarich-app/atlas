@@ -8,6 +8,7 @@
     data-lon={@lon}
     data-zoom={@zoom}
     data-route={@route}
+    data-route-geojson={@route_geojson}
     data-fit={if @fit, do: "1", else: "0"}
   >
   </div>
@@ -30,8 +31,20 @@
     var lon = parseFloat(el.dataset.lon);
     var zoom = parseFloat(el.dataset.zoom);
     var tilesUrl = el.dataset.tilesUrl;
-    var route = el.dataset.route;
+    var routeGeojsonRaw = el.dataset.routeGeojson;
     var fit = el.dataset.fit === "1";
+
+    var routeGeojson = null;
+    if (routeGeojsonRaw && routeGeojsonRaw.length > 0) {
+      try { routeGeojson = JSON.parse(routeGeojsonRaw); } catch (e) { routeGeojson = null; }
+    }
+
+    function signalReady() {
+      window.__atlasStaticMapReady = true;
+      try {
+        window.dispatchEvent(new CustomEvent("atlas:static-map-ready"));
+      } catch (e) { /* old browsers */ }
+    }
 
     var map = new window.maplibregl.Map({
       container: el,
@@ -42,36 +55,32 @@
     });
 
     map.on("load", function () {
-      if (route && route.length > 0) {
-        try {
-          var coords = route.split(";").map(function (pair) {
-            var parts = pair.split(",");
-            return [parseFloat(parts[1]), parseFloat(parts[0])];
-          }).filter(function (c) { return !isNaN(c[0]) && !isNaN(c[1]); });
+      if (routeGeojson && routeGeojson.features && routeGeojson.features.length > 0) {
+        map.addSource("route", { type: "geojson", data: routeGeojson });
+        map.addLayer({
+          id: "route-line",
+          type: "line",
+          source: "route",
+          paint: { "line-color": "#3b82f6", "line-width": 4 }
+        });
 
-          if (coords.length >= 2) {
-            map.addSource("route", {
-              type: "geojson",
-              data: {
-                type: "Feature",
-                geometry: { type: "LineString", coordinates: coords }
-              }
-            });
-            map.addLayer({
-              id: "route-line",
-              type: "line",
-              source: "route",
-              paint: { "line-color": "#3b82f6", "line-width": 4 }
-            });
-
-            if (fit) {
-              var bounds = coords.reduce(function (b, c) { return b.extend(c); },
-                new window.maplibregl.LngLatBounds(coords[0], coords[0]));
-              map.fitBounds(bounds, { padding: 40, animate: false });
+        if (fit) {
+          var allCoords = [];
+          routeGeojson.features.forEach(function (f) {
+            if (f.geometry && f.geometry.type === "LineString") {
+              f.geometry.coordinates.forEach(function (c) { allCoords.push(c); });
             }
+          });
+
+          if (allCoords.length >= 2) {
+            var bounds = allCoords.reduce(function (b, c) { return b.extend(c); },
+              new window.maplibregl.LngLatBounds(allCoords[0], allCoords[0]));
+            map.fitBounds(bounds, { padding: 40, animate: false });
           }
-        } catch (e) { /* ignore route parse failures */ }
+        }
       }
     });
+
+    map.on("idle", signalReady);
   })();
 </script>

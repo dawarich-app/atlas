@@ -56,6 +56,36 @@ defmodule AtlasWeb.StaticMapControllerTest do
     assert body =~ "https://tiles.example/style.json"
   end
 
+  test "GET /static_map with route polyline emits non-empty data-route-geojson", %{conn: conn} do
+    # Google's official sample at precision 6 — we don't care about exact coords,
+    # only that the server decoded the polyline and emitted GeoJSON in the data attribute.
+    encoded = "_p~iF~ps|U_ulLnnqC_mqNvxq`@"
+
+    conn = get(conn, ~p"/static_map", %{"route" => encoded})
+    body = html_response(conn, 200)
+
+    assert body =~ "data-route-geojson="
+    assert body =~ "FeatureCollection"
+    assert body =~ "LineString"
+    refute body =~ ~s(data-route-geojson="")
+    refute body =~ ~s(data-route-geojson="null")
+  end
+
+  test "GET /static_map without route emits empty data-route-geojson", %{conn: conn} do
+    conn = get(conn, ~p"/static_map")
+    body = html_response(conn, 200)
+
+    assert body =~ ~s(data-route-geojson="")
+  end
+
+  test "GET /static_map markup includes the ready-signal JS hook", %{conn: conn} do
+    conn = get(conn, ~p"/static_map")
+    body = html_response(conn, 200)
+
+    assert body =~ "__atlasStaticMapReady"
+    assert body =~ "atlas:static-map-ready"
+  end
+
   test "GET /static_map handles invalid query params via fallbacks", %{conn: conn} do
     conn =
       get(conn, ~p"/static_map", %{
