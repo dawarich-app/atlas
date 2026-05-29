@@ -6,7 +6,7 @@ defmodule AtlasWeb.DegradationBanner do
     ~H"""
     <div
       id={@id}
-      class="alert alert-error mb-4 text-sm"
+      class="fixed top-0 inset-x-0 z-30 bg-error text-error-content text-sm py-2 px-4 shadow-md flex items-center justify-center gap-3"
       role="alert"
     >
       <span>Upstream {@status}. Some features may be unavailable.</span>

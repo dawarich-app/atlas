@@ -105,6 +105,9 @@ defmodule AtlasWeb do
       # Core UI components
       import AtlasWeb.CoreComponents
 
+      # Inline Lucide icon helper (`icon/2`)
+      import AtlasWeb.IconHelpers
+
       # Shortcut for generating JS commands
       alias Phoenix.LiveView.JS
 

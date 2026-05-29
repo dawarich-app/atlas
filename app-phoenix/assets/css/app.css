@@ -1,29 +1,354 @@
 @import "../vendor/maplibre-gl.css";
 @import "tailwindcss";
 
-@plugin "../vendor/daisyui" {
-  themes: false;
+@source "../css";
+@source "../js";
+@source "../../lib/atlas_web";
+@source "../../lib/atlas_web.ex";
+
+@theme {
+  --font-sans: "DM Sans", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-display: "Outfit", "DM Sans", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
 }
 
+@plugin "../vendor/daisyui" {
+  themes: forest-patina --default, bunker-brutalist --prefersdark;
+}
+
+/* === Forest Patina (light) ================================================
+   Schwarzwald + oxidized copper. Organic, slow, FOSS-warm.
+   Pairs with TILES_THEME=grayscale (or light). */
 @plugin "../vendor/daisyui-theme" {
-  name: "atlas-light";
+  name: "forest-patina";
   default: true;
   prefersdark: false;
   color-scheme: light;
+
+  --color-base-100: #F2EFE7;
+  --color-base-200: #E4DFD2;
+  --color-base-300: #CFC8B6;
+  --color-base-content: #1F2620;
+
+  --color-primary: #2F5D3E;
+  --color-primary-content: #F2EFE7;
+  --color-secondary: #7A6A4E;
+  --color-secondary-content: #F2EFE7;
+  --color-accent: #B86A3A;
+  --color-accent-content: #F2EFE7;
+  --color-neutral: #2A332D;
+  --color-neutral-content: #F2EFE7;
+
+  --color-info: #3D6F7A;
+  --color-info-content: #F2EFE7;
+  --color-success: #4D7A3A;
+  --color-success-content: #F2EFE7;
+  --color-warning: #C28A2A;
+  --color-warning-content: #1F2620;
+  --color-error: #9C3A2A;
+  --color-error-content: #F2EFE7;
+
+  --radius-selector: 0.5rem;
+  --radius-field: 0.5rem;
+  --radius-box: 0.75rem;
+  --size-selector: 0.25rem;
+  --size-field: 0.25rem;
+  --border: 1px;
+  --depth: 1;
+  --noise: 0;
 }
 
+/* === Bunker Brutalist (dark) ==============================================
+   Concrete + signal-orange. Civil-defense, off-grid infrastructure.
+   Pairs with TILES_THEME=dark (or black). */
 @plugin "../vendor/daisyui-theme" {
-  name: "atlas-dark";
+  name: "bunker-brutalist";
+  default: false;
   prefersdark: true;
   color-scheme: dark;
+
+  --color-base-100: #14171A;
+  --color-base-200: #1C2024;
+  --color-base-300: #2A3035;
+  --color-base-content: #E6E8EA;
+
+  --color-primary: #FF6A1F;
+  --color-primary-content: #0A0C0E;
+  --color-secondary: #5C8A8A;
+  --color-secondary-content: #0A0C0E;
+  --color-accent: #C5A45A;
+  --color-accent-content: #0A0C0E;
+  --color-neutral: #2A2E33;
+  --color-neutral-content: #E6E8EA;
+
+  --color-info: #4A8FB8;
+  --color-info-content: #0A0C0E;
+  --color-success: #6FA85B;
+  --color-success-content: #0A0C0E;
+  --color-warning: #F0B946;
+  --color-warning-content: #0A0C0E;
+  --color-error: #E25141;
+  --color-error-content: #F2EFE7;
+
+  --radius-selector: 0.5rem;
+  --radius-field: 0.5rem;
+  --radius-box: 0.75rem;
+  --size-selector: 0.25rem;
+  --size-field: 0.25rem;
+  --border: 1px;
+  --depth: 1;
+  --noise: 0;
 }
 
-/* Atlas-specific overrides */
-html, body { height: 100%; }
-
-.degradation-banner {
-  background-color: oklch(var(--color-warning, 80% 0.18 80));
-  color: oklch(var(--color-warning-content, 20% 0 0));
-  padding: 0.5rem 1rem;
-  font-size: 0.875rem;
+/* Layout primitives */
+html, body {
+  height: 100%;
+  margin: 0;
+  padding: 0;
 }
+
+#map {
+  position: absolute;
+  inset: 0;
+}
+
+/* Hide the wordmark when the side panel is collapsed — only the brand dot remains. */
+[data-side-panel-expanded-value="false"] .apo-brand-text { display: none; }
+
+[popover]:not(:popover-open) {
+  display: none;
+}
+
+/* === POI popups =========================================================== */
+
+.apo-poi-popup .maplibregl-popup-content {
+  padding: 0;
+  background: var(--color-base-100);
+  border-radius: var(--radius-box);
+  box-shadow:
+    0 1px 2px color-mix(in oklch, var(--color-base-content) 6%, transparent),
+    0 8px 24px -8px color-mix(in oklch, var(--color-base-content) 18%, transparent),
+    0 16px 40px -16px color-mix(in oklch, var(--color-base-content) 12%, transparent);
+  border: 1px solid var(--color-base-300);
+  overflow: hidden;
+  font-feature-settings: "cv11", "ss01";
+}
+
+.apo-poi-popup .maplibregl-popup-tip {
+  border-top-color: var(--color-base-100) !important;
+  filter: drop-shadow(0 2px 2px color-mix(in oklch, var(--color-base-content) 6%, transparent));
+}
+
+.apo-poi-popup .maplibregl-popup-close-button {
+  width: 24px;
+  height: 24px;
+  border-radius: 999px;
+  top: 8px;
+  right: 8px;
+  color: color-mix(in oklch, var(--color-base-content) 55%, transparent);
+  font-size: 16px;
+  line-height: 1;
+  background: transparent;
+  transition: background-color 120ms, color 120ms;
+}
+.apo-poi-popup .maplibregl-popup-close-button:hover {
+  background: var(--color-base-200);
+  color: var(--color-base-content);
+}
+
+.apo-popup {
+  font-family: var(--font-sans);
+  color: var(--color-base-content);
+  min-width: 240px;
+  max-width: 300px;
+}
+
+.apo-popup-header {
+  padding: 14px 36px 8px 16px;
+}
+
+.apo-popup-name {
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 15px;
+  line-height: 1.25;
+  letter-spacing: -0.015em;
+}
+
+.apo-popup-meta {
+  margin-top: 4px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.10em;
+  color: color-mix(in oklch, var(--color-base-content) 55%, transparent);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.apo-popup-category { font-weight: 500; }
+.apo-popup-sep { color: color-mix(in oklch, var(--color-base-content) 30%, transparent); }
+
+.apo-popup-rows {
+  padding: 6px 16px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.apo-popup-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  font-size: 12px;
+  color: color-mix(in oklch, var(--color-base-content) 80%, transparent);
+}
+.apo-popup-row-icon {
+  color: color-mix(in oklch, var(--color-base-content) 50%, transparent);
+  display: flex;
+  margin-top: 1px;
+  flex-shrink: 0;
+}
+.apo-popup-icon { width: 13px; height: 13px; }
+.apo-popup-row-value { line-height: 1.4; min-width: 0; }
+.apo-popup-link {
+  color: var(--color-primary);
+  text-decoration: none;
+  font-weight: 500;
+}
+.apo-popup-link:hover { text-decoration: underline; }
+
+.apo-popup-badges {
+  padding: 0 16px 12px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+.apo-popup-badge {
+  font-size: 10px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--color-base-200);
+  color: color-mix(in oklch, var(--color-base-content) 75%, transparent);
+  font-weight: 500;
+}
+.apo-popup-badge--success {
+  background: color-mix(in oklch, var(--color-success) 18%, var(--color-base-100));
+  color: var(--color-success);
+}
+.apo-popup-badge--info {
+  background: color-mix(in oklch, var(--color-info) 18%, var(--color-base-100));
+  color: var(--color-info);
+}
+.apo-popup-badge--warning {
+  background: color-mix(in oklch, var(--color-warning) 22%, var(--color-base-100));
+  color: var(--color-warning);
+}
+
+.apo-popup-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 10px 12px 12px;
+  border-top: 1px solid var(--color-base-300);
+  background: var(--color-base-200);
+}
+.apo-popup-cta {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 12px;
+  border-radius: 8px;
+  background: var(--color-primary);
+  color: var(--color-primary-content);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: -0.005em;
+  cursor: pointer;
+  border: 1px solid color-mix(in oklch, var(--color-primary) 80%, black);
+  box-shadow: 0 1px 2px color-mix(in oklch, var(--color-base-content) 8%, transparent);
+  transition: background-color 120ms, transform 60ms;
+}
+.apo-popup-cta:hover {
+  background: color-mix(in oklch, var(--color-primary) 88%, black);
+}
+.apo-popup-cta:active { transform: translateY(1px); }
+.apo-popup-cta .apo-popup-icon { width: 14px; height: 14px; }
+
+.apo-popup-secondary {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 10px;
+  border-radius: 8px;
+  font-size: 12px;
+  color: color-mix(in oklch, var(--color-base-content) 70%, transparent);
+  font-weight: 500;
+  text-decoration: none;
+  transition: color 120ms, background-color 120ms;
+}
+.apo-popup-secondary:hover {
+  color: var(--color-base-content);
+  background: var(--color-base-200);
+}
+.apo-popup-secondary .apo-popup-icon {
+  width: 12px;
+  height: 12px;
+  color: currentColor;
+}
+
+/* Picking mode: crosshair cursor over the whole canvas. */
+body.apo-picking .maplibregl-canvas { cursor: crosshair !important; }
+
+/* Map toggle buttons */
+.apo-map-controls button {
+  background: var(--color-base-100);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 29px;
+  height: 29px;
+  border: 0;
+  cursor: pointer;
+  color: var(--color-base-content);
+  transition: background-color 100ms;
+}
+.apo-map-controls button:hover { background: var(--color-base-200); }
+
+/* MapLibre native controls — theme-align with the rest of the UI. */
+.maplibregl-ctrl-group {
+  background: var(--color-base-100) !important;
+  border: 1px solid var(--color-base-300) !important;
+  border-radius: var(--radius-box) !important;
+  overflow: hidden;
+  box-shadow:
+    0 1px 2px color-mix(in oklch, var(--color-base-content) 5%, transparent),
+    0 6px 16px -8px color-mix(in oklch, var(--color-base-content) 12%, transparent) !important;
+}
+.maplibregl-ctrl-group button {
+  background: transparent !important;
+  color: var(--color-base-content) !important;
+  border-bottom: 1px solid var(--color-base-300) !important;
+}
+.maplibregl-ctrl-group button:last-child { border-bottom: 0 !important; }
+.maplibregl-ctrl-group button:hover {
+  background: var(--color-base-200) !important;
+}
+
+[data-theme="bunker-brutalist"] .maplibregl-ctrl-group button .maplibregl-ctrl-icon {
+  filter: invert(1) brightness(1.1);
+}
+
+.maplibregl-ctrl-attrib {
+  background: color-mix(in oklch, var(--color-base-100) 90%, transparent) !important;
+  border-radius: var(--radius-field) !important;
+  font-family: var(--font-mono);
+  font-size: 10px !important;
+  color: color-mix(in oklch, var(--color-base-content) 65%, transparent) !important;
+  padding: 2px 8px !important;
+}
+.maplibregl-ctrl-attrib a {
+  color: var(--color-primary) !important;
+  text-decoration: none;
+}
+.maplibregl-ctrl-attrib a:hover { text-decoration: underline; }

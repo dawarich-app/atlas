@@ -4,45 +4,57 @@ defmodule AtlasWeb.SettingsPanel do
   @impl true
   def render(assigns) do
     ~H"""
-    <div class="card bg-base-200 mb-4">
-      <div class="card-body p-4">
+    <div class="flex flex-col h-full">
+      <header class="px-4 pt-4 pb-3 border-b border-base-200">
         <div class="font-mono text-[10px] uppercase tracking-[0.14em] text-primary/80">
           Control plane
         </div>
-        <h2 class="text-base font-semibold leading-tight">Settings</h2>
+        <h2 class="text-base font-semibold leading-tight mt-0.5 font-display">Settings</h2>
+      </header>
 
-        <form phx-submit="save_settings" class="mt-2 flex flex-col gap-2">
-          <label class="text-xs text-base-content/70">Tiles URL</label>
-          <input
-            type="text"
-            name="tiles_url"
-            value={@tiles_url}
-            placeholder="https://… or pmtiles://…"
-            class="input input-bordered input-sm w-full"
-          />
-
-          <label class="text-xs text-base-content/70 mt-1">Theme</label>
-          <select name="theme" class="select select-bordered select-sm w-full">
-            <option value="atlas-light" selected={@theme == "atlas-light"}>Light</option>
-            <option value="atlas-dark" selected={@theme == "atlas-dark"}>Dark</option>
-          </select>
-
-          <button type="submit" class="btn btn-primary btn-sm mt-2">Save</button>
-        </form>
-
-        <%= if @service_status != %{} do %>
-          <div class="mt-3 border-t border-base-300 pt-2">
-            <div class="font-mono text-[10px] uppercase tracking-[0.14em] text-base-content/55 mb-1">
-              Services
+      <div class="flex-1 min-h-0 overflow-y-auto px-4 py-3 flex flex-col gap-4">
+        <section>
+          <h3 class="font-mono text-[10px] uppercase tracking-[0.14em] text-base-content/55 mb-2 flex items-center gap-2">
+            {icon("map", class: "w-3 h-3")} Basemap
+          </h3>
+          <form phx-submit="save_settings" class="flex flex-col gap-2">
+            <input
+              type="text"
+              name="tiles_url"
+              value={@tiles_url}
+              placeholder="https://… or pmtiles://…"
+              class="input input-bordered input-sm w-full"
+            />
+            <div class="flex items-center gap-2">
+              <label class="font-mono text-[10px] uppercase tracking-[0.14em] text-base-content/55 flex-shrink-0">
+                Theme
+              </label>
+              <select name="theme" class="select select-bordered select-xs flex-1">
+                <option value="forest-patina" selected={@theme == "forest-patina"}>
+                  Forest Patina (light)
+                </option>
+                <option value="bunker-brutalist" selected={@theme == "bunker-brutalist"}>
+                  Bunker Brutalist (dark)
+                </option>
+                <option value="atlas-light" selected={@theme == "atlas-light"}>Light</option>
+                <option value="atlas-dark" selected={@theme == "atlas-dark"}>Dark</option>
+              </select>
             </div>
-            <ul class="text-xs space-y-0.5">
-              <li :for={{name, snap} <- @service_status} class="flex justify-between">
-                <span>{name}</span>
-                <span class={status_class(snap)}>{status_label(snap)}</span>
-              </li>
-            </ul>
-          </div>
-        <% end %>
+            <button type="submit" class="btn btn-primary btn-sm mt-1">Save</button>
+          </form>
+        </section>
+
+        <section :if={@service_status != %{}}>
+          <h3 class="font-mono text-[10px] uppercase tracking-[0.14em] text-base-content/55 mb-2 flex items-center gap-2">
+            {icon("server", class: "w-3 h-3")} Services
+          </h3>
+          <ul class="text-xs flex flex-col gap-1">
+            <li :for={{name, snap} <- @service_status} class="flex justify-between">
+              <span>{name}</span>
+              <span class={status_class(snap)}>{status_label(snap)}</span>
+            </li>
+          </ul>
+        </section>
       </div>
     </div>
     """
