@@ -17,12 +17,14 @@ defmodule Atlas.Control do
       Registry,
       DockerCompose,
       Osmium,
+      Seeder,
       ServiceState,
       ServiceSupervisor,
       LogTailer,
       SnapshotPersister,
       TilesDownloader,
       RegionApplier,
+      RegionCatalog,
       Jobs.AutoUpdateScan,
       Jobs.UpdateService
     ]

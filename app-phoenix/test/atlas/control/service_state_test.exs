@@ -62,4 +62,17 @@ defmodule Atlas.Control.ServiceStateTest do
     ServiceState.feed("photon", "starting...")
     assert_receive :status_changed
   end
+
+  test "set_auto_update/2 persists the flag and broadcasts" do
+    Phoenix.PubSub.subscribe(Atlas.PubSub, "control:service:photon")
+    assert :ok = ServiceState.set_auto_update("photon", true)
+    assert_receive {:service_update, %{auto_update_enabled?: true}}
+
+    row = Repo.get_by!(Service, name: "photon")
+    assert row.auto_update_enabled == true
+
+    assert :ok = ServiceState.set_auto_update("photon", false)
+    assert_receive {:service_update, %{auto_update_enabled?: false}}
+    assert Repo.get_by!(Service, name: "photon").auto_update_enabled == false
+  end
 end

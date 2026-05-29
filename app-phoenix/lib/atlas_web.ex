@@ -1,7 +1,17 @@
 defmodule AtlasWeb do
   use Boundary,
     top_level?: true,
-    deps: [Atlas, Atlas.Control, Phoenix, Phoenix.Controller, Plug],
+    deps: [
+      Atlas,
+      Atlas.Control,
+      Atlas.Maps,
+      Atlas.Settings,
+      Phoenix,
+      Phoenix.Controller,
+      Phoenix.LiveView,
+      Phoenix.PubSub,
+      Plug
+    ],
     exports: [Endpoint, Router]
 
   @moduledoc """
@@ -12,6 +22,8 @@ defmodule AtlasWeb do
 
       use AtlasWeb, :controller
       use AtlasWeb, :html
+      use AtlasWeb, :live_view
+      use AtlasWeb, :live_component
 
   The definitions below will be executed for every controller,
   component, etc, so keep them short and clean, focused
@@ -31,6 +43,7 @@ defmodule AtlasWeb do
       # Import common connection and controller functions to use in pipelines
       import Plug.Conn
       import Phoenix.Controller
+      import Phoenix.LiveView.Router
     end
   end
 
@@ -48,6 +61,54 @@ defmodule AtlasWeb do
 
       import Plug.Conn
 
+      unquote(verified_routes())
+    end
+  end
+
+  def html do
+    quote do
+      use Phoenix.Component
+
+      # Import convenience functions from controllers
+      import Phoenix.Controller,
+        only: [get_csrf_token: 0, view_module: 1, view_template: 1]
+
+      # Include general helpers for rendering HTML
+      unquote(html_helpers())
+    end
+  end
+
+  def live_view do
+    quote do
+      use Phoenix.LiveView, layout: {AtlasWeb.Layouts, :app}
+
+      unquote(html_helpers())
+    end
+  end
+
+  def live_component do
+    quote do
+      use Phoenix.LiveComponent
+
+      unquote(html_helpers())
+    end
+  end
+
+  defp html_helpers do
+    quote do
+      # Translation
+      use Gettext, backend: AtlasWeb.Gettext
+
+      # HTML escaping functionality
+      import Phoenix.HTML
+
+      # Core UI components
+      import AtlasWeb.CoreComponents
+
+      # Shortcut for generating JS commands
+      alias Phoenix.LiveView.JS
+
+      # Routes generation with the ~p sigil
       unquote(verified_routes())
     end
   end
