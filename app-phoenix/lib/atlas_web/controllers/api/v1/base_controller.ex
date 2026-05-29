@@ -93,12 +93,8 @@ defmodule AtlasWeb.Api.V1.BaseController do
     end
   end
 
-  def meta(conn, extra \\ %{}) do
-    request_id =
-      conn
-      |> Plug.Conn.get_req_header("x-request-id")
-      |> List.first()
-
-    Map.merge(%{request_id: request_id}, Map.new(extra))
+  def meta(_conn, extra \\ %{}) do
+    base = %{timestamp: DateTime.utc_now() |> DateTime.to_iso8601()}
+    Map.merge(base, Map.new(extra))
   end
 end
