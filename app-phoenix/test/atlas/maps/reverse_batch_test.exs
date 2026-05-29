@@ -48,4 +48,21 @@ defmodule Atlas.Maps.ReverseBatchTest do
     result = Reverse.batch(%{coords: coords})
     assert length(result.results) <= 1000
   end
+
+  test "batch separates cache by lang", %{bypass: bypass} do
+    Bypass.expect(bypass, fn conn ->
+      case conn.request_path do
+        "/reverse" -> Plug.Conn.resp(conn, 200, ~s({"features":[{"geometry":{"coordinates":[13.4,52.5]},"properties":{"name":"X","city":"Y","country":"Z"}}]}))
+        "/parser/search" -> Plug.Conn.resp(conn, 200, "[]")
+      end
+    end)
+
+    coord = [%{lat: 52.5, lon: 13.4}]
+
+    result_en = Reverse.batch(%{coords: coord})
+    assert result_en.cache_misses == 1
+
+    result_de = Reverse.batch(%{coords: coord, lang: "de"})
+    assert result_de.cache_misses == 1
+  end
 end
