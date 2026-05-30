@@ -130,9 +130,39 @@ defmodule AtlasWeb.SettingsPanel do
                 phx-click="use_basemap"
                 phx-value-id={preset.id}
                 class="btn btn-xs btn-primary mt-1 self-start"
+                disabled={preset.download && @tiles_download && @tiles_download.status == :running}
               >
                 {if preset.download, do: "Download & use", else: "Use"}
               </button>
+
+              <%!-- Download progress for download: true presets (parity with Rails progress block) --%>
+              <div
+                :if={preset.download && @tiles_download}
+                class="mt-1 flex flex-col gap-1"
+              >
+                <div class="flex items-center justify-between text-[10px] font-mono uppercase tracking-wider">
+                  <span class={[
+                    "px-1.5 py-0.5 rounded",
+                    @tiles_download.status == :running && "bg-warning/30",
+                    @tiles_download.status == :done && "bg-success/30",
+                    @tiles_download.status == :error && "bg-error/30"
+                  ]}>
+                    {Phoenix.Naming.humanize(to_string(@tiles_download.status))}
+                  </span>
+                  <span :if={@tiles_download[:progress]} class="text-base-content/60">
+                    {Float.round((@tiles_download[:progress] || 0.0) * 100, 1)}%
+                  </span>
+                </div>
+                <progress
+                  :if={@tiles_download.status == :running}
+                  class="progress progress-primary h-1"
+                  value={@tiles_download[:progress] || 0}
+                  max="1"
+                ></progress>
+                <p :if={@tiles_download[:reason]} class="text-[10px] text-error-content/80">
+                  {@tiles_download.reason}
+                </p>
+              </div>
             </div>
           </div>
 
