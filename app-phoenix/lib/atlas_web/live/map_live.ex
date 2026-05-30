@@ -2,6 +2,7 @@ defmodule AtlasWeb.MapLive do
   use AtlasWeb, :live_view
 
   alias Atlas.Maps
+  alias Atlas.Maps.BasemapPresets
   alias Atlas.Settings
   alias Atlas.Control.{Seeder, ServiceState}
 
@@ -175,6 +176,26 @@ defmodule AtlasWeb.MapLive do
   def handle_event("update_theme", %{"theme" => theme}, socket) do
     Settings.set("tiles_theme", theme)
     {:noreply, assign(socket, theme: theme)}
+  end
+
+  @impl true
+  def handle_event("use_basemap", %{"id" => id}, socket) do
+    case BasemapPresets.resolve(id) do
+      {:ok, %{url: url, download: false}} when is_binary(url) ->
+        Settings.set("tiles_url", url)
+
+        {:noreply,
+         socket
+         |> assign(tiles_url: url)
+         |> push_event("map:set_style", %{url: url})}
+
+      {:ok, %{download: true}} ->
+        {:noreply,
+         put_flash(socket, :info, "Download-based presets are not yet wired in Phoenix")}
+
+      _ ->
+        {:noreply, put_flash(socket, :error, "Unknown basemap preset")}
+    end
   end
 
   @impl true

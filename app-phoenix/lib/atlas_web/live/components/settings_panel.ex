@@ -2,6 +2,7 @@ defmodule AtlasWeb.SettingsPanel do
   use AtlasWeb, :live_component
 
   alias Atlas.Control.{RegionCatalog, RegionSelection, Seeder}
+  alias Atlas.Maps.BasemapPresets
   alias Atlas.Repo
 
   @themes ~w(light dark grayscale white black forest-patina bunker-brutalist atlas-light atlas-dark)
@@ -18,7 +19,8 @@ defmodule AtlasWeb.SettingsPanel do
      |> assign(:regions, regions)
      |> assign(:region_selection, selection)
      |> assign(:known_services, known)
-     |> assign(:themes, @themes)}
+     |> assign(:themes, @themes)
+     |> assign(:basemap_presets, BasemapPresets.all())}
   end
 
   @impl true
@@ -112,6 +114,25 @@ defmodule AtlasWeb.SettingsPanel do
             <div class="flex items-baseline justify-between gap-2">
               <span class="text-base-content/60">.env default</span>
               <span class="font-mono text-[10px] truncate text-right text-base-content/50">—</span>
+            </div>
+          </div>
+
+          <%!-- Basemap preset cards (parity with Rails basemap_controller.js PRESETS) --%>
+          <div class="grid grid-cols-1 gap-2 mt-2">
+            <div
+              :for={preset <- @basemap_presets}
+              class="border border-base-300 rounded-md p-2 flex flex-col gap-1.5"
+            >
+              <div class="text-sm font-medium leading-tight">{preset.label}</div>
+              <div class="text-[10px] text-base-content/60 leading-snug">{preset.note}</div>
+              <button
+                type="button"
+                phx-click="use_basemap"
+                phx-value-id={preset.id}
+                class="btn btn-xs btn-primary mt-1 self-start"
+              >
+                {if preset.download, do: "Download & use", else: "Use"}
+              </button>
             </div>
           </div>
 
