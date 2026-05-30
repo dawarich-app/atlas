@@ -16,6 +16,7 @@ defmodule AtlasWeb.SettingsPanel do
     {:ok,
      socket
      |> assign(assigns)
+     |> assign_new(:tiles_download, fn -> nil end)
      |> assign(:regions, regions)
      |> assign(:region_selection, selection)
      |> assign(:known_services, known)

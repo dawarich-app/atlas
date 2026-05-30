@@ -528,6 +528,7 @@ defmodule AtlasWeb.MapLive do
                 tiles_url={@tiles_url}
                 theme={@theme}
                 service_status={@service_status}
+                tiles_download={@tiles_download}
               />
             </div>
           </div>

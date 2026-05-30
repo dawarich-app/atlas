@@ -140,43 +140,79 @@ defmodule AtlasWeb.PlacesCard do
             phx-target={@myself}
             phx-value-selector={item.selector}
             phx-value-label={item.label}
-            class="btn btn-xs btn-ghost justify-start gap-1.5 font-normal h-auto py-1.5 px-2 normal-case"
+            class={[
+              "flex items-center gap-1.5 px-2 py-1 rounded-md border text-left text-xs truncate transition-colors",
+              if(chip_selected?(@selected_chips, item.selector),
+                do: "border-primary bg-primary/10 text-primary",
+                else: "border-base-300 text-base-content/80 hover:bg-base-200/60 hover:border-base-content/20"
+              )
+            ]}
             title={item.selector}
           >
-            {icon("map-pin", class: "w-3 h-3 text-base-content/40")}
-            <span class="truncate text-xs">{item.label}</span>
+            {icon(item.icon,
+              class:
+                "w-3.5 h-3.5 shrink-0 " <>
+                  if(chip_selected?(@selected_chips, item.selector),
+                    do: "text-primary",
+                    else: "text-base-content/50"
+                  )
+            )}
+            <span class="truncate">{item.label}</span>
           </button>
         </div>
       </div>
 
       <%!-- Accordion sections / search results --%>
       <div class="px-2 border-t border-base-200 max-h-[40vh] overflow-y-auto">
-        <details
+        <section
           :for={section <- filtered_sections(@sections, @filter)}
-          class="border-b border-base-200/60 last:border-b-0"
+          class="border-b border-base-200 last:border-b-0"
         >
-          <summary class="cursor-pointer select-none flex items-center justify-between px-2 py-2 hover:bg-base-200/40 rounded-md">
-            <span class="font-medium text-sm">{section.label}</span>
-            <span class="font-mono text-[10px] text-base-content/50 tabular-nums">
-              {length(section.items)}
-            </span>
-          </summary>
-          <ul class="pl-3 pb-2 flex flex-col gap-0.5">
-            <li :for={item <- visible_items(section.items, @filter)}>
+          <details class="group">
+            <summary class="cursor-pointer select-none w-full px-3 py-3 flex items-center justify-between gap-2 hover:bg-base-200/40 text-left transition-colors list-none [&::-webkit-details-marker]:hidden">
+              <span class="flex items-center gap-2 text-xs uppercase tracking-wide text-base-content/70 font-medium">
+                <span class="text-base-content/50">
+                  {icon(section.icon, class: "w-3.5 h-3.5")}
+                </span>
+                <span>{section.label}</span>
+                <span class="text-[10px] text-base-content/40 tabular-nums font-normal normal-case">
+                  {length(section.items)}
+                </span>
+              </span>
+              <span class="text-base-content/40 transition-transform group-open:rotate-180">
+                {icon("chevron-down", class: "w-3.5 h-3.5")}
+              </span>
+            </summary>
+            <div class="grid grid-cols-2 gap-1 px-3 pb-3 pt-1">
               <button
+                :for={item <- visible_items(section.items, @filter)}
                 type="button"
                 phx-click="select_chip"
                 phx-target={@myself}
                 phx-value-selector={item.selector}
                 phx-value-label={item.label}
-                class="w-full flex items-center gap-2 text-left text-xs px-2 py-1.5 rounded hover:bg-base-200/40"
+                class={[
+                  "flex items-center gap-1.5 px-2 py-1 rounded-md border text-left text-xs truncate transition-colors",
+                  if(chip_selected?(@selected_chips, item.selector),
+                    do: "border-primary bg-primary/10 text-primary",
+                    else: "border-base-300 text-base-content/80 hover:bg-base-200/60 hover:border-base-content/20"
+                  )
+                ]}
                 title={item.selector}
               >
-                {icon("map-pin", class: "w-3 h-3 text-base-content/40")} {item.label}
+                {icon(item.icon,
+                  class:
+                    "w-3.5 h-3.5 shrink-0 " <>
+                      if(chip_selected?(@selected_chips, item.selector),
+                        do: "text-primary",
+                        else: "text-base-content/50"
+                      )
+                )}
+                <span class="truncate">{item.label}</span>
               </button>
-            </li>
-          </ul>
-        </details>
+            </div>
+          </details>
+        </section>
       </div>
 
       <%!-- Results list --%>
@@ -200,6 +236,8 @@ defmodule AtlasWeb.PlacesCard do
     </div>
     """
   end
+
+  defp chip_selected?(chips, selector), do: Enum.any?(chips, &(&1.selector == selector))
 
   defp filtered_sections(sections, ""), do: sections
 
