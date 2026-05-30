@@ -95,6 +95,46 @@ defmodule AtlasWeb.DirectionsCard do
           </button>
         </form>
 
+        <%!-- Options (collapsible, parity with Rails) --%>
+        <details class="text-xs text-base-content/70">
+          <summary class="cursor-pointer select-none flex items-center gap-1 pt-1">
+            {icon("sliders-horizontal", class: "w-3.5 h-3.5")}
+            <span>Options</span>
+          </summary>
+          <div class="flex flex-col gap-1 pl-5 mt-1">
+            <label class="flex items-center gap-2 cursor-pointer">
+              <input
+                type="checkbox"
+                class="checkbox checkbox-xs"
+                checked={Map.get(@route_options || %{}, "avoid_tolls", false)}
+                phx-click="toggle_route_option"
+                phx-value-option="avoid_tolls"
+              />
+              <span>Avoid tolls</span>
+            </label>
+            <label class="flex items-center gap-2 cursor-pointer">
+              <input
+                type="checkbox"
+                class="checkbox checkbox-xs"
+                checked={Map.get(@route_options || %{}, "avoid_highways", false)}
+                phx-click="toggle_route_option"
+                phx-value-option="avoid_highways"
+              />
+              <span>Avoid highways</span>
+            </label>
+            <label class="flex items-center gap-2 cursor-pointer">
+              <input
+                type="checkbox"
+                class="checkbox checkbox-xs"
+                checked={Map.get(@route_options || %{}, "avoid_ferries", false)}
+                phx-click="toggle_route_option"
+                phx-value-option="avoid_ferries"
+              />
+              <span>Avoid ferries</span>
+            </label>
+          </div>
+        </details>
+
         <div :if={@directions} class="border-t pt-3 text-xs">
           <div class="flex items-baseline justify-between">
             <div class="flex items-baseline gap-2">

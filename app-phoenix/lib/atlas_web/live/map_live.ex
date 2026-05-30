@@ -28,6 +28,7 @@ defmodule AtlasWeb.MapLive do
        directions: nil,
        mode: "auto",
        places: [],
+       route_options: %{"avoid_tolls" => false, "avoid_highways" => false, "avoid_ferries" => false},
        service_status: %{},
        upstream_status: "ok"
      )}
@@ -128,6 +129,15 @@ defmodule AtlasWeb.MapLive do
          socket
          |> put_flash(:error, "Could not parse from/to as lat,lon")}
     end
+  end
+
+  @impl true
+  def handle_event("toggle_route_option", %{"option" => option}, socket)
+      when option in ~w(avoid_tolls avoid_highways avoid_ferries) do
+    options =
+      Map.update(socket.assigns.route_options, option, true, fn current -> not current end)
+
+    {:noreply, assign(socket, route_options: options)}
   end
 
   @impl true
@@ -269,8 +279,8 @@ defmodule AtlasWeb.MapLive do
             </button>
           </nav>
 
-          <%!-- Content column: single active tab body --%>
-          <div class="w-[min(85vw,380px)] flex flex-col overflow-hidden bg-base-100 rounded-2xl border border-base-300">
+          <%!-- Content column: single active tab body (flat, no card chrome) --%>
+          <div class="w-[min(85vw,380px)] flex flex-col overflow-hidden">
             <div class={tab_visible_class(@active_tab, "search")}>
               <.live_component
                 module={AtlasWeb.SearchCard}
@@ -285,6 +295,7 @@ defmodule AtlasWeb.MapLive do
                 id="directions-card"
                 directions={@directions}
                 mode={@mode}
+                route_options={@route_options}
               />
             </div>
             <div class={tab_visible_class(@active_tab, "places")}>
