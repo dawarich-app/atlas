@@ -66,6 +66,7 @@ defmodule AtlasWeb.DirectionsCard do
               <input
                 type="text"
                 name="from"
+                value={@route_from || ""}
                 placeholder="From (lat,lon)"
                 autocomplete="off"
                 spellcheck="false"
@@ -89,6 +90,7 @@ defmodule AtlasWeb.DirectionsCard do
               <input
                 type="text"
                 name="to"
+                value={@route_to || ""}
                 placeholder="To (lat,lon)"
                 autocomplete="off"
                 spellcheck="false"

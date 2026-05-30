@@ -1,10 +1,13 @@
 defmodule AtlasWeb.MapLive do
   use AtlasWeb, :live_view
 
+  import Ecto.Query
+
   alias Atlas.Maps
   alias Atlas.Maps.BasemapPresets
+  alias Atlas.Repo
   alias Atlas.Settings
-  alias Atlas.Control.{Seeder, ServiceState}
+  alias Atlas.Control.{RegionApplier, RegionSelection, Seeder, ServiceState, TilesDownloader}
 
   @impl true
   def mount(_params, _session, socket) do
@@ -28,9 +31,12 @@ defmodule AtlasWeb.MapLive do
        search_results: [],
        directions: nil,
        mode: "auto",
+       route_from: "",
+       route_to: "",
        places: [],
        route_options: %{"avoid_tolls" => false, "avoid_highways" => false, "avoid_ferries" => false},
-       service_status: %{},
+       service_status: refresh_service_status(),
+       tiles_download: nil,
        upstream_status: "ok"
      )}
   end
@@ -98,6 +104,7 @@ defmodule AtlasWeb.MapLive do
   @impl true
   def handle_event("route", %{"from" => from, "to" => to} = params, socket) do
     mode = Map.get(params, "mode", socket.assigns.mode)
+    socket = assign(socket, route_from: from, route_to: to)
 
     with {:ok, from_coords} <- parse_latlon(from),
          {:ok, to_coords} <- parse_latlon(to) do
@@ -135,6 +142,14 @@ defmodule AtlasWeb.MapLive do
   @impl true
   def handle_event("pick_point", %{"field" => field}, socket) when field in ~w(from to) do
     {:noreply, push_event(socket, "map:enter_picker", %{field: field})}
+  end
+
+  @impl true
+  def handle_event("point_picked", %{"field" => field, "lat" => lat, "lon" => lon}, socket)
+      when field in ~w(from to) do
+    value = "#{format_coord(lat)},#{format_coord(lon)}"
+    key = if field == "from", do: :route_from, else: :route_to
+    {:noreply, assign(socket, key, value)}
   end
 
   @impl true
@@ -189,9 +204,40 @@ defmodule AtlasWeb.MapLive do
          |> assign(tiles_url: url)
          |> push_event("map:set_style", %{url: url})}
 
-      {:ok, %{download: true}} ->
-        {:noreply,
-         put_flash(socket, :info, "Download-based presets are not yet wired in Phoenix")}
+      {:ok, %{url: url, download: true}} when is_binary(url) ->
+        try do
+          # PubSub subscription so we can surface progress; tolerated even if
+          # TilesDownloader process isn't running.
+          if connected?(socket) do
+            Phoenix.PubSub.subscribe(Atlas.PubSub, TilesDownloader.topic())
+          end
+
+          case TilesDownloader.download(url) do
+            {:ok, _job_id, dest} ->
+              local_url = "file://" <> dest
+              Settings.set("tiles_url", local_url)
+
+              {:noreply,
+               socket
+               |> assign(tiles_url: local_url, tiles_download: %{status: :done, dest: dest})
+               |> push_event("map:set_style", %{url: local_url})
+               |> put_flash(:info, "Tile pack downloaded.")}
+
+            {:error, reason} ->
+              {:noreply,
+               socket
+               |> assign(tiles_download: %{status: :error, reason: inspect(reason)})
+               |> put_flash(:error, "Tile pack download failed: #{inspect(reason)}")}
+          end
+        catch
+          :exit, _ ->
+            {:noreply,
+             put_flash(
+               socket,
+               :error,
+               "Download-based presets are unavailable: TilesDownloader is not running on this build."
+             )}
+        end
 
       _ ->
         {:noreply, put_flash(socket, :error, "Unknown basemap preset")}
@@ -211,18 +257,61 @@ defmodule AtlasWeb.MapLive do
   end
 
   @impl true
-  def handle_event("toggle_region", %{"name" => _name}, socket) do
+  def handle_event("toggle_region", %{"name" => name}, socket) do
+    existing = Repo.all(from r in RegionSelection, where: r.region_name == ^name)
+
+    case existing do
+      [%RegionSelection{active: true} | _] ->
+        Repo.delete_all(from r in RegionSelection, where: r.region_name == ^name)
+
+      [%RegionSelection{active: false} = row | _] ->
+        row
+        |> RegionSelection.changeset(%{active: true})
+        |> Repo.update!()
+
+      [] ->
+        position = next_region_position()
+
+        %RegionSelection{}
+        |> RegionSelection.changeset(%{region_name: name, active: true, position: position})
+        |> Repo.insert!()
+    end
+
     {:noreply, socket}
   end
 
   @impl true
-  def handle_event("toggle_service", %{"name" => _name}, socket) do
-    {:noreply, socket}
+  def handle_event("toggle_service", %{"name" => name}, socket) do
+    snap = safely_snapshot(name)
+    currently_enabled = match?(%{enabled?: true}, snap)
+
+    _ =
+      try do
+        if currently_enabled, do: ServiceState.disable(name), else: ServiceState.enable(name)
+      rescue
+        _ -> :unavailable
+      catch
+        :exit, _ -> :unavailable
+      end
+
+    {:noreply, assign(socket, service_status: refresh_service_status())}
   end
 
   @impl true
-  def handle_event("toggle_auto", %{"name" => _name}, socket) do
-    {:noreply, socket}
+  def handle_event("toggle_auto", %{"name" => name}, socket) do
+    snap = safely_snapshot(name)
+    next = not match?(%{auto_update_enabled?: true}, snap)
+
+    _ =
+      try do
+        ServiceState.set_auto_update(name, next)
+      rescue
+        _ -> :unavailable
+      catch
+        :exit, _ -> :unavailable
+      end
+
+    {:noreply, assign(socket, service_status: refresh_service_status())}
   end
 
   @impl true
@@ -237,20 +326,66 @@ defmodule AtlasWeb.MapLive do
 
   @impl true
   def handle_event("apply_selection", _params, socket) do
-    {:noreply, put_flash(socket, :info, "Apply selection not yet wired")}
+    active =
+      Repo.all(from r in RegionSelection, where: r.active == true, order_by: [asc: r.position])
+      |> Enum.map(& &1.region_name)
+
+    case active do
+      [] ->
+        {:noreply, put_flash(socket, :info, "No regions selected")}
+
+      names ->
+        try do
+          RegionApplier.apply(names)
+          {:noreply, put_flash(socket, :info, "Applying #{length(names)} region(s)…")}
+        catch
+          :exit, _ ->
+            {:noreply,
+             put_flash(socket, :error, "RegionApplier is not running on this build")}
+        end
+    end
   end
 
   @impl true
   def handle_info(:status_changed, socket) do
-    statuses =
-      Seeder.known_services()
-      |> Enum.map(fn s -> {s.name, safely_snapshot(s.name)} end)
-      |> Map.new()
+    {:noreply, assign(socket, service_status: refresh_service_status())}
+  end
 
-    {:noreply, assign(socket, service_status: statuses)}
+  def handle_info({:start, job_id, _url, _dest}, socket) do
+    {:noreply, assign(socket, tiles_download: %{status: :start, job_id: job_id})}
+  end
+
+  def handle_info({:progress, job_id, fraction}, socket) do
+    {:noreply, assign(socket, tiles_download: %{status: :progress, job_id: job_id, fraction: fraction})}
+  end
+
+  def handle_info({:done, job_id, dest}, socket) do
+    {:noreply, assign(socket, tiles_download: %{status: :done, job_id: job_id, dest: dest})}
+  end
+
+  def handle_info({:error, job_id, reason}, socket) do
+    {:noreply, assign(socket, tiles_download: %{status: :error, job_id: job_id, reason: inspect(reason)})}
   end
 
   def handle_info(_other, socket), do: {:noreply, socket}
+
+  defp refresh_service_status do
+    Seeder.known_services()
+    |> Enum.map(fn s -> {s.name, safely_snapshot(s.name)} end)
+    |> Map.new()
+  end
+
+  defp next_region_position do
+    Repo.aggregate(RegionSelection, :max, :position)
+    |> case do
+      nil -> 0
+      n -> n + 1
+    end
+  end
+
+  defp format_coord(value) when is_float(value), do: :erlang.float_to_binary(value, decimals: 6)
+  defp format_coord(value) when is_integer(value), do: Integer.to_string(value)
+  defp format_coord(value) when is_binary(value), do: value
 
   defp safely_snapshot(name) do
     ServiceState.snapshot(name)
@@ -374,6 +509,8 @@ defmodule AtlasWeb.MapLive do
                 id="directions-card"
                 directions={@directions}
                 mode={@mode}
+                route_from={@route_from}
+                route_to={@route_to}
                 route_options={@route_options}
               />
             </div>

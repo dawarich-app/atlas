@@ -59,27 +59,105 @@ export default {
       this.markers = {}
     })
 
-    this.handleEvent("map:draw_route", ({ geojson }) => {
-      if (this.map.getSource("route")) {
-        this.map.getSource("route").setData(geojson)
-      } else {
-        const addRoute = () => {
-          this.map.addSource("route", { type: "geojson", data: geojson })
-          this.map.addLayer({
-            id: "route-line",
-            type: "line",
-            source: "route",
-            paint: { "line-color": "#3b82f6", "line-width": 4 }
-          })
-        }
+    this.routeGeoJSON = null
 
-        if (this.map.isStyleLoaded()) {
-          addRoute()
-        } else {
-          this.map.once("load", addRoute)
-        }
-      }
+    this.handleEvent("map:draw_route", ({ geojson }) => {
+      this.routeGeoJSON = geojson
+      this._renderRoute()
     })
+
+    // Pick-point flow: when the user clicks the pin button next to From/To,
+    // the LiveView pushes `map:enter_picker` with `{field}`. We arm a one-shot
+    // click listener; on next map click we push `point_picked` back with the
+    // coords and reset cursor.
+    this.activePicker = null
+    this._pickerClickHandler = null
+    this._tilesUrl = this.el.dataset.tilesUrl || null
+
+    this.handleEvent("map:enter_picker", ({ field }) => {
+      if (!field) return
+
+      // If already arming, replace the field but reuse the same handler.
+      this.activePicker = field
+      this.map.getCanvas().style.cursor = "crosshair"
+
+      if (this._pickerClickHandler) return
+
+      this._pickerClickHandler = (e) => {
+        const field = this.activePicker
+        if (!field) return
+        const { lng, lat } = e.lngLat
+        this.activePicker = null
+        this.map.getCanvas().style.cursor = ""
+        this.map.off("click", this._pickerClickHandler)
+        this._pickerClickHandler = null
+        this.pushEvent("point_picked", { field, lat, lon: lng })
+      }
+
+      this.map.on("click", this._pickerClickHandler)
+    })
+
+    this.handleEvent("map:set_style", ({ url }) => {
+      this._tilesUrl = url || null
+      const nextStyle = url ? url : OSM_RASTER_FALLBACK
+
+      // Persist what we want to re-add on the new style.
+      const savedMarkers = Object.entries(this.markers || {}).map(([id, m]) => {
+        const lngLat = m.getLngLat()
+        const popup = m.getPopup()
+        return {
+          id,
+          lat: lngLat.lat,
+          lon: lngLat.lng,
+          html: popup ? popup.getElement()?.querySelector(".maplibregl-popup-content")?.innerHTML : null
+        }
+      })
+
+      // Drop the live marker DOM; we re-create after styledata fires.
+      Object.values(this.markers || {}).forEach(m => m.remove())
+      this.markers = {}
+
+      const onStyle = () => {
+        // Re-add markers.
+        savedMarkers.forEach(({ id, lat, lon, html }) => {
+          const marker = new maplibregl.Marker().setLngLat([lon, lat])
+          if (html) marker.setPopup(new maplibregl.Popup().setHTML(html))
+          marker.addTo(this.map)
+          this.markers[id] = marker
+        })
+        // Re-add the route source/layer if we had one.
+        if (this.routeGeoJSON) this._renderRoute()
+      }
+
+      this.map.once("styledata", onStyle)
+      this.map.setStyle(nextStyle)
+    })
+  },
+
+  _renderRoute() {
+    const geojson = this.routeGeoJSON
+    if (!geojson) return
+
+    if (this.map.getSource("route")) {
+      this.map.getSource("route").setData(geojson)
+      return
+    }
+
+    const addRoute = () => {
+      this.map.addSource("route", { type: "geojson", data: geojson })
+      this.map.addLayer({
+        id: "route-line",
+        type: "line",
+        source: "route",
+        paint: { "line-color": "#3b82f6", "line-width": 4 }
+      })
+    }
+
+    if (this.map.isStyleLoaded()) {
+      addRoute()
+    } else {
+      this.map.once("load", addRoute)
+    }
   },
 
   destroyed() {
