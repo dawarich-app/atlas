@@ -132,6 +132,16 @@ defmodule AtlasWeb.MapLive do
   end
 
   @impl true
+  def handle_event("pick_point", %{"field" => field}, socket) when field in ~w(from to) do
+    {:noreply, push_event(socket, "map:enter_picker", %{field: field})}
+  end
+
+  @impl true
+  def handle_event("swap_route", _params, socket) do
+    {:noreply, push_event(socket, "map:swap_route", %{})}
+  end
+
+  @impl true
   def handle_event("toggle_route_option", %{"option" => option}, socket)
       when option in ~w(avoid_tolls avoid_highways avoid_ferries) do
     options =
@@ -159,6 +169,54 @@ defmodule AtlasWeb.MapLive do
      socket
      |> assign(tiles_url: url, theme: theme)
      |> put_flash(:info, "Settings saved")}
+  end
+
+  @impl true
+  def handle_event("update_theme", %{"theme" => theme}, socket) do
+    Settings.set("tiles_theme", theme)
+    {:noreply, assign(socket, theme: theme)}
+  end
+
+  @impl true
+  def handle_event("use_local_tiles", _params, socket) do
+    {:noreply, put_flash(socket, :info, "Local tiles selection not yet wired")}
+  end
+
+  @impl true
+  def handle_event("use_env_tiles", _params, socket) do
+    env_url = System.get_env("TILES_URL") || ""
+    Settings.set("tiles_url", env_url)
+    {:noreply, assign(socket, tiles_url: env_url)}
+  end
+
+  @impl true
+  def handle_event("toggle_region", %{"name" => _name}, socket) do
+    {:noreply, socket}
+  end
+
+  @impl true
+  def handle_event("toggle_service", %{"name" => _name}, socket) do
+    {:noreply, socket}
+  end
+
+  @impl true
+  def handle_event("toggle_auto", %{"name" => _name}, socket) do
+    {:noreply, socket}
+  end
+
+  @impl true
+  def handle_event("save_schedule", %{"name" => _name, "cron" => _cron}, socket) do
+    {:noreply, socket}
+  end
+
+  @impl true
+  def handle_event("update_now", %{"name" => _name}, socket) do
+    {:noreply, socket}
+  end
+
+  @impl true
+  def handle_event("apply_selection", _params, socket) do
+    {:noreply, put_flash(socket, :info, "Apply selection not yet wired")}
   end
 
   @impl true

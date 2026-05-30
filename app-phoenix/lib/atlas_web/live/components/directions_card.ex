@@ -71,7 +71,18 @@ defmodule AtlasWeb.DirectionsCard do
                 spellcheck="false"
                 class="input input-bordered input-sm w-full pl-8 pr-9"
               />
+              <button
+                type="button"
+                class="absolute right-1 top-1/2 -translate-y-1/2 btn btn-square btn-ghost btn-xs"
+                title="Pick from on map"
+                aria-label="Pick from on map"
+                phx-click="pick_point"
+                phx-value-field="from"
+              >
+                {icon("map-pin", class: "w-3.5 h-3.5")}
+              </button>
             </div>
+
             <div class="relative">
               <span class="absolute left-3 top-1/2 -translate-y-1/2 w-2.5 h-2.5 rounded-sm bg-primary ring-2 ring-base-100">
               </span>
@@ -83,13 +94,25 @@ defmodule AtlasWeb.DirectionsCard do
                 spellcheck="false"
                 class="input input-bordered input-sm w-full pl-8 pr-9"
               />
+              <button
+                type="button"
+                class="absolute right-1 top-1/2 -translate-y-1/2 btn btn-square btn-ghost btn-xs"
+                title="Pick to on map"
+                aria-label="Pick to on map"
+                phx-click="pick_point"
+                phx-value-field="to"
+              >
+                {icon("map-pin", class: "w-3.5 h-3.5")}
+              </button>
             </div>
           </div>
+
           <button
-            type="submit"
+            type="button"
             class="btn btn-square btn-sm btn-ghost self-center"
-            aria-label="Route"
-            title="Route"
+            aria-label="Swap origin and destination"
+            title="Swap"
+            phx-click="swap_route"
           >
             {icon("arrow-up-down", class: "w-4 h-4")}
           </button>
