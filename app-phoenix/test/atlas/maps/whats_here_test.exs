@@ -20,7 +20,7 @@ defmodule Atlas.Maps.WhatsHereTest do
       end
     end)
 
-    %Result{features: %{here: here, admin: _admin, nearby: [first_poi]}, upstream_status: "ok"} =
+    {:ok, %Result{features: %{here: here, admin: _admin, nearby: [first_poi]}, upstream_status: "ok"}} =
       WhatsHere.lookup(lat: 52.5, lon: 13.4, radius: 200)
 
     assert here.name == "BG"
@@ -28,7 +28,7 @@ defmodule Atlas.Maps.WhatsHereTest do
     assert first_poi.tags == %{"amenity" => "cafe"}
   end
 
-  test "lookup returns empty nearby when Overpass fails but reverse succeeds", %{bypass: bypass} do
+  test "lookup propagates Overpass upstream failure as {:error, _}", %{bypass: bypass} do
     Bypass.expect(bypass, fn conn ->
       case conn.request_path do
         "/reverse" -> Plug.Conn.resp(conn, 200, ~s({"features":[{"geometry":{"coordinates":[13.4,52.5]},"properties":{"name":"BG"}}]}))
@@ -37,7 +37,14 @@ defmodule Atlas.Maps.WhatsHereTest do
       end
     end)
 
-    %Result{features: %{nearby: nearby}, upstream_status: "ok"} = WhatsHere.lookup(lat: 52.5, lon: 13.4, radius: 200)
-    assert nearby == []
+    assert {:error, %Atlas.Maps.Upstream.Client.BadResponse{}} =
+             WhatsHere.lookup(lat: 52.5, lon: 13.4, radius: 200)
+  end
+
+  test "lookup propagates reverse upstream failure as {:error, _}", %{bypass: bypass} do
+    Bypass.down(bypass)
+
+    assert {:error, %Atlas.Maps.Upstream.Client.Unavailable{}} =
+             WhatsHere.lookup(lat: 52.5, lon: 13.4, radius: 200)
   end
 end

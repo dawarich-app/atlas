@@ -19,15 +19,29 @@ defmodule Atlas.Maps.ReverseTest do
       end
     end)
 
-    assert %Result{features: %{here: feature, admin: admin}, upstream_status: "ok"} =
+    assert {:ok, %Result{features: %{here: feature, admin: admin}, upstream_status: "ok"}} =
              Reverse.lookup(lat: 52.5, lon: 13.4)
 
     assert feature.name == "Brandenburg Gate"
     assert admin.city == "Berlin"
   end
 
-  test "lookup returns unavailable when Photon down", %{bypass: bypass} do
+  test "lookup returns {:error, %Unavailable{}} when Photon down", %{bypass: bypass} do
     Bypass.down(bypass)
-    assert %Result{upstream_status: "unavailable"} = Reverse.lookup(lat: 52.5, lon: 13.4)
+
+    assert {:error, %Atlas.Maps.Upstream.Client.Unavailable{}} =
+             Reverse.lookup(lat: 52.5, lon: 13.4)
+  end
+
+  test "lookup feature.label includes state component and dedupes via uniq", %{bypass: bypass} do
+    Bypass.expect(bypass, fn conn ->
+      case conn.request_path do
+        "/reverse" -> Plug.Conn.resp(conn, 200, ~s({"features":[{"geometry":{"coordinates":[13.4,52.5]},"properties":{"osm_id":2,"osm_type":"N","name":"Mitte","city":"Berlin","state":"Berlin","country":"Germany"}}]}))
+        "/parser/search" -> Plug.Conn.resp(conn, 200, "[]")
+      end
+    end)
+
+    assert {:ok, %Result{features: %{here: feature}}} = Reverse.lookup(lat: 52.5, lon: 13.4)
+    assert feature.label == "Mitte, Berlin, Germany"
   end
 end

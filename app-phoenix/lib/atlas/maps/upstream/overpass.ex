@@ -18,7 +18,8 @@ defmodule Atlas.Maps.Upstream.Overpass do
   end
 
   defp build_bbox_query(opts) do
-    [w, s, e, n] = opts[:bbox]
+    # Rails bbox contract: [s, w, n, e]. Overpass needs s,w,n,e clause too.
+    [s, w, n, e] = opts[:bbox]
     filters = opts[:filters] || []
     limit = opts[:limit] || 300
     timeout = opts[:timeout] || 25

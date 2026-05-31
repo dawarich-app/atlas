@@ -5,9 +5,14 @@ defmodule AtlasWeb.Admin.RegionsLive do
 
   alias Atlas.Repo
   alias Atlas.Control.{RegionCatalog, RegionSelection}
+  alias AtlasWeb.Admin.RegionsController
 
   @impl true
   def mount(_params, _session, socket) do
+    if connected?(socket) do
+      Phoenix.PubSub.subscribe(Atlas.PubSub, "admin:regions")
+    end
+
     {:ok,
      assign(socket,
        available: RegionCatalog.all(),
@@ -30,10 +35,12 @@ defmodule AtlasWeb.Admin.RegionsLive do
 
   @impl true
   def handle_event("save", _params, socket) do
+    names = socket.assigns.selected
+
     Repo.transaction(fn ->
       Repo.delete_all(RegionSelection)
 
-      socket.assigns.selected
+      names
       |> Enum.with_index()
       |> Enum.each(fn {name, idx} ->
         %RegionSelection{}
@@ -46,11 +53,22 @@ defmodule AtlasWeb.Admin.RegionsLive do
       end)
     end)
 
+    RegionsController.broadcast_selection_change(names)
+
     {:noreply,
      socket
      |> put_flash(:info, "Regions saved")
      |> assign(selected: load_selected())}
   end
+
+  @impl true
+  def handle_info({:regions_changed, _names}, socket) do
+    # Reload from DB so this tab reflects changes made by another tab or
+    # the JSON endpoint.
+    {:noreply, assign(socket, selected: load_selected())}
+  end
+
+  def handle_info(_other, socket), do: {:noreply, socket}
 
   defp load_selected do
     RegionSelection

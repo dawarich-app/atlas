@@ -61,6 +61,45 @@ defmodule AtlasWeb.Admin.ServicesLiveTest do
     assert Repo.get_by!(Service, name: "photon").update_schedule_cron == "0 3 * * *"
   end
 
+  test "service card shows last_error when status is error", %{conn: conn} do
+    Repo.get_by(Service, name: "photon")
+    |> Service.changeset(%{status: :error, last_error: "photon failed to start"})
+    |> Repo.update!()
+
+    {:ok, _view, html} = live(conn, ~p"/admin/services")
+
+    assert html =~ "photon failed to start"
+    assert html =~ ~s(data-error-line="true")
+  end
+
+  test "service card shows disk size when disk_bytes > 0", %{conn: conn} do
+    Repo.get_by(Service, name: "photon")
+    |> Service.changeset(%{disk_bytes: 2_500_000_000})
+    |> Repo.update!()
+
+    {:ok, _view, html} = live(conn, ~p"/admin/services")
+
+    assert html =~ "Disk:"
+    assert html =~ "GB"
+  end
+
+  test "service card disables Update now button when update is running", %{conn: conn} do
+    Repo.get_by(Service, name: "photon")
+    |> Service.changeset(%{last_update_status: "running"})
+    |> Repo.update!()
+
+    {:ok, _view, html} = live(conn, ~p"/admin/services")
+
+    assert html =~ "Updating…"
+  end
+
+  test "service card includes phx-disable-with on toggle button", %{conn: conn} do
+    {:ok, _view, html} = live(conn, ~p"/admin/services")
+
+    # Button shows disabling-while-toggling state
+    assert html =~ "phx-disable-with"
+  end
+
   test "schedule event with empty cron clears the field", %{conn: conn} do
     {:ok, _row} =
       Repo.get_by(Service, name: "photon")

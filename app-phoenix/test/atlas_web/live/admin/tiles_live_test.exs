@@ -65,6 +65,31 @@ defmodule AtlasWeb.Admin.TilesLiveTest do
     assert html =~ "Provide a tile pack URL"
   end
 
+  test "tiles_source badge shows 'external' for http url", %{conn: conn} do
+    Settings.set("tiles_url", "https://tiles.example/style.json")
+
+    {:ok, _view, html} = live(conn, ~p"/admin/tiles")
+
+    assert html =~ ~s(data-tiles-source="external")
+  end
+
+  test "tiles_source badge shows 'sidecar' for atlas-control URL", %{conn: conn} do
+    Settings.set("tiles_url", "http://atlas-control:5000/tiles.pmtiles")
+
+    {:ok, _view, html} = live(conn, ~p"/admin/tiles")
+
+    assert html =~ ~s(data-tiles-source="sidecar")
+  end
+
+  test "reset_to_sidecar clears the URL setting", %{conn: conn} do
+    Settings.set("tiles_url", "https://tiles.example/style.json")
+
+    {:ok, view, _html} = live(conn, ~p"/admin/tiles")
+    view |> render_click("reset_to_sidecar", %{})
+
+    assert Settings.get("tiles_url") in [nil, ""]
+  end
+
   test "progress messages update the progress bar", %{conn: conn} do
     {:ok, view, _html} = live(conn, ~p"/admin/tiles")
 
