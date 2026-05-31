@@ -36,8 +36,8 @@ defmodule Atlas.Maps.PoiTest do
       Plug.Conn.resp(conn, 200, ~s({"elements":[{"type":"node","id":1,"lat":52.5,"lon":13.4,"tags":{"amenity":"restaurant","name":"Brandenburger Bistro"}}]}))
     end)
 
-    assert %Result{features: [feat], upstream_status: "ok"} =
-             Poi.nearby(bbox: [13.0, 52.0, 14.0, 53.0], types: ["restaurant"])
+    assert {:ok, %Result{features: [feat], upstream_status: "ok"}} =
+             Poi.nearby(bbox: [52.0, 13.0, 53.0, 14.0], types: ["restaurant"])
 
     assert feat.id == "node/1"
     assert feat.name == "Brandenburger Bistro"
@@ -45,12 +45,12 @@ defmodule Atlas.Maps.PoiTest do
     assert feat.tags["amenity"] == "restaurant"
   end
 
-  test "nearby/1 returns error when types resolve to no selectors" do
-    assert %Result{features: [], upstream_status: "error"} =
-             Poi.nearby(bbox: [13.0, 52.0, 14.0, 53.0], types: ["does-not-exist"])
+  test "nearby/1 returns {:error, :invalid, ...} when types resolve to no selectors" do
+    assert {:error, :invalid, _msg, _details} =
+             Poi.nearby(bbox: [52.0, 13.0, 53.0, 14.0], types: ["does-not-exist"])
   end
 
-  test "nearby/1 returns error when bbox missing" do
-    assert %Result{features: [], upstream_status: "error"} = Poi.nearby(types: ["restaurant"])
+  test "nearby/1 returns {:error, :invalid, ...} when bbox missing" do
+    assert {:error, :invalid, _msg, _details} = Poi.nearby(types: ["restaurant"])
   end
 end

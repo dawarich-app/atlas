@@ -30,6 +30,24 @@ defmodule Atlas.Control.RegionApplier do
     GenServer.call(__MODULE__, {:apply, regions})
   end
 
+  @doc """
+  Project disk usage + service intents for a set of regions and proposed
+  service-enable changes — without running osmium. Mirrors Rails
+  `ApplyProjection.summary`.
+
+  ## Returns
+
+      %{
+        total_disk_gb: float,
+        first_boot_hours: float,
+        lines: [%{name: String.t(), disk_gb: float, hours: float}],
+        service_intents: [%{name: String.t(), enabled: boolean, reason: String.t()}]
+      }
+  """
+  def project(regions, intents \\ []) when is_list(regions) and is_list(intents) do
+    Atlas.Control.ApplyProjection.summary(regions, intents)
+  end
+
   @doc "Inspect current applier state — `nil` when idle."
   def status, do: GenServer.call(__MODULE__, :status)
 

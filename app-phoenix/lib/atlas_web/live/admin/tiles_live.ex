@@ -3,6 +3,7 @@ defmodule AtlasWeb.Admin.TilesLive do
 
   alias Atlas.Settings
   alias Atlas.Control.TilesDownloader
+  alias AtlasWeb.Admin.TilesController
 
   @impl true
   def mount(_params, _session, socket) do
@@ -10,10 +11,13 @@ defmodule AtlasWeb.Admin.TilesLive do
       Phoenix.PubSub.subscribe(Atlas.PubSub, TilesDownloader.topic())
     end
 
+    tiles_url = Settings.get("tiles_url") || ""
+
     {:ok,
      assign(socket,
-       tiles_url: Settings.get("tiles_url") || "",
+       tiles_url: tiles_url,
        theme: Settings.get("tiles_theme") || "atlas-light",
+       tiles_source: TilesController.tiles_source(tiles_url),
        download_state: :idle,
        progress: 0.0,
        page_title: "Tiles"
@@ -27,8 +31,17 @@ defmodule AtlasWeb.Admin.TilesLive do
 
     {:noreply,
      socket
-     |> assign(tiles_url: url, theme: theme)
+     |> assign(tiles_url: url, theme: theme, tiles_source: TilesController.tiles_source(url))
      |> put_flash(:info, "Saved")}
+  end
+
+  def handle_event("reset_to_sidecar", _params, socket) do
+    Settings.set("tiles_url", "")
+
+    {:noreply,
+     socket
+     |> assign(tiles_url: "", tiles_source: :sidecar)
+     |> put_flash(:info, "Tiles source reset to sidecar default")}
   end
 
   @impl true
@@ -72,6 +85,22 @@ defmodule AtlasWeb.Admin.TilesLive do
   def render(assigns) do
     ~H"""
     <h1 class="text-2xl font-bold mb-4">Tiles</h1>
+    <div class="mb-3 max-w-xl text-sm flex items-center gap-2">
+      <span class="text-base-content/60">Source:</span>
+      <span class={source_badge_class(@tiles_source)} data-tiles-source={Atom.to_string(@tiles_source)}>
+        {source_label(@tiles_source)}
+      </span>
+      <%= if @tiles_source == :external do %>
+        <button
+          phx-click="reset_to_sidecar"
+          class="btn btn-xs btn-ghost"
+          title="Clear override; use sidecar default"
+        >
+          Reset to sidecar
+        </button>
+      <% end %>
+    </div>
+
     <form phx-submit="save" class="form-control gap-2 max-w-xl">
       <label class="label"><span class="label-text">Tiles URL (PMTiles or style.json)</span></label>
       <input type="text" name="tiles_url" value={@tiles_url} class="input input-bordered" />
@@ -102,4 +131,12 @@ defmodule AtlasWeb.Admin.TilesLive do
     </form>
     """
   end
+
+  defp source_label(:sidecar), do: "sidecar"
+  defp source_label(:external), do: "external"
+  defp source_label(_), do: "unset"
+
+  defp source_badge_class(:sidecar), do: "badge badge-success"
+  defp source_badge_class(:external), do: "badge badge-info"
+  defp source_badge_class(_), do: "badge badge-ghost"
 end

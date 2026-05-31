@@ -40,4 +40,23 @@ defmodule AtlasWeb.Api.V1.WhatsHereControllerTest do
     resp = conn |> get(~p"/api/v1/whats-here") |> json_response(400)
     assert resp["error"]["code"] == "MISSING_PARAM"
   end
+
+  test "GET /api/v1/whats-here returns 422 VALIDATION_ERROR when lat is non-numeric", %{conn: conn} do
+    resp = conn |> get(~p"/api/v1/whats-here?lat=abc&lon=13.4") |> json_response(422)
+    assert resp["error"]["code"] == "VALIDATION_ERROR"
+    assert resp["error"]["message"] =~ "lat"
+  end
+
+  test "GET /api/v1/whats-here returns 502 when Overpass returns 500", %{conn: conn, bypass: bypass} do
+    Bypass.expect(bypass, fn c ->
+      case c.request_path do
+        "/reverse" -> Plug.Conn.resp(c, 200, ~s({"features":[{"geometry":{"coordinates":[13.4,52.5]},"properties":{"name":"BG"}}]}))
+        "/api/interpreter" -> Plug.Conn.resp(c, 500, "boom")
+        "/parser/search" -> Plug.Conn.resp(c, 200, "[]")
+      end
+    end)
+
+    resp = conn |> get(~p"/api/v1/whats-here?lat=52.5&lon=13.4") |> json_response(502)
+    assert resp["error"]["code"] == "UPSTREAM_ERROR"
+  end
 end
