@@ -26,14 +26,33 @@ defmodule AtlasWeb.Api.V1.SearchControllerTest do
     assert meta["count"] == 1
   end
 
-  test "GET /api/v1/search returns 400 when q is missing", %{conn: conn} do
+  test "GET /api/v1/search returns 400 MISSING_PARAM with details.param when q missing", %{conn: conn} do
     resp = conn |> get(~p"/api/v1/search") |> json_response(400)
     assert resp["error"]["code"] == "MISSING_PARAM"
-    assert resp["error"]["param"] == "q"
+    assert resp["error"]["details"]["param"] == "q"
   end
 
   test "GET /api/v1/search returns 400 when q is blank", %{conn: conn} do
     resp = conn |> get(~p"/api/v1/search?q=") |> json_response(400)
     assert resp["error"]["code"] == "MISSING_PARAM"
+  end
+
+  test "GET /api/v1/search returns 502 UPSTREAM_ERROR when Photon returns 5xx", %{conn: conn, bypass: bypass} do
+    Bypass.expect(bypass, fn c ->
+      case c.request_path do
+        "/parser" -> Plug.Conn.resp(c, 200, "[]")
+        "/api" -> Plug.Conn.resp(c, 500, "boom")
+        "/parser/search" -> Plug.Conn.resp(c, 200, "[]")
+      end
+    end)
+
+    resp = conn |> get(~p"/api/v1/search?q=berlin") |> json_response(502)
+    assert resp["error"]["code"] == "UPSTREAM_ERROR"
+  end
+
+  test "GET /api/v1/search returns 503 UPSTREAM_UNAVAILABLE when Photon is down", %{conn: conn, bypass: bypass} do
+    Bypass.down(bypass)
+    resp = conn |> get(~p"/api/v1/search?q=berlin") |> json_response(503)
+    assert resp["error"]["code"] == "UPSTREAM_UNAVAILABLE"
   end
 end

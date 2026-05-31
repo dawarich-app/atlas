@@ -18,6 +18,12 @@ defmodule AtlasWeb.Plugs.AdminAuthTest do
     assert get_resp_header(conn, "www-authenticate") |> List.first() =~ "Basic"
   end
 
+  test "GET /admin/services emits realm 'Dawarich Atlas admin' in WWW-Authenticate", %{conn: conn} do
+    conn = get(conn, "/admin/services")
+    header = get_resp_header(conn, "www-authenticate") |> List.first()
+    assert header =~ ~s|realm="Dawarich Atlas admin"|
+  end
+
   test "GET /admin/services returns 401 with wrong creds", %{conn: conn} do
     conn =
       conn
@@ -44,5 +50,15 @@ defmodule AtlasWeb.Plugs.AdminAuthTest do
 
     conn = get(conn, "/admin/services")
     assert response(conn, 503) =~ "Admin panel unconfigured"
+  end
+
+  test "GET /admin/services 503 body matches Rails verbatim (byte-exact)", %{conn: conn} do
+    System.delete_env("ADMIN_USERNAME")
+    System.delete_env("ADMIN_PASSWORD")
+
+    conn = get(conn, "/admin/services")
+
+    assert response(conn, 503) ==
+             "Admin panel unconfigured. Set ADMIN_USERNAME and ADMIN_PASSWORD in .env, then `make restart`."
   end
 end

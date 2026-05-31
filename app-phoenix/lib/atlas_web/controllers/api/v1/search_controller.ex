@@ -1,5 +1,7 @@
 defmodule AtlasWeb.Api.V1.SearchController do
   use AtlasWeb.Api.V1.BaseController
+  action_fallback AtlasWeb.Api.V1.FallbackController
+
   alias Atlas.Maps.Search
   alias AtlasWeb.Schemas
 
@@ -17,34 +19,38 @@ defmodule AtlasWeb.Api.V1.SearchController do
     ],
     responses: %{
       200 => response("Search results", "application/json", Schemas.Response),
-      400 => response("Missing parameter", "application/json", Schemas.Error)
+      400 => response("Missing parameter", "application/json", Schemas.Error),
+      502 => response("Upstream error", "application/json", Schemas.Error),
+      503 => response("Upstream unavailable", "application/json", Schemas.Error)
     }
   )
 
   def index(conn, params) do
-    case require_param(conn, "q") do
-      {:error, :missing} ->
-        conn
-        |> put_status(:bad_request)
-        |> json(%{error: %{code: "MISSING_PARAM", param: "q", message: "param q is required"}})
-
-      {:ok, q} ->
-        opts = %{
-          query: String.trim(q),
-          limit: clamp_int(params["limit"], 25, 1, 50),
-          lang: params["lang"],
-          lat: parse_float(params["lat"]),
-          lon: parse_float(params["lon"]),
-          bbox: parse_bbox(params["bbox"])
-        }
-
-        result = Search.autocomplete(opts)
-
-        json(conn, %{
-          data: result.features,
-          meta:
-            meta(conn, %{upstream: result.upstream_status, count: length(result.features)})
-        })
+    with {:ok, q} <- require_q(conn, params),
+         {:ok, result} <- Search.autocomplete(opts_from(params, q)) do
+      json(conn, %{
+        data: result.features,
+        meta: meta(conn, %{upstream: result.upstream_status, count: length(result.features)})
+      })
     end
+  end
+
+  defp require_q(_conn, params) do
+    case params["q"] do
+      nil -> {:error, :missing, "q"}
+      "" -> {:error, :missing, "q"}
+      v -> {:ok, v}
+    end
+  end
+
+  defp opts_from(params, q) do
+    %{
+      query: String.trim(q),
+      limit: clamp_int(params["limit"], 25, 1, 50),
+      lang: params["lang"],
+      lat: parse_float(params["lat"]),
+      lon: parse_float(params["lon"]),
+      bbox: parse_bbox(params["bbox"])
+    }
   end
 end

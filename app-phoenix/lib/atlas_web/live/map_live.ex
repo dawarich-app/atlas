@@ -1,9 +1,12 @@
 defmodule AtlasWeb.MapLive do
   use AtlasWeb, :live_view
 
+  import Ecto.Query
+
   alias Atlas.Maps
+  alias Atlas.Repo
   alias Atlas.Settings
-  alias Atlas.Control.{Seeder, ServiceState}
+  alias Atlas.Control.{RegionSelection, Seeder, ServiceState}
 
   @impl true
   def mount(_params, _session, socket) do
@@ -28,6 +31,7 @@ defmodule AtlasWeb.MapLive do
        mode: "auto",
        places: [],
        service_status: %{},
+       active_regions: load_active_regions(),
        upstream_status: "ok"
      )}
   end
@@ -39,24 +43,34 @@ defmodule AtlasWeb.MapLive do
     if trimmed == "" do
       {:noreply, assign(socket, search_query: q, search_results: [])}
     else
-      result =
-        Maps.Search.autocomplete(%{
-          query: trimmed,
-          limit: 8,
-          lang: nil,
-          lat: nil,
-          lon: nil,
-          bbox: nil
-        })
+      case Maps.Search.autocomplete(%{
+             query: trimmed,
+             limit: 8,
+             lang: nil,
+             lat: nil,
+             lon: nil,
+             bbox: nil
+           }) do
+        {:ok, result} ->
+          {:noreply,
+           socket
+           |> assign(
+             search_query: q,
+             search_results: result.features,
+             upstream_status: result.upstream_status
+           )
+           |> push_event("map:clear_markers", %{})}
 
-      {:noreply,
-       socket
-       |> assign(
-         search_query: q,
-         search_results: result.features,
-         upstream_status: result.upstream_status
-       )
-       |> push_event("map:clear_markers", %{})}
+        {:error, _e} ->
+          {:noreply,
+           socket
+           |> assign(
+             search_query: q,
+             search_results: [],
+             upstream_status: "unavailable"
+           )
+           |> push_event("map:clear_markers", %{})}
+      end
     end
   end
 
@@ -91,16 +105,15 @@ defmodule AtlasWeb.MapLive do
     mode = Map.get(params, "mode", socket.assigns.mode)
 
     with {:ok, from_coords} <- parse_latlon(from),
-         {:ok, to_coords} <- parse_latlon(to) do
-      result =
-        Maps.Route.plan(
-          from: from_coords,
-          to: to_coords,
-          mode: mode
-        )
-
+         {:ok, to_coords} <- parse_latlon(to),
+         {:ok, result} <-
+           Maps.Route.plan(
+             from: from_coords,
+             to: to_coords,
+             mode: mode
+           ) do
       case result.features do
-        %{trip: %{"legs" => legs}} when is_list(legs) ->
+        %{legs: legs} when is_list(legs) and legs != [] ->
           geojson = legs_to_geojson(legs)
 
           {:noreply,
@@ -120,6 +133,12 @@ defmodule AtlasWeb.MapLive do
         {:noreply,
          socket
          |> put_flash(:error, "Could not parse from/to as lat,lon")}
+
+      {:error, _e} ->
+        {:noreply,
+         socket
+         |> assign(directions: %{trip: nil}, upstream_status: "unavailable")
+         |> put_flash(:error, "Routing service unavailable")}
     end
   end
 
@@ -156,6 +175,16 @@ defmodule AtlasWeb.MapLive do
 
   def handle_info(_other, socket), do: {:noreply, socket}
 
+  defp load_active_regions do
+    RegionSelection
+    |> where(active: true)
+    |> order_by(:position)
+    |> Repo.all()
+    |> Enum.map(& &1.region_name)
+  rescue
+    _ -> []
+  end
+
   defp safely_snapshot(name) do
     ServiceState.snapshot(name)
   rescue
@@ -178,12 +207,33 @@ defmodule AtlasWeb.MapLive do
 
   defp parse_latlon(_), do: :error
 
-  # M3.1 follow-up: full polyline decoder. Valhalla returns `shape` as a Google-polyline-encoded
-  # string per leg. For M3 we emit an empty FeatureCollection — the actual shape decoding can be
-  # done client-side (smaller bundle hit) or via a pure-Elixir port of the polyline algorithm.
-  defp legs_to_geojson(_legs) do
-    %{type: "FeatureCollection", features: []}
+  defp legs_to_geojson(legs) when is_list(legs) do
+    features =
+      Enum.flat_map(legs, fn leg ->
+        case leg["shape"] do
+          shape when is_binary(shape) and shape != "" ->
+            coords =
+              shape
+              |> Atlas.Geometry.Polyline.decode(6)
+              |> Enum.map(fn {lat, lon} -> [lon, lat] end)
+
+            [
+              %{
+                type: "Feature",
+                geometry: %{type: "LineString", coordinates: coords},
+                properties: %{}
+              }
+            ]
+
+          _ ->
+            []
+        end
+      end)
+
+    %{type: "FeatureCollection", features: features}
   end
+
+  defp legs_to_geojson(_), do: %{type: "FeatureCollection", features: []}
 
   @impl true
   def render(assigns) do
@@ -213,6 +263,7 @@ defmodule AtlasWeb.MapLive do
           tiles_url={@tiles_url}
           theme={@theme}
           service_status={@service_status}
+          active_regions={@active_regions}
         />
         <%= if @upstream_status != "ok" do %>
           <.live_component

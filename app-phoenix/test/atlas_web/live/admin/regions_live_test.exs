@@ -59,6 +59,27 @@ defmodule AtlasWeb.Admin.RegionsLiveTest do
     assert saved == ~w[berlin germany]
   end
 
+  test "save event broadcasts {:regions_changed, names}", %{conn: conn} do
+    Phoenix.PubSub.subscribe(Atlas.PubSub, "admin:regions")
+
+    {:ok, view, _html} = live(conn, ~p"/admin/regions")
+    view |> render_click("toggle", %{"name" => "berlin"})
+    view |> render_click("save", %{})
+
+    assert_receive {:regions_changed, ["berlin"]}, 500
+  end
+
+  test "LiveView reacts to {:regions_changed} broadcast", %{conn: conn} do
+    {:ok, view, _html} = live(conn, ~p"/admin/regions")
+
+    # Insert directly then broadcast — simulating another tab.
+    Repo.insert!(%RegionSelection{region_name: "berlin", active: true, position: 0})
+    send(view.pid, {:regions_changed, ["berlin"]})
+
+    html = render(view)
+    assert html =~ "berlin"
+  end
+
   test "save replaces previous selection", %{conn: conn} do
     Repo.insert!(%RegionSelection{region_name: "stale", active: true, position: 0})
 

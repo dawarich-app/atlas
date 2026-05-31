@@ -4,15 +4,19 @@ defmodule AtlasWeb.Plugs.AdminAuth do
 
   Credentials are read from `ADMIN_USERNAME` / `ADMIN_PASSWORD` env vars
   at request time (not compile time) so the plug picks up `.env` reloads
-  from `docker compose restart`.
+  from `make restart`.
 
   If either env var is missing or blank, the plug halts with HTTP 503 and
   an instructive message. This avoids the worse failure mode where a
   missing env var falls through to a permissive default.
+
+  The realm string and 503 body match Rails verbatim (see
+  `app/app/controllers/admin/base_controller.rb`) for byte-level parity.
   """
   import Plug.Conn
 
   @realm "Dawarich Atlas admin"
+  @unconfigured_body "Admin panel unconfigured. Set ADMIN_USERNAME and ADMIN_PASSWORD in .env, then `make restart`."
 
   def init(opts), do: opts
 
@@ -23,9 +27,7 @@ defmodule AtlasWeb.Plugs.AdminAuth do
     if blank?(user) or blank?(pass) do
       conn
       |> put_resp_content_type("text/plain")
-      |> send_resp(:service_unavailable,
-        "Admin panel unconfigured. Set ADMIN_USERNAME and ADMIN_PASSWORD in .env, then `docker compose restart`."
-      )
+      |> send_resp(:service_unavailable, @unconfigured_body)
       |> halt()
     else
       Plug.BasicAuth.basic_auth(conn, username: user, password: pass, realm: @realm)

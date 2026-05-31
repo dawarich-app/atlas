@@ -17,4 +17,10 @@ defmodule Atlas.Maps.Upstream.OtpTest do
 
     assert {:ok, %{"plan" => _}} = Otp.plan(req, from: %{lat: 52.5, lon: 13.4}, to: %{lat: 52.6, lon: 13.5})
   end
+
+  test "default/0 falls back to OTP port 8080 (not 8003)" do
+    System.delete_env("OTP_URL")
+    req = Otp.default()
+    assert req.options.base_url == "http://localhost:8080"
+  end
 end

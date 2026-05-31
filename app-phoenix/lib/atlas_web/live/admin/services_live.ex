@@ -81,6 +81,20 @@ defmodule AtlasWeb.Admin.ServicesLive do
     {:noreply, assign(socket, services: services)}
   end
 
+  def handle_info({:persist_cron, name, cron}, socket) do
+    persist_cron!(name, cron)
+
+    flash_msg =
+      if is_nil(cron),
+        do: "Schedule cleared for #{name}",
+        else: "Schedule updated for #{name}"
+
+    {:noreply,
+     socket
+     |> put_flash(:info, flash_msg)
+     |> assign(services: load_services())}
+  end
+
   def handle_info(_other, socket), do: {:noreply, socket}
 
   defp load_services do
