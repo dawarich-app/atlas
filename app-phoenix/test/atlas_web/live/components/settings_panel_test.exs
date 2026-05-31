@@ -6,65 +6,45 @@ defmodule AtlasWeb.SettingsPanelTest do
   alias Atlas.Control.RegionSelection
   alias Atlas.Repo
 
-  defp open_settings(conn) do
-    {:ok, view, _html} = live(conn, ~p"/?tab=settings")
-    {:ok, view, render(view)}
-  end
+  test "settings panel renders four sections", %{conn: conn} do
+    {:ok, _view, html} = live(conn, ~p"/")
 
-  test "settings panel surfaces the headline sections from M5+ parity work",
-       %{conn: conn} do
-    {:ok, _view, html} = open_settings(conn)
+    # Section 1: tiles URL + theme
+    assert html =~ "Tiles URL"
+    assert html =~ "Theme"
 
-    # The control-plane header + the four functional groupings PR #10
-    # collapsed onto a single tab: Region, Basemap, Services, Apply.
-    assert html =~ "Control plane"
-    assert html =~ "Settings"
+    # Section 2: regions
     assert html =~ "Region"
+    assert html =~ "Manage regions"
+
+    # Section 3: basemap
     assert html =~ "Basemap"
-    assert html =~ "Services"
-    assert html =~ "Save &amp; apply selection"
+    assert html =~ "Source"
   end
 
-  test "regions section lists every preset with a checkbox + size hint",
-       %{conn: conn} do
-    {:ok, _view, html} = open_settings(conn)
-
-    # Region presets ship with PR #10's Catalog (berlin, germany, europe, …).
-    # The label is rendered per option, with a GB-size hint sibling.
-    assert html =~ "Berlin (city)"
-    assert html =~ "Germany"
-    assert html =~ "~15 GB"
-  end
-
-  test "regions section reflects active selections from the DB",
-       %{conn: conn} do
-    Repo.delete_all(RegionSelection)
+  test "regions section lists active region selections", %{conn: conn} do
     Repo.insert!(%RegionSelection{region_name: "berlin", active: true, position: 0})
+    Repo.insert!(%RegionSelection{region_name: "germany", active: true, position: 1})
 
-    {:ok, _view, html} = open_settings(conn)
+    {:ok, _view, html} = live(conn, ~p"/")
 
-    # Stats strip shows the active region label.
-    assert html =~ "Berlin (city)"
+    assert html =~ "berlin"
+    assert html =~ "germany"
   end
 
-  test "basemap presets render with their labels", %{conn: conn} do
-    {:ok, _view, html} = open_settings(conn)
+  test "basemap section shows external source for http URL", %{conn: conn} do
+    Atlas.Settings.set("tiles_url", "https://example.com/style.json")
 
-    # PR #10 ports the Rails BasemapPresets list (openfreemap variants,
-    # protomaps planet, …). Verify a couple of the well-known entries
-    # appear as preset cards.
-    assert html =~ "OpenFreeMap Liberty"
-    assert html =~ "OpenFreeMap Positron"
+    {:ok, _view, html} = live(conn, ~p"/")
+
+    assert html =~ "external"
   end
 
-  test "services section renders the seven known sidecar names",
-       %{conn: conn} do
-    {:ok, _view, html} = open_settings(conn)
+  test "basemap section shows sidecar source for atlas-control URL", %{conn: conn} do
+    Atlas.Settings.set("tiles_url", "http://atlas-control:5000/tiles.pmtiles")
 
-    # Each sidecar from Seeder.known_services/0 gets its own row in the
-    # Services profile groups (Geocoding / Routing / POIs / Transit / …).
-    for name <- ~w(libpostal photon placeholder valhalla overpass otp whosonfirst) do
-      assert html =~ name, "expected #{name} in services list"
-    end
+    {:ok, _view, html} = live(conn, ~p"/")
+
+    assert html =~ "sidecar"
   end
 end

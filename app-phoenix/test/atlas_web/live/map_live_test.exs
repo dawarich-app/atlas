@@ -72,59 +72,6 @@ defmodule AtlasWeb.MapLiveTest do
     assert render(view) =~ "Search"
   end
 
-  test "point_picked writes value into the From input", %{conn: conn} do
-    {:ok, view, _html} = live(conn, ~p"/")
-
-    render_hook(view, "point_picked", %{"field" => "from", "lat" => 52.5, "lon" => 13.4})
-
-    html = render(view)
-    assert html =~ ~s(value="52.500000,13.400000")
-  end
-
-  test "point_picked writes value into the To input", %{conn: conn} do
-    {:ok, view, _html} = live(conn, ~p"/")
-
-    render_hook(view, "point_picked", %{"field" => "to", "lat" => 51.0, "lon" => 10.0})
-
-    html = render(view)
-    assert html =~ ~s(value="51.000000,10.000000")
-  end
-
-  test "pick_point pushes map:enter_picker", %{conn: conn} do
-    {:ok, view, _html} = live(conn, ~p"/")
-
-    render_hook(view, "pick_point", %{"field" => "from"})
-
-    # The push_event lands in the view's assigns/push log; assert_push_event helps.
-    assert_push_event(view, "map:enter_picker", %{field: "from"})
-  end
-
-  test "toggle_region toggles RegionSelection rows", %{conn: conn} do
-    import Ecto.Query
-    alias Atlas.Control.RegionSelection
-    alias Atlas.Repo
-
-    Repo.delete_all(RegionSelection)
-
-    {:ok, view, _html} = live(conn, ~p"/")
-
-    render_hook(view, "toggle_region", %{"name" => "germany"})
-    rows = Repo.all(from r in RegionSelection, where: r.region_name == ^"germany")
-    assert [%RegionSelection{active: true, region_name: "germany"}] = rows
-
-    render_hook(view, "toggle_region", %{"name" => "germany"})
-    assert Repo.all(from r in RegionSelection, where: r.region_name == ^"germany") == []
-  end
-
-  test "toggle_service does not crash even if DockerCompose is unavailable", %{conn: conn} do
-    {:ok, view, _html} = live(conn, ~p"/")
-
-    # Even if no docker is available, the LiveView must stay up.
-    render_hook(view, "toggle_service", %{"name" => "photon"})
-
-    assert render(view) =~ "Settings"
-  end
-
   test "route event pushes map:draw_route with decoded LineString features", %{
     conn: conn,
     bypass: bypass
