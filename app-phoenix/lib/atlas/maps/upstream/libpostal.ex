@@ -2,9 +2,8 @@ defmodule Atlas.Maps.Upstream.Libpostal do
   alias Atlas.Maps.Upstream.Client
 
   def default do
-    Client.build(System.get_env("LIBPOSTAL_URL") || "http://localhost:8080",
-                 timeout: env_int("LIBPOSTAL_TIMEOUT", 5_000),
-                 open_timeout: env_int("LIBPOSTAL_OPEN_TIMEOUT", 2_000))
+    Client.build_from_env("LIBPOSTAL", "http://localhost:8080",
+                          timeout: 5_000, open_timeout: 2_000)
   end
 
   def normalize(req \\ default(), address) when is_binary(address) do
@@ -15,13 +14,6 @@ defmodule Atlas.Maps.Upstream.Libpostal do
 
       _ ->
         %{query: address, components: []}
-    end
-  end
-
-  defp env_int(key, default) do
-    case System.get_env(key) do
-      nil -> default
-      val -> String.to_integer(val)
     end
   end
 end

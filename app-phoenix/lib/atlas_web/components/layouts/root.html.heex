@@ -9,6 +9,10 @@
     <meta name="csrf-token" content={get_csrf_token()} />
     <.live_title default="Dawarich Atlas">{assigns[:page_title]}</.live_title>
 
+    <link rel="icon" type="image/svg+xml" href={~p"/icon.svg"} />
+    <link rel="icon" type="image/png" sizes="32x32" href={~p"/icon.png"} />
+    <link rel="apple-touch-icon" href={~p"/icon.png"} />
+
     <link phx-track-static rel="stylesheet" href={~p"/assets/app.css"} />
     <script defer phx-track-static type="text/javascript" src={~p"/assets/app.js"}>
     </script>

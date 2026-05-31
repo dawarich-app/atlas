@@ -22,11 +22,12 @@ defmodule Atlas.Control.RegionApplier do
   end
 
   @doc """
-  Apply the given list of region names. Returns `{:ok, job_id}` immediately.
-  The actual merge runs in a `Task` so the GenServer stays free to accept
-  new requests; progress is broadcast on `\"control:apply:<job_id>\"`.
+  Start applying the given list of region names. Returns `{:ok, job_id}`
+  immediately; the actual merge runs in a `Task` so the GenServer stays
+  free to accept new requests. Progress is broadcast on
+  `"control:apply:<job_id>"`.
   """
-  def apply(regions) when is_list(regions) do
+  def start(regions) when is_list(regions) do
     GenServer.call(__MODULE__, {:apply, regions})
   end
 

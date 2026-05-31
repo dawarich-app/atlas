@@ -61,24 +61,6 @@ defmodule AtlasWeb.Admin.ApplyLive do
     end
   end
 
-  # Legacy direct-apply event (kept for back-compat with existing tests).
-  @impl true
-  def handle_event("apply", _params, socket) do
-    regions = Enum.map(socket.assigns.selected, & &1.region_name)
-
-    case start_apply(regions) do
-      {:ok, job_id} ->
-        Phoenix.PubSub.subscribe(Atlas.PubSub, "control:apply:#{job_id}")
-        {:noreply, assign(socket, apply_state: :applying, job_id: job_id, error: nil)}
-
-      {:error, reason} ->
-        {:noreply,
-         socket
-         |> assign(apply_state: :error, error: inspect(reason))
-         |> put_flash(:error, "Failed to start apply: #{inspect(reason)}")}
-    end
-  end
-
   @impl true
   def handle_info({:apply_start, job_id, _regions}, socket) do
     if job_id == socket.assigns.job_id do
@@ -110,7 +92,7 @@ defmodule AtlasWeb.Admin.ApplyLive do
   def handle_info(_other, socket), do: {:noreply, socket}
 
   defp start_apply(regions) do
-    RegionApplier.apply(regions)
+    RegionApplier.start(regions)
   rescue
     e -> {:error, Exception.message(e)}
   catch
@@ -155,7 +137,6 @@ defmodule AtlasWeb.Admin.ApplyLive do
     ~H"""
     <div class="flex gap-2">
       <button phx-click="project" class="btn btn-primary">Project</button>
-      <button phx-click="apply" class="btn btn-ghost btn-sm">Apply directly</button>
     </div>
     <%= if @error do %>
       <p class="text-error mt-2 text-sm">{@error}</p>

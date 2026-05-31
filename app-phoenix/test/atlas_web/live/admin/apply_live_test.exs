@@ -39,7 +39,7 @@ defmodule AtlasWeb.Admin.ApplyLiveTest do
     assert html =~ "Apply"
   end
 
-  test "clicking Apply invokes RegionApplier and flips state to running", %{conn: conn} do
+  test "project + confirm_apply invokes RegionApplier and flips state to applying", %{conn: conn} do
     Repo.insert!(%RegionSelection{region_name: "berlin", active: true, position: 0})
 
     test_pid = self()
@@ -65,17 +65,26 @@ defmodule AtlasWeb.Admin.ApplyLiveTest do
     )
 
     {:ok, view, _html} = live(conn, ~p"/admin/apply")
-    html = view |> render_click("apply", %{})
+    view |> render_click("project", %{})
+    html = view |> render_click("confirm_apply", %{})
 
     assert html =~ "Applying"
     assert_receive {:runner_called, "/tmp/atlas-test", ["berlin.osm.pbf"], "out.pbf"}, 1_000
   end
 
-  test "apply errors when RegionApplier is not running", %{conn: conn} do
+  test "confirm_apply errors when RegionApplier is not running", %{conn: conn} do
     Repo.insert!(%RegionSelection{region_name: "berlin", active: true, position: 0})
 
+    {:ok, _} =
+      Atlas.Repo.insert(%Atlas.Control.Service{
+        name: "photon",
+        profile: "geocoding",
+        enabled: true
+      })
+
     {:ok, view, _html} = live(conn, ~p"/admin/apply")
-    html = view |> render_click("apply", %{})
+    view |> render_click("project", %{})
+    html = view |> render_click("confirm_apply", %{})
 
     assert html =~ "Failed to start apply" or html =~ "noproc"
   end

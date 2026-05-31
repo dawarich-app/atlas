@@ -1,6 +1,8 @@
 defmodule AtlasWeb.ServiceCard do
   use AtlasWeb, :live_component
 
+  alias Atlas.Control.ServiceSchedule
+
   @impl true
   def update(assigns, socket) do
     {:ok,
@@ -125,19 +127,12 @@ defmodule AtlasWeb.ServiceCard do
         send(self(), {:persist_cron, name, nil})
         {:noreply, assign(socket, cron_error: nil)}
 
-      valid_cron?(trimmed) ->
+      ServiceSchedule.valid?(trimmed) ->
         send(self(), {:persist_cron, name, trimmed})
         {:noreply, assign(socket, cron_error: nil)}
 
       true ->
         {:noreply, assign(socket, cron_error: "Invalid cron expression (e.g. \"0 3 * * *\")")}
-    end
-  end
-
-  defp valid_cron?(expr) do
-    case Crontab.CronExpression.Parser.parse(expr) do
-      {:ok, _} -> true
-      _ -> false
     end
   end
 

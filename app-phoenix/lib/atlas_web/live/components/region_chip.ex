@@ -1,8 +1,11 @@
 defmodule AtlasWeb.RegionChip do
-  use AtlasWeb, :live_component
+  use Phoenix.Component
 
-  @impl true
-  def render(assigns) do
+  attr :id, :string, required: true
+  attr :region, :map, required: true
+  attr :selected, :boolean, default: false
+
+  def region_chip(assigns) do
     ~H"""
     <button
       id={@id}

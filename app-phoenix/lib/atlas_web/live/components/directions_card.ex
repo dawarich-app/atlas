@@ -1,10 +1,18 @@
 defmodule AtlasWeb.DirectionsCard do
-  use AtlasWeb, :live_component
+  use Phoenix.Component
 
-  @impl true
-  def render(assigns) do
+  import AtlasWeb.IconHelpers
+
+  attr :id, :string, required: true
+  attr :directions, :any, required: true
+  attr :mode, :string, required: true
+  attr :route_from, :string, default: ""
+  attr :route_to, :string, default: ""
+  attr :route_options, :map, default: %{}
+
+  def directions_card(assigns) do
     ~H"""
-    <div class="flex flex-col h-full">
+    <div id={@id} class="flex flex-col h-full">
       <header class="px-4 pt-4 pb-3 border-b border-base-200 flex items-end justify-between gap-3">
         <div>
           <div class="font-mono text-[10px] uppercase tracking-[0.14em] text-primary/80">
@@ -120,7 +128,6 @@ defmodule AtlasWeb.DirectionsCard do
           </button>
         </form>
 
-        <%!-- Options (collapsible, parity with Rails) --%>
         <details class="text-xs text-base-content/70">
           <summary class="cursor-pointer select-none flex items-center gap-1 pt-1">
             {icon("sliders-horizontal", class: "w-3.5 h-3.5")}

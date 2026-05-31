@@ -10,12 +10,8 @@ defmodule AtlasWeb.StaticMapController do
     route_param = params["route"] || ""
 
     assigns = %{
-      tiles_url: Settings.get("tiles_url") || System.get_env("TILES_URL") || "",
-      theme:
-        params["theme"] ||
-          Settings.get("tiles_theme") ||
-          System.get_env("TILES_THEME") ||
-          "atlas-light",
+      tiles_url: Settings.tiles_url(),
+      theme: params["theme"] || Settings.tiles_theme(),
       lat: float_or(params["lat"], 51.1657),
       lon: float_or(params["lon"], 10.4515),
       zoom: float_or(params["zoom"], 5.0),

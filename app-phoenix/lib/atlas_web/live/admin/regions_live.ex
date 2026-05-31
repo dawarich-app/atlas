@@ -92,9 +92,8 @@ defmodule AtlasWeb.Admin.RegionsLive do
         to merge them into a working dataset.
       </p>
       <div class="flex flex-wrap gap-2 mb-4">
-        <.live_component
+        <AtlasWeb.RegionChip.region_chip
           :for={r <- @available}
-          module={AtlasWeb.RegionChip}
           id={"region-#{r.name}"}
           region={r}
           selected={r.name in @selected}

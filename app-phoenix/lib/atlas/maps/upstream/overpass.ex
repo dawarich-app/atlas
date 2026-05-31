@@ -2,9 +2,8 @@ defmodule Atlas.Maps.Upstream.Overpass do
   alias Atlas.Maps.Upstream.Client
 
   def default do
-    Client.build(System.get_env("OVERPASS_URL") || "http://localhost:8002",
-                 timeout: env_int("OVERPASS_TIMEOUT", 25_000),
-                 open_timeout: env_int("OVERPASS_OPEN_TIMEOUT", 2_000))
+    Client.build_from_env("OVERPASS", "http://localhost:8002",
+                          timeout: 25_000, open_timeout: 2_000)
   end
 
   def around(req \\ default(), opts) do
@@ -65,12 +64,5 @@ defmodule Atlas.Maps.Upstream.Overpass do
       end
 
     ~s|[out:json][timeout:#{timeout}];(#{statements});out body center;|
-  end
-
-  defp env_int(key, default) do
-    case System.get_env(key) do
-      nil -> default
-      val -> String.to_integer(val)
-    end
   end
 end

@@ -1,10 +1,15 @@
 defmodule AtlasWeb.SearchCard do
-  use AtlasWeb, :live_component
+  use Phoenix.Component
 
-  @impl true
-  def render(assigns) do
+  import AtlasWeb.IconHelpers
+
+  attr :id, :string, required: true
+  attr :query, :string, required: true
+  attr :results, :list, required: true
+
+  def search_card(assigns) do
     ~H"""
-    <div class="flex flex-col h-full">
+    <div id={@id} class="flex flex-col h-full">
       <header class="px-4 pt-4 pb-3 border-b border-base-200">
         <div class="font-mono text-[10px] uppercase tracking-[0.14em] text-primary/80">
           Geocoding

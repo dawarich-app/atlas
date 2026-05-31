@@ -45,6 +45,21 @@ defmodule Atlas.Control.RegionCatalog do
     Enum.find(all(dir), fn r -> r.name == name end)
   end
 
+  @doc """
+  Rough on-disk size hint for a region name, rendered next to region
+  presets in the UI. Approximations only — values are derived from the
+  Geofabrik PBF sizes as of early 2026.
+  """
+  def size_hint("planet"), do: "~1.1 TB"
+  def size_hint("europe"), do: "~460 GB"
+  def size_hint(name) when name in ~w(germany france italy), do: "~75 GB"
+
+  def size_hint(name) when is_binary(name) do
+    if String.contains?(name, "multi"), do: "~25 GB", else: "~15 GB"
+  end
+
+  def size_hint(_), do: "~15 GB"
+
   defp default_dir do
     Application.app_dir(:atlas, "priv/regions")
   end

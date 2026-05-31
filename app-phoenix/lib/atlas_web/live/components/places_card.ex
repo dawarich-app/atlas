@@ -96,7 +96,7 @@ defmodule AtlasWeb.PlacesCard do
             phx-click="remove_chip"
             phx-target={@myself}
             phx-value-selector={chip.selector}
-            aria-label={"Remove " <> chip.label}
+            aria-label={"Remove #{chip.label || chip.selector}"}
             class="opacity-70 hover:opacity-100"
           >
             {icon("x", class: "w-2.5 h-2.5")}

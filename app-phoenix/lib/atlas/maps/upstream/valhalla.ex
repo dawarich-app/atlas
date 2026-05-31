@@ -4,9 +4,8 @@ defmodule Atlas.Maps.Upstream.Valhalla do
   @modes ~w[auto bicycle pedestrian]
 
   def default do
-    Client.build(System.get_env("VALHALLA_URL") || "http://localhost:8004",
-                 timeout: env_int("VALHALLA_TIMEOUT", 15_000),
-                 open_timeout: env_int("VALHALLA_OPEN_TIMEOUT", 2_000))
+    Client.build_from_env("VALHALLA", "http://localhost:8004",
+                          timeout: 15_000, open_timeout: 2_000)
   end
 
   def route(req \\ default(), opts) do
@@ -40,11 +39,4 @@ defmodule Atlas.Maps.Upstream.Valhalla do
 
   defp maybe_put(map, _key, _value, falsy) when falsy in [nil, false], do: map
   defp maybe_put(map, key, value, true), do: Map.put(map, key, value)
-
-  defp env_int(key, default) do
-    case System.get_env(key) do
-      nil -> default
-      val -> String.to_integer(val)
-    end
-  end
 end

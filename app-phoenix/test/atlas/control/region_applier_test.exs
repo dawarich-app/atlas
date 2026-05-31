@@ -25,7 +25,7 @@ defmodule Atlas.Control.RegionApplierTest do
        runner: runner, pbf_lookup: pbf_lookup, data_dir: "/data", output_path: "merged.pbf"}
     )
 
-    assert {:ok, job_id} = RegionApplier.apply(["berlin", "bayern"])
+    assert {:ok, job_id} = RegionApplier.start(["berlin", "bayern"])
 
     assert_receive {:runner_called, runner_pid, "/data",
                     ["pbfs/berlin.osm.pbf", "pbfs/bayern.osm.pbf"], "merged.pbf"},
@@ -60,7 +60,7 @@ defmodule Atlas.Control.RegionApplierTest do
        output_path: "out.pbf"}
     )
 
-    assert {:ok, job_id} = RegionApplier.apply(["x"])
+    assert {:ok, job_id} = RegionApplier.start(["x"])
 
     assert_receive {:failing_runner, runner_pid}, 1_000
     Phoenix.PubSub.subscribe(Atlas.PubSub, RegionApplier.topic(job_id))

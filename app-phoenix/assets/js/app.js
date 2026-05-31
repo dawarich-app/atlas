@@ -18,3 +18,12 @@ window.addEventListener("phx:page-loading-stop", _info => topbar.hide())
 
 liveSocket.connect()
 window.liveSocket = liveSocket
+
+window.atlasToggleTheme = () => {
+  const root = document.documentElement
+  const current = root.getAttribute("data-theme")
+  root.setAttribute(
+    "data-theme",
+    current === "bunker-brutalist" ? "forest-patina" : "bunker-brutalist"
+  )
+}

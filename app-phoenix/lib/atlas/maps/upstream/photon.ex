@@ -2,9 +2,8 @@ defmodule Atlas.Maps.Upstream.Photon do
   alias Atlas.Maps.Upstream.Client
 
   def default do
-    Client.build(System.get_env("PHOTON_URL") || "http://localhost:8001",
-                 timeout: env_int("PHOTON_TIMEOUT", 5_000),
-                 open_timeout: env_int("PHOTON_OPEN_TIMEOUT", 2_000))
+    Client.build_from_env("PHOTON", "http://localhost:8001",
+                          timeout: 5_000, open_timeout: 2_000)
   end
 
   def search(req \\ default(), opts) do
@@ -36,11 +35,4 @@ defmodule Atlas.Maps.Upstream.Photon do
 
   defp maybe_add_bbox(params, nil), do: params
   defp maybe_add_bbox(params, [w, s, e, n]), do: params ++ [{"bbox", "#{w},#{s},#{e},#{n}"}]
-
-  defp env_int(key, default) do
-    case System.get_env(key) do
-      nil -> default
-      val -> String.to_integer(val)
-    end
-  end
 end

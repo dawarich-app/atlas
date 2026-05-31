@@ -2,9 +2,8 @@ defmodule Atlas.Maps.Upstream.Placeholder do
   alias Atlas.Maps.Upstream.Client
 
   def default do
-    Client.build(System.get_env("PLACEHOLDER_URL") || "http://localhost:3000",
-                 timeout: env_int("PLACEHOLDER_TIMEOUT", 5_000),
-                 open_timeout: env_int("PLACEHOLDER_OPEN_TIMEOUT", 2_000))
+    Client.build_from_env("PLACEHOLDER", "http://localhost:3000",
+                          timeout: 5_000, open_timeout: 2_000)
   end
 
   def admin_for(req \\ default(), opts) do
@@ -33,11 +32,4 @@ defmodule Atlas.Maps.Upstream.Placeholder do
 
   defp maybe_add(params, _key, nil), do: params
   defp maybe_add(params, key, val), do: params ++ [{key, val}]
-
-  defp env_int(key, default) do
-    case System.get_env(key) do
-      nil -> default
-      val -> String.to_integer(val)
-    end
-  end
 end

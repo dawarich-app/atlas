@@ -6,9 +6,8 @@ defmodule Atlas.Maps.Upstream.Otp do
   def default_modes, do: @default_modes
 
   def default do
-    Client.build(System.get_env("OTP_URL") || "http://localhost:8080",
-                 timeout: env_int("OTP_TIMEOUT", 15_000),
-                 open_timeout: env_int("OTP_OPEN_TIMEOUT", 2_000))
+    Client.build_from_env("OTP", "http://localhost:8080",
+                          timeout: 15_000, open_timeout: 2_000)
   end
 
   def plan(req \\ default(), opts) do
@@ -31,11 +30,4 @@ defmodule Atlas.Maps.Upstream.Otp do
 
   defp maybe_add(params, _key, nil), do: params
   defp maybe_add(params, key, val), do: params ++ [{key, to_string(val)}]
-
-  defp env_int(key, default) do
-    case System.get_env(key) do
-      nil -> default
-      val -> String.to_integer(val)
-    end
-  end
 end

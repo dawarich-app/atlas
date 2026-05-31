@@ -54,9 +54,8 @@ defmodule AtlasWeb.Admin.TilesController do
   defp fetch_theme(_), do: {:ok, nil}
 
   defp current_state do
-    url = Settings.get("tiles_url") || System.get_env("TILES_URL") || ""
-    theme = Settings.get("tiles_theme") || System.get_env("TILES_THEME") || "atlas-light"
-    %{tiles_url: url, theme: theme, source: tiles_source(url)}
+    url = Settings.tiles_url()
+    %{tiles_url: url, theme: Settings.tiles_theme(), source: tiles_source(url)}
   end
 
   @doc """

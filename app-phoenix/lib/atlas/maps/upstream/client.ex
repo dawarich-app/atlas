@@ -22,6 +22,28 @@ defmodule Atlas.Maps.Upstream.Client do
     )
   end
 
+  @doc """
+  Build a client from `<PREFIX>_URL` / `<PREFIX>_TIMEOUT` / `<PREFIX>_OPEN_TIMEOUT`
+  env vars. `default_url` is used when `<PREFIX>_URL` is unset.
+
+      Client.build_from_env("PHOTON", "http://localhost:8001",
+                            timeout: 5_000, open_timeout: 2_000)
+  """
+  def build_from_env(prefix, default_url, defaults \\ []) do
+    base_url = System.get_env("#{prefix}_URL") || default_url
+    timeout = env_int("#{prefix}_TIMEOUT", Keyword.get(defaults, :timeout, 5_000))
+    open_timeout = env_int("#{prefix}_OPEN_TIMEOUT", Keyword.get(defaults, :open_timeout, 2_000))
+    build(base_url, timeout: timeout, open_timeout: open_timeout)
+  end
+
+  @doc "Read an integer env var, falling back to `default` when unset."
+  def env_int(key, default) do
+    case System.get_env(key) do
+      nil -> default
+      val -> String.to_integer(val)
+    end
+  end
+
   # Retry only on Finch pool exhaustion. All other errors (connect refused,
   # 5xx, etc.) fail fast so Bypass-down tests stay quick.
   defp retry_only_pool(_req, %Req.HTTPError{reason: :pool_not_available}), do: true

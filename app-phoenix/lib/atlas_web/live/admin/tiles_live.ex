@@ -11,12 +11,12 @@ defmodule AtlasWeb.Admin.TilesLive do
       Phoenix.PubSub.subscribe(Atlas.PubSub, TilesDownloader.topic())
     end
 
-    tiles_url = Settings.get("tiles_url") || ""
+    tiles_url = Settings.tiles_url()
 
     {:ok,
      assign(socket,
        tiles_url: tiles_url,
-       theme: Settings.get("tiles_theme") || "atlas-light",
+       theme: Settings.tiles_theme(),
        tiles_source: TilesController.tiles_source(tiles_url),
        download_state: :idle,
        progress: 0.0,

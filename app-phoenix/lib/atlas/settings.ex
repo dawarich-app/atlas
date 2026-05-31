@@ -23,4 +23,16 @@ defmodule Atlas.Settings do
   end
 
   def unset(key), do: Repo.delete_all(from s in Setting, where: s.key == ^to_string(key))
+
+  @doc """
+  Current tiles URL — DB setting wins over `TILES_URL` env var, falling back
+  to `""`. Use everywhere the basemap URL is consumed so callers don't
+  re-implement the precedence rule.
+  """
+  def tiles_url, do: get("tiles_url") || System.get_env("TILES_URL") || ""
+
+  @doc """
+  Current tiles theme — same precedence as `tiles_url/0`, default `"atlas-light"`.
+  """
+  def tiles_theme, do: get("tiles_theme") || System.get_env("TILES_THEME") || "atlas-light"
 end

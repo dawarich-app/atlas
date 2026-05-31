@@ -1,8 +1,15 @@
 defmodule AtlasWeb.DegradationBanner do
-  use AtlasWeb, :live_component
+  use Phoenix.Component
 
-  @impl true
-  def render(assigns) do
+  use Phoenix.VerifiedRoutes,
+    endpoint: AtlasWeb.Endpoint,
+    router: AtlasWeb.Router,
+    statics: AtlasWeb.static_paths()
+
+  attr :id, :string, required: true
+  attr :status, :string, required: true
+
+  def degradation_banner(assigns) do
     ~H"""
     <div
       id={@id}

@@ -99,7 +99,7 @@ defmodule Atlas.Control.ServiceState do
 
   def handle_call(:enable, _from, state) do
     _ = Atlas.Control.DockerCompose.start(state.name)
-    new_state = %{state | enabled?: true}
+    new_state = %{state | enabled?: true, status: derive_status(true, state.ready?, state.phase)}
     persist_user_field!(new_state, :enabled, true)
     broadcast(new_state)
     {:reply, :ok, new_state}
@@ -107,7 +107,7 @@ defmodule Atlas.Control.ServiceState do
 
   def handle_call(:disable, _from, state) do
     _ = Atlas.Control.DockerCompose.stop(state.name)
-    new_state = %{state | enabled?: false}
+    new_state = %{state | enabled?: false, status: :stopped}
     persist_user_field!(new_state, :enabled, false)
     broadcast(new_state)
     {:reply, :ok, new_state}
@@ -135,7 +135,7 @@ defmodule Atlas.Control.ServiceState do
         state
 
       row ->
-        %{
+        hydrated = %{
           state
           | enabled?: row.enabled,
             status: row.status,
@@ -147,19 +147,41 @@ defmodule Atlas.Control.ServiceState do
             auto_update_enabled?: row.auto_update_enabled,
             update_status: row.last_update_status
         }
+
+        # Derive a baseline status whenever the DB row doesn't carry one
+        # (fresh seed rows, or rows from before status was tracked).
+        if is_nil(hydrated.status) do
+          %{hydrated | status: derive_status(hydrated.enabled?, hydrated.ready?, hydrated.phase)}
+        else
+          hydrated
+        end
     end
   end
 
   defp apply_parser_result(state, result) do
+    next_phase = Map.get(result, :phase) || state.phase
+    next_ready = Map.get(result, :ready, false) or state.ready?
+
     %{
       state
-      | phase: Map.get(result, :phase) || state.phase,
+      | phase: next_phase,
         progress: Map.get(result, :progress) || state.progress,
         last_log: Map.get(result, :last_log_line) || state.last_log,
-        ready?: Map.get(result, :ready, false) or state.ready?,
-        last_seen_at: DateTime.utc_now()
+        ready?: next_ready,
+        last_seen_at: DateTime.utc_now(),
+        status: derive_status(state.enabled?, next_ready, next_phase)
     }
   end
+
+  # Derive the user-visible status from (enabled?, ready?, phase). Mirrors
+  # the SettingsPanel + ServiceCard badge palette so the UI can switch on
+  # `:status` alone.
+  defp derive_status(false, _ready, _phase), do: :stopped
+  defp derive_status(true, true, _phase), do: :ready
+  defp derive_status(true, _ready, phase) when phase in [:download, :downloading], do: :downloading
+  defp derive_status(true, _ready, phase) when phase in [:build, :building, :compile], do: :building
+  defp derive_status(true, _ready, phase) when phase in [:error, :unhealthy], do: phase
+  defp derive_status(true, _ready, _phase), do: :starting
 
   defp snapshot_struct(state) do
     state
