@@ -25,6 +25,7 @@ defmodule AtlasWeb.MapLive do
        page_title: "Atlas",
        tiles_url: tiles_url,
        theme: theme,
+       active_tab: "search",
        search_query: "",
        search_results: [],
        directions: nil,
@@ -34,6 +35,12 @@ defmodule AtlasWeb.MapLive do
        active_regions: load_active_regions(),
        upstream_status: "ok"
      )}
+  end
+
+  @impl true
+  def handle_event("select_tab", %{"tab" => tab}, socket)
+      when tab in ~w(search route places settings) do
+    {:noreply, assign(socket, active_tab: tab)}
   end
 
   @impl true
@@ -238,54 +245,154 @@ defmodule AtlasWeb.MapLive do
   @impl true
   def render(assigns) do
     ~H"""
-    <div class="flex h-screen">
-      <aside class="w-96 bg-base-100 border-r border-base-300 p-4 overflow-y-auto">
-        <.live_component
-          module={AtlasWeb.SearchCard}
-          id="search-card"
-          query={@search_query}
-          results={@search_results}
-        />
-        <.live_component
-          module={AtlasWeb.DirectionsCard}
-          id="directions-card"
-          directions={@directions}
-          mode={@mode}
-        />
-        <.live_component
-          module={AtlasWeb.PlacesCard}
-          id="places-card"
-          places={@places}
-        />
-        <.live_component
-          module={AtlasWeb.SettingsPanel}
-          id="settings-panel"
-          tiles_url={@tiles_url}
-          theme={@theme}
-          service_status={@service_status}
-          active_regions={@active_regions}
-        />
-        <%= if @upstream_status != "ok" do %>
-          <.live_component
-            module={AtlasWeb.DegradationBanner}
-            id="degradation-banner"
-            status={@upstream_status}
-          />
-        <% end %>
+    <%= if @upstream_status != "ok" do %>
+      <.live_component
+        module={AtlasWeb.DegradationBanner}
+        id="degradation-banner"
+        status={@upstream_status}
+      />
+    <% end %>
+
+    <div class="fixed inset-0 p-2 sm:p-3 bg-base-200 flex gap-2 sm:gap-3">
+      <%!-- Side panel (flat on the page, no card chrome) --%>
+      <aside class="flex flex-col flex-none">
+        <%!-- Brand header --%>
+        <div class="apo-brand px-2.5 py-3 flex items-center gap-2.5 flex-shrink-0">
+          <span class="w-2.5 h-2.5 rounded-full bg-primary shadow-sm flex-shrink-0"></span>
+          <span class="apo-brand-text font-display font-semibold text-[15px] leading-none tracking-tight whitespace-nowrap text-base-content">
+            Dawarich Atlas
+          </span>
+        </div>
+
+        <div class="flex flex-1 min-h-0">
+          <%!-- Icon rail --%>
+          <nav class="flex flex-col gap-1 p-1.5 flex-shrink-0">
+            <button
+              type="button"
+              class={"btn btn-square btn-sm " <> tab_class(@active_tab, "search")}
+              phx-click="select_tab"
+              phx-value-tab="search"
+              aria-label="Search"
+              title="Search"
+            >
+              {icon("search", class: "w-5 h-5")}
+            </button>
+            <button
+              type="button"
+              class={"btn btn-square btn-sm " <> tab_class(@active_tab, "route")}
+              phx-click="select_tab"
+              phx-value-tab="route"
+              aria-label="Directions"
+              title="Directions"
+            >
+              {icon("route", class: "w-5 h-5")}
+            </button>
+            <button
+              type="button"
+              class={"btn btn-square btn-sm " <> tab_class(@active_tab, "places")}
+              phx-click="select_tab"
+              phx-value-tab="places"
+              aria-label="Places"
+              title="Places"
+            >
+              {icon("map-pin", class: "w-5 h-5")}
+            </button>
+            <button
+              type="button"
+              class={"btn btn-square btn-sm " <> tab_class(@active_tab, "settings")}
+              phx-click="select_tab"
+              phx-value-tab="settings"
+              aria-label="Settings"
+              title="Settings"
+            >
+              {icon("settings", class: "w-5 h-5")}
+            </button>
+            <div class="flex-1"></div>
+            <button
+              type="button"
+              class="btn btn-square btn-sm btn-ghost"
+              aria-label="Toggle light/dark"
+              title="Toggle light/dark"
+              onclick="(function(){const r=document.documentElement;const c=r.getAttribute('data-theme');r.setAttribute('data-theme', c==='bunker-brutalist' ? 'forest-patina' : 'bunker-brutalist');})()"
+            >
+              {icon("moon", class: "w-4 h-4")}
+            </button>
+          </nav>
+
+          <%!-- Content column: single active tab body --%>
+          <div class="w-[min(85vw,380px)] flex flex-col overflow-hidden bg-base-100 rounded-2xl border border-base-300">
+            <div class={tab_visible_class(@active_tab, "search")}>
+              <.live_component
+                module={AtlasWeb.SearchCard}
+                id="search-card"
+                query={@search_query}
+                results={@search_results}
+              />
+            </div>
+            <div class={tab_visible_class(@active_tab, "route")}>
+              <.live_component
+                module={AtlasWeb.DirectionsCard}
+                id="directions-card"
+                directions={@directions}
+                mode={@mode}
+              />
+            </div>
+            <div class={tab_visible_class(@active_tab, "places")}>
+              <.live_component
+                module={AtlasWeb.PlacesCard}
+                id="places-card"
+                places={@places}
+              />
+            </div>
+            <div class={tab_visible_class(@active_tab, "settings")}>
+              <.live_component
+                module={AtlasWeb.SettingsPanel}
+                id="settings-panel"
+                tiles_url={@tiles_url}
+                theme={@theme}
+                service_status={@service_status}
+                active_regions={@active_regions}
+              />
+            </div>
+          </div>
+        </div>
+
+        <%!-- Attribution --%>
+        <div class="apo-brand-text px-2.5 py-2 text-[11px] leading-none text-base-content/50 flex-shrink-0">
+          Made by
+          <a
+            href="https://dawarich.app?utm_source=atlas-map&utm_medium=referral&utm_campaign=atlas-map"
+            target="_blank"
+            rel="noopener noreferrer"
+            class="font-medium text-base-content/70 hover:text-primary transition-colors"
+          >
+            Dawarich
+          </a>
+          people
+        </div>
       </aside>
 
-      <div
-        id="map"
-        phx-hook="Map"
-        phx-update="ignore"
-        class="flex-1 h-full"
-        data-tiles-url={@tiles_url}
-        data-theme={@theme}
-        data-center="[10.4515, 51.1657]"
-        data-zoom="5"
-      >
+      <%!-- Map container --%>
+      <div class="relative flex-1 min-w-0 rounded-2xl border border-base-300 bg-base-100 overflow-hidden">
+        <div
+          id="map"
+          phx-hook="Map"
+          phx-update="ignore"
+          class="absolute inset-0"
+          data-tiles-url={@tiles_url}
+          data-theme={@theme}
+          data-center="[10.4515, 51.1657]"
+          data-zoom="5"
+        >
+        </div>
       </div>
     </div>
     """
   end
+
+  defp tab_class(active, tab) when active == tab, do: "btn-primary"
+  defp tab_class(_active, _tab), do: "btn-ghost"
+
+  defp tab_visible_class(active, tab) when active == tab, do: "flex-1 min-h-0"
+  defp tab_visible_class(_active, _tab), do: "hidden flex-1 min-h-0"
 end

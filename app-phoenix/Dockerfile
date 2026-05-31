@@ -19,7 +19,14 @@ RUN mix deps.compile
 COPY priv priv
 COPY lib lib
 COPY rel rel
+COPY assets assets
 RUN mix compile
+
+# Build CSS/JS bundles (Tailwind v4 + DaisyUI + esbuild + MapLibre) and
+# digest static assets. esbuild_elixir/tailwind_elixir download their
+# own native binaries on first install — no Node runtime needed.
+RUN mix assets.setup && mix assets.deploy
+
 COPY config/runtime.exs config/
 
 RUN mix release

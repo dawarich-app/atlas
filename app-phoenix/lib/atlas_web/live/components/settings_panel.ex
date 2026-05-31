@@ -13,13 +13,15 @@ defmodule AtlasWeb.SettingsPanel do
   @impl true
   def render(assigns) do
     ~H"""
-    <div class="card bg-base-200 mb-4">
-      <div class="card-body p-4">
+    <div class="flex flex-col h-full">
+      <header class="px-4 pt-4 pb-3 border-b border-base-200">
         <div class="font-mono text-[10px] uppercase tracking-[0.14em] text-primary/80">
           Control plane
         </div>
-        <h2 class="text-base font-semibold leading-tight">Settings</h2>
+        <h2 class="text-base font-semibold leading-tight mt-0.5 font-display">Settings</h2>
+      </header>
 
+      <div class="flex-1 min-h-0 overflow-y-auto px-4 py-3 flex flex-col gap-4">
         <%= render_tiles_section(assigns) %>
         <%= render_regions_section(assigns) %>
         <%= render_basemap_section(assigns) %>
