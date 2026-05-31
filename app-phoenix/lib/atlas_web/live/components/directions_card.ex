@@ -66,34 +66,99 @@ defmodule AtlasWeb.DirectionsCard do
               <input
                 type="text"
                 name="from"
+                value={@route_from || ""}
                 placeholder="From (lat,lon)"
                 autocomplete="off"
                 spellcheck="false"
                 class="input input-bordered input-sm w-full pl-8 pr-9"
               />
+              <button
+                type="button"
+                class="absolute right-1 top-1/2 -translate-y-1/2 btn btn-square btn-ghost btn-xs"
+                title="Pick from on map"
+                aria-label="Pick from on map"
+                phx-click="pick_point"
+                phx-value-field="from"
+              >
+                {icon("map-pin", class: "w-3.5 h-3.5")}
+              </button>
             </div>
+
             <div class="relative">
               <span class="absolute left-3 top-1/2 -translate-y-1/2 w-2.5 h-2.5 rounded-sm bg-primary ring-2 ring-base-100">
               </span>
               <input
                 type="text"
                 name="to"
+                value={@route_to || ""}
                 placeholder="To (lat,lon)"
                 autocomplete="off"
                 spellcheck="false"
                 class="input input-bordered input-sm w-full pl-8 pr-9"
               />
+              <button
+                type="button"
+                class="absolute right-1 top-1/2 -translate-y-1/2 btn btn-square btn-ghost btn-xs"
+                title="Pick to on map"
+                aria-label="Pick to on map"
+                phx-click="pick_point"
+                phx-value-field="to"
+              >
+                {icon("map-pin", class: "w-3.5 h-3.5")}
+              </button>
             </div>
           </div>
+
           <button
-            type="submit"
+            type="button"
             class="btn btn-square btn-sm btn-ghost self-center"
-            aria-label="Route"
-            title="Route"
+            aria-label="Swap origin and destination"
+            title="Swap"
+            phx-click="swap_route"
           >
             {icon("arrow-up-down", class: "w-4 h-4")}
           </button>
         </form>
+
+        <%!-- Options (collapsible, parity with Rails) --%>
+        <details class="text-xs text-base-content/70">
+          <summary class="cursor-pointer select-none flex items-center gap-1 pt-1">
+            {icon("sliders-horizontal", class: "w-3.5 h-3.5")}
+            <span>Options</span>
+          </summary>
+          <div class="flex flex-col gap-1 pl-5 mt-1">
+            <label class="flex items-center gap-2 cursor-pointer">
+              <input
+                type="checkbox"
+                class="checkbox checkbox-xs"
+                checked={Map.get(@route_options || %{}, "avoid_tolls", false)}
+                phx-click="toggle_route_option"
+                phx-value-option="avoid_tolls"
+              />
+              <span>Avoid tolls</span>
+            </label>
+            <label class="flex items-center gap-2 cursor-pointer">
+              <input
+                type="checkbox"
+                class="checkbox checkbox-xs"
+                checked={Map.get(@route_options || %{}, "avoid_highways", false)}
+                phx-click="toggle_route_option"
+                phx-value-option="avoid_highways"
+              />
+              <span>Avoid highways</span>
+            </label>
+            <label class="flex items-center gap-2 cursor-pointer">
+              <input
+                type="checkbox"
+                class="checkbox checkbox-xs"
+                checked={Map.get(@route_options || %{}, "avoid_ferries", false)}
+                phx-click="toggle_route_option"
+                phx-value-option="avoid_ferries"
+              />
+              <span>Avoid ferries</span>
+            </label>
+          </div>
+        </details>
 
         <div :if={@directions} class="border-t pt-3 text-xs">
           <div class="flex items-baseline justify-between">

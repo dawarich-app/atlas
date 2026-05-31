@@ -34,7 +34,9 @@ RUN mix release
 FROM debian:bookworm-20260518-slim AS runner
 
 RUN apt-get update -y && \
-    apt-get install -y libstdc++6 openssl libncurses6 locales ca-certificates && \
+    apt-get install -y --no-install-recommends \
+      libstdc++6 openssl libncurses6 locales ca-certificates \
+      docker.io osmium-tool curl && \
     apt-get clean && rm -f /var/lib/apt/lists/*_* && \
     sed -i '/en_US.UTF-8/s/^# //g' /etc/locale.gen && locale-gen
 
