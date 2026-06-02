@@ -1,0 +1,14 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title><%= @project ? "#{@project.name} — Changelog" : "Changelog" %></title>
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <%= csrf_meta_tags %>
+    <%= stylesheet_link_tag "tailwind", "data-turbo-track": "reload" %>
+  </head>
+  <body class="min-h-screen bg-white text-slate-900">
+    <main class="max-w-2xl mx-auto px-4 py-8 prose prose-slate">
+      <%= yield %>
+    </main>
+  </body>
+</html>

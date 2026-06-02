@@ -1,0 +1,14 @@
+<section id="embed-snippet" class="border rounded p-4 mb-4 text-sm" data-controller="copy">
+  <h3 class="text-xs uppercase tracking-wider text-slate-500 mb-2">Embed snippet</h3>
+  <p class="text-slate-600 mb-2">Add this <code>&lt;script&gt;</code> tag to the layout of your self-hosted app's admin page. Replace <code>YOUR_VERSION</code> with the running version (semver string).</p>
+
+  <pre class="bg-slate-900 text-slate-50 text-xs p-3 rounded overflow-x-auto"
+       data-copy-target="source"><%= snippet %></pre>
+
+  <div class="mt-2 flex items-center gap-2">
+    <button type="button"
+            class="px-3 py-1 rounded bg-slate-900 text-white text-xs"
+            data-action="copy#copy">Copy</button>
+    <span class="text-xs text-slate-500" data-copy-target="status"></span>
+  </div>
+</section>

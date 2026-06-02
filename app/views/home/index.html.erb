@@ -1,0 +1,7 @@
+<h1 class="text-2xl font-bold mb-2">chibichange</h1>
+<p class="text-slate-600">Self-hostable changelogs.</p>
+<% if user_signed_in? %>
+  <p class="mt-4"><%= link_to "Go to your projects →", authors_projects_path, class: "underline" %></p>
+<% else %>
+  <p class="mt-4"><%= link_to "Sign in with GitHub →", user_github_omniauth_authorize_path, method: :post, class: "underline" %></p>
+<% end %>

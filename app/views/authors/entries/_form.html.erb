@@ -1,0 +1,5 @@
+<%= form_with model: entry, url: authors_project_entries_path(project), class: "flex gap-2 items-start" do |f| %>
+  <%= f.select :kind, Entry::KINDS.map { [_1.titleize, _1] }, {}, class: "border rounded px-1 py-0.5 text-sm" %>
+  <%= f.text_area :body_markdown, rows: 1, placeholder: "Added something useful", class: "flex-1 border rounded px-1 py-0.5 text-sm" %>
+  <%= f.submit "Add", class: "px-2 py-0.5 rounded bg-slate-900 text-white text-xs" %>
+<% end %>

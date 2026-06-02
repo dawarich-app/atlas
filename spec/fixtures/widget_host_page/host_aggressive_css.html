@@ -1,0 +1,18 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Aggressive CSS host</title>
+  <style>
+    /* Hostile global rules — should NOT bleed into the widget */
+    * { color: red !important; background: yellow !important; }
+    button { width: 999px !important; font-size: 99px !important; }
+  </style>
+</head>
+<body>
+  <h1>Host page (aggressive CSS)</h1>
+  <script src="/w/v1/loader.js"
+          data-slug="dawarich"
+          data-version="1.0.0"></script>
+</body>
+</html>

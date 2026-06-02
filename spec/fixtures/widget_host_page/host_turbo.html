@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Turbo host</title>
+  <script>
+    // Minimal Turbo stub for testing — exposes events we listen for.
+    window.Turbo = {
+      cache: { clear: function() {} },
+      visit: function () {
+        document.dispatchEvent(new Event('turbo:before-cache'));
+        setTimeout(function () {
+          document.dispatchEvent(new Event('turbo:load'));
+        }, 50);
+      }
+    };
+  </script>
+</head>
+<body>
+  <h1>Host page (Turbo)</h1>
+  <button id="navigate" onclick="window.Turbo.visit()">Navigate (Turbo)</button>
+  <script src="/w/v1/loader.js"
+          data-slug="dawarich"
+          data-version="1.0.0"></script>
+</body>
+</html>

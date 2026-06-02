@@ -1,0 +1,5 @@
+<%= form_with url: release_authors_project_version_path(project, version), method: :patch, class: "inline-flex items-center gap-1" do |f| %>
+  <%= f.text_field :number, placeholder: "1.0.0", required: true, class: "border rounded px-1 text-sm w-24" %>
+  <%= f.date_field :released_at, value: Date.today, required: true, class: "border rounded px-1 text-sm" %>
+  <%= f.submit "Release", class: "px-2 py-0.5 rounded bg-slate-900 text-white text-xs" %>
+<% end %>

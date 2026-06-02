@@ -1,0 +1,22 @@
+<section class="border rounded p-4 mb-4 text-sm">
+  <div class="flex items-baseline gap-3">
+    <span class="text-2xl font-semibold"><%= number_with_delimiter(metrics.active_30d) %></span>
+    <span class="text-slate-500">active instances (30d)</span>
+  </div>
+
+  <% if metrics.version_distribution_30d.any? %>
+    <div class="mt-3">
+      <h3 class="text-xs uppercase tracking-wider text-slate-500 mb-1">Version distribution</h3>
+      <ul class="space-y-1">
+        <% metrics.version_distribution_30d.each do |row| %>
+          <li class="flex items-baseline gap-2">
+            <span class="font-medium"><%= row[:version].presence || "(unknown)" %></span>
+            <span class="text-slate-500">— <%= row[:count] %> instance<%= 's' if row[:count] != 1 %></span>
+          </li>
+        <% end %>
+      </ul>
+    </div>
+  <% else %>
+    <p class="mt-3 text-slate-500">No instances seen yet. <%= link_to "Embed snippet", "#embed-snippet", class: "underline" %> on your admin page to start counting.</p>
+  <% end %>
+</section>

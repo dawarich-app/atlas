@@ -1,0 +1,35 @@
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: chibichange_production
+      POSTGRES_USER: chibichange
+      POSTGRES_PASSWORD: chibichange
+    volumes:
+      - chibichange_db:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U chibichange -d chibichange_production"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  app:
+    build: .
+    image: chibichange:latest
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    env_file: .env
+    environment:
+      RAILS_ENV: production
+      RAILS_LOG_TO_STDOUT: "true"
+    ports:
+      - "${CHIBICHANGE_PORT:-3000}:3000"
+    volumes:
+      - chibichange_storage:/rails/storage
+
+volumes:
+  chibichange_db:
+  chibichange_storage:

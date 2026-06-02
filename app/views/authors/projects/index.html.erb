@@ -1,0 +1,20 @@
+<div class="flex items-center justify-between mb-4">
+  <h1 class="text-xl font-semibold">Your projects</h1>
+  <%= link_to "New project", new_authors_project_path, class: "px-3 py-1 rounded bg-slate-900 text-white text-sm" %>
+</div>
+
+<% if @projects.any? %>
+  <ul class="divide-y border rounded">
+    <% @projects.each do |project| %>
+      <li class="p-3 flex items-center justify-between">
+        <div>
+          <%= link_to project.name, authors_project_path(project), class: "font-medium underline" %>
+          <span class="text-slate-500 text-sm">/<%= project.slug %></span>
+        </div>
+        <%= link_to "Public →", public_changelog_path(slug: project.slug), class: "text-sm text-slate-500" %>
+      </li>
+    <% end %>
+  </ul>
+<% else %>
+  <p class="text-slate-600">You haven't created a project yet.</p>
+<% end %>

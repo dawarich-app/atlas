@@ -1,0 +1,30 @@
+<%= form_with model: project, url: project.persisted? ? authors_project_path(project) : authors_projects_path, class: "space-y-3" do |f| %>
+  <% if project.errors.any? %>
+    <div class="p-3 border border-red-200 bg-red-50 rounded text-sm text-red-700">
+      <ul class="list-disc list-inside">
+        <% project.errors.full_messages.each do |msg| %><li><%= msg %></li><% end %>
+      </ul>
+    </div>
+  <% end %>
+
+  <div>
+    <%= f.label :slug, class: "block text-sm font-medium" %>
+    <%= f.text_field :slug, class: "mt-1 w-full border rounded px-2 py-1", placeholder: "dawarich" %>
+    <p class="text-xs text-slate-500 mt-1">3–63 chars, lowercase letters/digits/hyphens.</p>
+  </div>
+  <div>
+    <%= f.label :name, class: "block text-sm font-medium" %>
+    <%= f.text_field :name, class: "mt-1 w-full border rounded px-2 py-1" %>
+  </div>
+  <div>
+    <%= f.label :homepage_url, class: "block text-sm font-medium" %>
+    <%= f.url_field :homepage_url, class: "mt-1 w-full border rounded px-2 py-1" %>
+  </div>
+  <div>
+    <%= f.label :description, class: "block text-sm font-medium" %>
+    <%= f.text_area :description, rows: 3, class: "mt-1 w-full border rounded px-2 py-1" %>
+  </div>
+  <div>
+    <%= f.submit class: "px-3 py-1 rounded bg-slate-900 text-white text-sm" %>
+  </div>
+<% end %>

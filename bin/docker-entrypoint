@@ -1,0 +1,15 @@
+#!/usr/bin/env bash
+set -e
+
+# If the command is the rails server, prepare the database first.
+# Matches: bundle exec rails server ...
+if [ "${1}" = "bundle" ] && [ "${2}" = "exec" ] && [ "${3}" = "rails" ] && [ "${4}" = "server" ]; then
+  bundle exec rails db:prepare
+fi
+
+# Backward-compat: also handle ./bin/rails server (used by the Rails-generated CMD).
+if [ "${@: -2:1}" = "./bin/rails" ] && [ "${@: -1:1}" = "server" ]; then
+  ./bin/rails db:prepare
+fi
+
+exec "${@}"

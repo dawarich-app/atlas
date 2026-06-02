@@ -1,0 +1,55 @@
+<div class="flex items-center justify-between mb-4">
+  <div>
+    <h1 class="text-xl font-semibold"><%= @project.name %></h1>
+    <p class="text-sm text-slate-500">/<%= @project.slug %></p>
+  </div>
+  <div class="space-x-2 text-sm">
+    <%= link_to "Public page", public_changelog_path(slug: @project.slug), class: "underline" %>
+    <%= link_to "Edit", edit_authors_project_path(@project), class: "underline" %>
+  </div>
+</div>
+
+<%= render "metrics", metrics: @metrics %>
+
+<%= render "embed_snippet", snippet: @embed_snippet %>
+
+<% @versions.each do |version| %>
+  <section class="border rounded mb-4">
+    <header class="p-3 border-b flex items-center justify-between">
+      <div>
+        <span class="font-semibold"><%= version.number %></span>
+        <% if version.released_at %>
+          <span class="text-sm text-slate-500">— <%= version.released_at.iso8601 %></span>
+        <% end %>
+        <% if version.yanked? %>
+          <span class="ml-2 text-xs uppercase bg-red-100 text-red-700 rounded px-2 py-0.5">Yanked</span>
+        <% end %>
+      </div>
+      <div class="space-x-2 text-sm">
+        <% if version.unreleased? %>
+          <%= render "authors/versions/release_form", project: @project, version: version %>
+        <% elsif !version.yanked? %>
+          <%= button_to "Yank", yank_authors_project_version_path(@project, version), method: :patch,
+                data: { turbo_confirm: "Mark #{version.number} as yanked?" }, class: "underline" %>
+        <% end %>
+      </div>
+    </header>
+    <ul class="p-3 space-y-2 text-sm">
+      <% version.entries.ordered.each do |entry| %>
+        <li>
+          <span class="inline-block uppercase text-[10px] tracking-wider text-slate-500 w-20"><%= entry.kind %></span>
+          <%= entry.body_markdown %>
+          <%= button_to "delete", authors_project_entry_path(@project, entry), method: :delete,
+                form: { class: "inline" }, class: "text-xs underline text-slate-500",
+                data: { turbo_confirm: "Delete this entry?" } %>
+        </li>
+      <% end %>
+
+      <% if version.unreleased? %>
+        <li class="pt-3 border-t">
+          <%= render "authors/entries/form", project: @project, version: version, entry: Entry.new %>
+        </li>
+      <% end %>
+    </ul>
+  </section>
+<% end %>

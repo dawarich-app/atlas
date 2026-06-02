@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>chibichange</title>
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <%= csrf_meta_tags %>
+    <%= csp_meta_tag %>
+    <%= stylesheet_link_tag "tailwind", "data-turbo-track": "reload" %>
+    <%= javascript_importmap_tags %>
+  </head>
+  <body class="min-h-screen bg-white text-slate-900">
+    <header class="border-b">
+      <div class="max-w-5xl mx-auto px-4 py-3 flex items-center justify-between">
+        <%= link_to "chibichange", root_path, class: "font-semibold" %>
+        <nav class="space-x-3 text-sm">
+          <% if user_signed_in? %>
+            <%= link_to "Projects", authors_projects_path %>
+            <%= button_to "Sign out", destroy_user_session_path, method: :delete, class: "underline" %>
+          <% else %>
+            <%= link_to "Sign in", new_user_session_path %>
+          <% end %>
+        </nav>
+      </div>
+    </header>
+
+    <% flash.each do |type, msg| %>
+      <div class="max-w-5xl mx-auto px-4 mt-3 text-sm <%= type == 'alert' ? 'text-red-700' : 'text-green-700' %>"><%= msg %></div>
+    <% end %>
+
+    <main class="max-w-5xl mx-auto px-4 py-6">
+      <%= yield %>
+    </main>
+  </body>
+</html>

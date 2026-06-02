@@ -1,0 +1,35 @@
+<header class="not-prose mb-6">
+  <h1 class="text-2xl font-bold"><%= @project.name %></h1>
+  <% if @project.description.present? %>
+    <p class="text-slate-600 mt-1"><%= @project.description %></p>
+  <% end %>
+  <% if @project.homepage_url.present? %>
+    <p class="text-sm mt-1"><%= link_to @project.homepage_url, @project.homepage_url, rel: "noopener noreferrer", target: "_blank", class: "underline" %></p>
+  <% end %>
+  <p class="text-xs text-slate-400 mt-3">Following <a href="https://keepachangelog.com/en/1.1.0/" rel="noopener noreferrer" target="_blank">Keep a Changelog 1.1.0</a>.</p>
+</header>
+
+<% @versions.each do |version| %>
+  <section class="mt-8">
+    <h2 class="text-lg font-semibold flex items-baseline gap-2 not-prose">
+      <span><%= version.number %></span>
+      <% if version.released_at %>
+        <span class="text-sm text-slate-500"><%= version.released_at.iso8601 %></span>
+      <% end %>
+      <% if version.yanked? %>
+        <span class="text-xs uppercase bg-red-100 text-red-700 rounded px-2 py-0.5">YANKED</span>
+      <% end %>
+    </h2>
+
+    <% version.entries.by_kind.each do |kind, group| %>
+      <h3 class="not-prose text-sm uppercase tracking-wider text-slate-500 mt-3"><%= kind.titleize %></h3>
+      <ul class="mt-1">
+        <% group.each do |entry| %>
+          <li class="<%= 'line-through text-slate-400' if version.yanked? %>">
+            <%= render_tokens(entry.body_tokens) %>
+          </li>
+        <% end %>
+      </ul>
+    <% end %>
+  </section>
+<% end %>
