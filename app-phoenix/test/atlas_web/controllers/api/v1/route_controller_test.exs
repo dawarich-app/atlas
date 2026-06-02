@@ -13,7 +13,8 @@ defmodule AtlasWeb.Api.V1.RouteControllerTest do
       Plug.Conn.resp(c, 200, ~s({"trip":{"summary":{"length":1.2},"legs":[{"shape":"abc"}]}}))
     end)
 
-    resp = conn |> get(~p"/api/v1/route?from=52.5,13.4&to=52.6,13.5&mode=auto") |> json_response(200)
+    resp =
+      conn |> get(~p"/api/v1/route?from=52.5,13.4&to=52.6,13.5&mode=auto") |> json_response(200)
 
     assert resp["data"]["summary"]["length"] == 1.2
     assert resp["data"]["shape_format"] == "valhalla_encoded_polyline6"
@@ -21,7 +22,12 @@ defmodule AtlasWeb.Api.V1.RouteControllerTest do
     refute Map.has_key?(resp["data"], "trip")
 
     assert resp["meta"]["mode"] == "auto"
-    assert resp["meta"]["options"] == %{"avoid_tolls" => false, "avoid_highways" => false, "avoid_ferries" => false}
+
+    assert resp["meta"]["options"] == %{
+             "avoid_tolls" => false,
+             "avoid_highways" => false,
+             "avoid_ferries" => false
+           }
   end
 
   test "GET /api/v1/route returns 400 without from/to", %{conn: conn} do
@@ -36,7 +42,11 @@ defmodule AtlasWeb.Api.V1.RouteControllerTest do
   end
 
   test "GET /api/v1/route returns 422 on invalid mode (not 500)", %{conn: conn} do
-    resp = conn |> get(~p"/api/v1/route?from=52.5,13.4&to=52.6,13.5&mode=teleport") |> json_response(422)
+    resp =
+      conn
+      |> get(~p"/api/v1/route?from=52.5,13.4&to=52.6,13.5&mode=teleport")
+      |> json_response(422)
+
     assert resp["error"]["code"] == "VALIDATION_ERROR"
     assert resp["error"]["message"] =~ "mode"
   end
@@ -54,5 +64,14 @@ defmodule AtlasWeb.Api.V1.RouteControllerTest do
     assert resp["meta"]["options"]["avoid_tolls"] == true
     assert resp["meta"]["options"]["avoid_highways"] == true
     assert resp["meta"]["options"]["avoid_ferries"] == false
+  end
+
+  test "GET /api/v1/route returns 503 UPSTREAM_UNAVAILABLE when Valhalla is down", %{
+    conn: conn,
+    bypass: bypass
+  } do
+    Bypass.down(bypass)
+    resp = conn |> get(~p"/api/v1/route?from=52.5,13.4&to=52.6,13.5") |> json_response(503)
+    assert resp["error"]["code"] == "UPSTREAM_UNAVAILABLE"
   end
 end

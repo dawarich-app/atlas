@@ -14,7 +14,9 @@ defmodule AtlasWeb.Api.V1.RouteController do
     parameters: [
       parameter(:from, :query, :string, "Origin 'lat,lon'", required: true),
       parameter(:to, :query, :string, "Destination 'lat,lon'", required: true),
-      parameter(:mode, :query, :string, "Travel mode (auto, bicycle, pedestrian)", required: false),
+      parameter(:mode, :query, :string, "Travel mode (auto, bicycle, pedestrian)",
+        required: false
+      ),
       parameter(:avoid_tolls, :query, :string, "Avoid tolls", required: false),
       parameter(:avoid_highways, :query, :string, "Avoid highways", required: false),
       parameter(:avoid_ferries, :query, :string, "Avoid ferries", required: false)
@@ -42,7 +44,7 @@ defmodule AtlasWeb.Api.V1.RouteController do
            ) do
       json(conn, %{
         data: result.features,
-        meta: meta(conn, %{upstream: result.upstream_status, mode: mode, options: opts})
+        meta: meta(conn, %{mode: mode, options: opts})
       })
     end
   end

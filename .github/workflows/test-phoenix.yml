@@ -31,4 +31,6 @@ jobs:
       - run: mix deps.get
       - run: mix compile --warnings-as-errors
       - run: mix credo --strict
-      - run: mix test
+      # --include parity activates the byte-diff gate against the committed
+      # Rails goldens, enforcing API parity with the legacy Rails app.
+      - run: mix test --include parity

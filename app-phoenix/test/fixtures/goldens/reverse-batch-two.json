@@ -1,0 +1,51 @@
+{
+  "data": [
+    {
+      "admin": {},
+      "coord": {
+        "lat": 52.5,
+        "lon": 13.4
+      },
+      "here": {
+        "admin": {},
+        "coords": {
+          "lat": 52.5,
+          "lon": 13.4
+        },
+        "id": "",
+        "label": "Berlin",
+        "name": "Berlin",
+        "type": null
+      },
+      "id": null
+    },
+    {
+      "admin": {},
+      "coord": {
+        "lat": 48.1,
+        "lon": 11.5
+      },
+      "here": {
+        "admin": {},
+        "coords": {
+          "lat": 52.5,
+          "lon": 13.4
+        },
+        "id": "",
+        "label": "Berlin",
+        "name": "Berlin",
+        "type": null
+      },
+      "id": null
+    }
+  ],
+  "meta": {
+    "cache_hits": 2,
+    "cache_misses": 0,
+    "count": 2,
+    "grid_precision": 4,
+    "max_coords": 500,
+    "timestamp": "2026-06-02T19:26:20Z",
+    "upstream_errors": 0
+  }
+}

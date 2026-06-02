@@ -44,20 +44,44 @@ defmodule AtlasWeb.ApiParityTest do
       &System.put_env(&1, url)
     )
 
+    # Start from a cold reverse cache so the batch golden is served from this
+    # test's Bypass stubs, not stale entries left by other reverse tests.
+    Cachex.clear(:reverse_cache)
+
     Bypass.stub(bypass, "GET", "/api", fn c ->
-      Plug.Conn.resp(c, 200, ~s({"features":[{"geometry":{"coordinates":[13.4,52.5]},"properties":{"name":"Berlin"}}]}))
+      Plug.Conn.resp(
+        c,
+        200,
+        ~s({"features":[{"geometry":{"coordinates":[13.4,52.5]},"properties":{"name":"Berlin"}}]})
+      )
     end)
 
     Bypass.stub(bypass, "GET", "/reverse", fn c ->
-      Plug.Conn.resp(c, 200, ~s({"features":[{"geometry":{"coordinates":[13.4,52.5]},"properties":{"name":"Berlin"}}]}))
+      Plug.Conn.resp(
+        c,
+        200,
+        ~s({"features":[{"geometry":{"coordinates":[13.4,52.5]},"properties":{"name":"Berlin"}}]})
+      )
     end)
 
     Bypass.stub(bypass, "GET", "/parser", fn c -> Plug.Conn.resp(c, 200, "[]") end)
     Bypass.stub(bypass, "GET", "/parser/search", fn c -> Plug.Conn.resp(c, 200, "[]") end)
-    Bypass.stub(bypass, "POST", "/route", fn c -> Plug.Conn.resp(c, 200, ~s({"trip":{"summary":{"length":1.0}}})) end)
-    Bypass.stub(bypass, "GET", "/otp/routers/default/plan", fn c -> Plug.Conn.resp(c, 200, ~s({"plan":{"itineraries":[]}})) end)
-    Bypass.stub(bypass, "POST", "/api/interpreter", fn c -> Plug.Conn.resp(c, 200, ~s({"elements":[]})) end)
-    Bypass.stub(bypass, "GET", "/api/interpreter", fn c -> Plug.Conn.resp(c, 200, ~s({"elements":[]})) end)
+
+    Bypass.stub(bypass, "POST", "/route", fn c ->
+      Plug.Conn.resp(c, 200, ~s({"trip":{"summary":{"length":1.0}}}))
+    end)
+
+    Bypass.stub(bypass, "GET", "/otp/routers/default/plan", fn c ->
+      Plug.Conn.resp(c, 200, ~s({"plan":{"itineraries":[]}}))
+    end)
+
+    Bypass.stub(bypass, "POST", "/api/interpreter", fn c ->
+      Plug.Conn.resp(c, 200, ~s({"elements":[]}))
+    end)
+
+    Bypass.stub(bypass, "GET", "/api/interpreter", fn c ->
+      Plug.Conn.resp(c, 200, ~s({"elements":[]}))
+    end)
 
     on_exit(fn ->
       Enum.each(
@@ -132,7 +156,7 @@ defmodule AtlasWeb.ApiParityTest do
     test "matches golden envelope shape", %{conn: conn} do
       actual =
         conn
-        |> get(~p"/api/v1/transit?from=52.5,13.4&to=52.6,13.5")
+        |> get(~p"/api/v1/transit?from=52.5,13.4&to=52.6,13.5&time=2024-01-01T00:00:00Z")
         |> json_response(200)
 
       expected = GoldenHelper.load("transit-default")

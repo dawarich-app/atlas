@@ -27,8 +27,8 @@ capture "search-with-bbox"       GET  "/api/v1/search?q=cafe&limit=10&bbox=13.0,
 capture "reverse-brandenburg"    GET  "/api/v1/reverse?lat=52.5163&lon=13.3777"
 capture "reverse-batch-two"      POST "/api/v1/reverse/batch" '{"coords":[{"lat":52.5,"lon":13.4},{"lat":48.1,"lon":11.5}]}'
 capture "route-auto"             GET  "/api/v1/route?from=52.5,13.4&to=52.6,13.5&mode=auto"
-capture "transit-default"        GET  "/api/v1/transit?from=52.5,13.4&to=52.6,13.5"
+capture "transit-default"        GET  "/api/v1/transit?from=52.5,13.4&to=52.6,13.5&time=2024-01-01T00:00:00Z"
 capture "whats-here-default"     GET  "/api/v1/whats-here?lat=52.5&lon=13.4"
-capture "pois-food"              GET  "/api/v1/pois?lat=52.5&lon=13.4&radius=300&category=food"
+capture "pois-food"              GET  "/api/v1/pois?bbox=13.0,52.0,14.0,53.0&types=restaurant"
 capture "pois-categories"        GET  "/api/v1/pois/categories"
 capture "geocode-berlin"         GET  "/api/v1/geocode?q=berlin"

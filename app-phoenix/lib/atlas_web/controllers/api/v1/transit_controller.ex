@@ -14,8 +14,12 @@ defmodule AtlasWeb.Api.V1.TransitController do
       parameter(:from, :query, :string, "Origin 'lat,lon'", required: true),
       parameter(:to, :query, :string, "Destination 'lat,lon'", required: true),
       parameter(:time, :query, :string, "ISO 8601 timestamp (defaults to now)", required: false),
-      parameter(:modes, :query, :string, "Comma-separated modes (default TRANSIT,WALK)", required: false),
-      parameter(:num, :query, :integer, "Number of itineraries (1..6, default 3)", required: false),
+      parameter(:modes, :query, :string, "Comma-separated modes (default TRANSIT,WALK)",
+        required: false
+      ),
+      parameter(:num, :query, :integer, "Number of itineraries (1..6, default 3)",
+        required: false
+      ),
       parameter(:arrive_by, :query, :string, "Arrive-by flag", required: false)
     ],
     responses: %{
@@ -48,10 +52,8 @@ defmodule AtlasWeb.Api.V1.TransitController do
           data: result.features,
           meta:
             meta(conn, %{
-              upstream: result.upstream_status,
               time: iso,
-              modes: modes,
-              num: num
+              modes: modes
             })
         })
       end
@@ -72,11 +74,14 @@ defmodule AtlasWeb.Api.V1.TransitController do
   defp parse_time(raw) do
     case DateTime.from_iso8601(raw || "") do
       {:ok, dt, _} ->
-        {DateTime.to_iso8601(dt), Date.to_iso8601(DateTime.to_date(dt)), Time.to_iso8601(DateTime.to_time(dt))}
+        {DateTime.to_iso8601(dt), Date.to_iso8601(DateTime.to_date(dt)),
+         Time.to_iso8601(DateTime.to_time(dt))}
 
       _ ->
         now = DateTime.utc_now()
-        {DateTime.to_iso8601(now), Date.to_iso8601(DateTime.to_date(now)), Time.to_iso8601(DateTime.to_time(now))}
+
+        {DateTime.to_iso8601(now), Date.to_iso8601(DateTime.to_date(now)),
+         Time.to_iso8601(DateTime.to_time(now))}
     end
   end
 end

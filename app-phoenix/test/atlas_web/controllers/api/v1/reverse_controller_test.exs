@@ -4,7 +4,12 @@ defmodule AtlasWeb.Api.V1.ReverseControllerTest do
   setup do
     Cachex.clear(:reverse_cache)
     bypass = Bypass.open()
-    Enum.each(["PHOTON_URL", "PLACEHOLDER_URL"], &System.put_env(&1, "http://localhost:#{bypass.port}"))
+
+    Enum.each(
+      ["PHOTON_URL", "PLACEHOLDER_URL"],
+      &System.put_env(&1, "http://localhost:#{bypass.port}")
+    )
+
     on_exit(fn -> Enum.each(["PHOTON_URL", "PLACEHOLDER_URL"], &System.delete_env/1) end)
     {:ok, bypass: bypass}
   end
@@ -13,7 +18,11 @@ defmodule AtlasWeb.Api.V1.ReverseControllerTest do
     Bypass.expect(bypass, fn c ->
       case c.request_path do
         "/reverse" ->
-          Plug.Conn.resp(c, 200, ~s({"features":[{"geometry":{"coordinates":[13.4,52.5]},"properties":{"name":"BG","city":"Berlin","country":"Germany"}}]}))
+          Plug.Conn.resp(
+            c,
+            200,
+            ~s({"features":[{"geometry":{"coordinates":[13.4,52.5]},"properties":{"name":"BG","city":"Berlin","country":"Germany"}}]})
+          )
 
         "/parser/search" ->
           Plug.Conn.resp(c, 200, "[]")
@@ -25,9 +34,16 @@ defmodule AtlasWeb.Api.V1.ReverseControllerTest do
     assert resp["meta"]["upstream"] == "ok"
   end
 
-  test "POST /api/v1/reverse/batch returns one result per coord with new caps", %{conn: conn, bypass: bypass} do
+  test "POST /api/v1/reverse/batch returns one result per coord with new caps", %{
+    conn: conn,
+    bypass: bypass
+  } do
     Bypass.stub(bypass, "GET", "/reverse", fn c ->
-      Plug.Conn.resp(c, 200, ~s({"features":[{"geometry":{"coordinates":[13.4,52.5]},"properties":{"name":"X"}}]}))
+      Plug.Conn.resp(
+        c,
+        200,
+        ~s({"features":[{"geometry":{"coordinates":[13.4,52.5]},"properties":{"name":"X"}}]})
+      )
     end)
 
     Bypass.stub(bypass, "GET", "/parser/search", fn c -> Plug.Conn.resp(c, 200, "[]") end)
@@ -35,7 +51,10 @@ defmodule AtlasWeb.Api.V1.ReverseControllerTest do
     resp =
       conn
       |> put_req_header("content-type", "application/json")
-      |> post(~p"/api/v1/reverse/batch", Jason.encode!(%{coords: [%{lat: 52.5, lon: 13.4}, %{lat: 48.1, lon: 11.5}]}))
+      |> post(
+        ~p"/api/v1/reverse/batch",
+        Jason.encode!(%{coords: [%{lat: 52.5, lon: 13.4}, %{lat: 48.1, lon: 11.5}]})
+      )
       |> json_response(200)
 
     assert length(resp["data"]) == 2
@@ -54,6 +73,18 @@ defmodule AtlasWeb.Api.V1.ReverseControllerTest do
     assert resp["error"]["message"] =~ "lat"
   end
 
+  test "POST /api/v1/reverse/batch returns 400 MISSING_PARAM when coords array absent", %{
+    conn: conn
+  } do
+    resp =
+      conn
+      |> put_req_header("content-type", "application/json")
+      |> post(~p"/api/v1/reverse/batch", Jason.encode!(%{lang: "en"}))
+      |> json_response(400)
+
+    assert resp["error"]["code"] == "MISSING_PARAM"
+  end
+
   test "POST /api/v1/reverse/batch returns 422 when over MAX_COORDS=500", %{conn: conn} do
     coords = for n <- 1..501, do: %{lat: 52.0 + n / 10000, lon: 13.0 + n / 10000}
 
@@ -67,9 +98,16 @@ defmodule AtlasWeb.Api.V1.ReverseControllerTest do
     assert resp["error"]["details"]["max"] == 500
   end
 
-  test "POST /api/v1/reverse/batch per-item bad input is reported inline, not halting", %{conn: conn, bypass: bypass} do
+  test "POST /api/v1/reverse/batch per-item bad input is reported inline, not halting", %{
+    conn: conn,
+    bypass: bypass
+  } do
     Bypass.stub(bypass, "GET", "/reverse", fn c ->
-      Plug.Conn.resp(c, 200, ~s({"features":[{"geometry":{"coordinates":[13.4,52.5]},"properties":{"name":"X"}}]}))
+      Plug.Conn.resp(
+        c,
+        200,
+        ~s({"features":[{"geometry":{"coordinates":[13.4,52.5]},"properties":{"name":"X"}}]})
+      )
     end)
 
     Bypass.stub(bypass, "GET", "/parser/search", fn c -> Plug.Conn.resp(c, 200, "[]") end)
@@ -77,7 +115,12 @@ defmodule AtlasWeb.Api.V1.ReverseControllerTest do
     resp =
       conn
       |> put_req_header("content-type", "application/json")
-      |> post(~p"/api/v1/reverse/batch", Jason.encode!(%{coords: [%{lat: 52.5, lon: 13.4, id: "a"}, %{lat: "abc", lon: 13.4, id: "b"}]}))
+      |> post(
+        ~p"/api/v1/reverse/batch",
+        Jason.encode!(%{
+          coords: [%{lat: 52.5, lon: 13.4, id: "a"}, %{lat: "abc", lon: 13.4, id: "b"}]
+        })
+      )
       |> json_response(200)
 
     assert [r1, r2] = resp["data"]
@@ -91,7 +134,11 @@ defmodule AtlasWeb.Api.V1.ReverseControllerTest do
 
   test "POST /api/v1/reverse/batch echoes per-coord id", %{conn: conn, bypass: bypass} do
     Bypass.stub(bypass, "GET", "/reverse", fn c ->
-      Plug.Conn.resp(c, 200, ~s({"features":[{"geometry":{"coordinates":[13.4,52.5]},"properties":{"name":"X"}}]}))
+      Plug.Conn.resp(
+        c,
+        200,
+        ~s({"features":[{"geometry":{"coordinates":[13.4,52.5]},"properties":{"name":"X"}}]})
+      )
     end)
 
     Bypass.stub(bypass, "GET", "/parser/search", fn c -> Plug.Conn.resp(c, 200, "[]") end)
@@ -99,7 +146,10 @@ defmodule AtlasWeb.Api.V1.ReverseControllerTest do
     resp =
       conn
       |> put_req_header("content-type", "application/json")
-      |> post(~p"/api/v1/reverse/batch", Jason.encode!(%{coords: [%{lat: 52.5, lon: 13.4, id: "p1"}]}))
+      |> post(
+        ~p"/api/v1/reverse/batch",
+        Jason.encode!(%{coords: [%{lat: 52.5, lon: 13.4, id: "p1"}]})
+      )
       |> json_response(200)
 
     assert [%{"id" => "p1"}] = resp["data"]

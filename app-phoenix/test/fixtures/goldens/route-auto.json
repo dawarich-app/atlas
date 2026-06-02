@@ -1,0 +1,18 @@
+{
+  "data": {
+    "legs": [],
+    "shape_format": "valhalla_encoded_polyline6",
+    "summary": {
+      "length": 1.0
+    }
+  },
+  "meta": {
+    "mode": "auto",
+    "options": {
+      "avoid_ferries": false,
+      "avoid_highways": false,
+      "avoid_tolls": false
+    },
+    "timestamp": "2026-06-02T19:26:20Z"
+  }
+}

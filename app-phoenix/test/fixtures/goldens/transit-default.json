@@ -1,0 +1,12 @@
+{
+  "data": {
+    "from": null,
+    "itineraries": [],
+    "to": null
+  },
+  "meta": {
+    "modes": "TRANSIT,WALK",
+    "time": "2024-01-01T00:00:00Z",
+    "timestamp": "2026-06-02T19:26:20Z"
+  }
+}

@@ -14,9 +14,11 @@ defmodule AtlasWeb.GoldenHelper do
       from M1 onward.
 
     * `assert_byte_diff/2` — full byte-diff parity check used as the M5
-      cutover gate. Drops volatile `meta` fields (`timestamp`, `request_id`)
-      before comparison so the harness only fails on real structural drift,
-      not clock skew.
+      cutover gate. Drops runtime-volatile `meta` fields (`timestamp`,
+      `request_id`, and the `cache_hits`/`cache_misses` split — which depends
+      on cache warmth and always sums to the asserted `count`) before
+      comparison so the harness only fails on real structural drift, not
+      clock skew or cache state.
 
   Until Rails goldens are captured (manual step documented in
   `scripts/M5_GOLDENS_CAPTURE.md`), `assert_byte_diff/2` is a no-op against
@@ -73,7 +75,7 @@ defmodule AtlasWeb.GoldenHelper do
   end
 
   defp drop_volatile(%{"meta" => meta} = json) when is_map(meta) do
-    cleaned_meta = Map.drop(meta, ["request_id", "timestamp"])
+    cleaned_meta = Map.drop(meta, ["request_id", "timestamp", "cache_hits", "cache_misses"])
     Map.put(json, "meta", cleaned_meta)
   end
 

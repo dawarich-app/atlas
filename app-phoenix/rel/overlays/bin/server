@@ -2,4 +2,20 @@
 set -eu
 
 cd -P -- "$(dirname -- "$0")"
+
+# Zero-config boot: if SECRET_KEY_BASE is not supplied, generate one and
+# persist it so it survives restarts (mirrors the legacy Rails app's
+# auto-generated key). Operators can still inject their own via the env var.
+if [ -z "${SECRET_KEY_BASE:-}" ]; then
+  SECRET_FILE="${SECRET_KEY_BASE_PATH:-/data/.secret_key_base}"
+  if [ -f "$SECRET_FILE" ]; then
+    SECRET_KEY_BASE="$(cat "$SECRET_FILE")"
+  else
+    SECRET_KEY_BASE="$(openssl rand -hex 64)"
+    mkdir -p "$(dirname "$SECRET_FILE")"
+    ( umask 077; printf '%s' "$SECRET_KEY_BASE" > "$SECRET_FILE" )
+  fi
+  export SECRET_KEY_BASE
+fi
+
 PHX_SERVER=true exec ./atlas start

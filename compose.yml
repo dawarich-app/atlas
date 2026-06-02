@@ -17,12 +17,15 @@ services:
     pull_policy: ${APP_PULL_POLICY:-always}
     container_name: atlas-app
     environment:
-      RAILS_ENV: production
-      DATABASE_URL: ${DATABASE_URL:-sqlite3:/data/app.sqlite3}
+      # Phoenix runtime. Migrations run automatically on boot.
+      PHX_SERVER: "true"
+      PHX_HOST: ${PHX_HOST:-localhost}
+      PORT: "4000"
       SECRET_KEY_BASE: ${SECRET_KEY_BASE:-}
-      RAILS_LOG_TO_STDOUT: "true"
-      RAILS_SERVE_STATIC_FILES: "true"
-      SOLID_QUEUE_IN_PUMA: "1"
+      # SQLite by default. For Postgres set DATABASE_URL=postgres://... AND use
+      # an image built with ATLAS_DB_ADAPTER=postgres.
+      DATABASE_PATH: ${DATABASE_PATH:-/data/atlas.sqlite3}
+      DATABASE_URL: ${DATABASE_URL:-}
       PHOTON_URL: http://photon:2322
       PLACEHOLDER_URL: http://placeholder:3000
       LIBPOSTAL_URL: http://libpostal:4400
@@ -30,32 +33,30 @@ services:
       OVERPASS_URL: http://overpass:80
       OTP_URL: http://otp:8080
       TILES_URL: ${TILES_URL:-}
-      TILES_THEME: ${TILES_THEME:-light}
+      TILES_THEME: ${TILES_THEME:-atlas-light}
       DEFAULT_LAT: ${DEFAULT_LAT:-51.1657}
       DEFAULT_LON: ${DEFAULT_LON:-10.4515}
       DEFAULT_ZOOM: ${DEFAULT_ZOOM:-2}
-      CONTROL_PLANE_URL: http://atlas-control:8090
       ADMIN_USERNAME: ${ADMIN_USERNAME:-}
       ADMIN_PASSWORD: ${ADMIN_PASSWORD:-}
+      # Control plane — the Go atlas-control sidecar is absorbed into the app,
+      # which execs `docker compose` / `docker run` against the host daemon via
+      # the socket below. COMPOSE_FILE points at THIS file so in-container
+      # `docker compose` targets the same project; HOST_PROJECT_DIR translates
+      # bind-mount paths to host paths.
+      COMPOSE_FILE: /work/compose.yml
+      HOST_PROJECT_DIR: ${HOST_PROJECT_DIR:-${PWD}}
     volumes:
       - ./data/app:/data
-      - ./regions:/rails/regions:ro
-    restart: unless-stopped
-
-  atlas-control:
-    image: ${ATLAS_CONTROL_IMAGE:-ghcr.io/dawarich-app/atlas/atlas-control:latest}
-    pull_policy: ${ATLAS_CONTROL_PULL_POLICY:-always}
-    container_name: atlas-control
-    environment:
-      COMPOSE_FILE:         /work/compose.yml
-      HOST_PROJECT_DIR:     ${HOST_PROJECT_DIR:-${PWD}}
-      DATA_DIR:             /work/data
-      REGIONS_DIR:          /work/regions
-      LISTEN_ADDR:          ":8090"
-    volumes:
+      - ./regions:/work/regions:ro
       - /var/run/docker.sock:/var/run/docker.sock
+      - ./compose.yml:/work/compose.yml:ro
       - .:/work:ro
-      - ./data:/work/data
+      - ./data/osm:/work/data/osm
+    # Match the host's docker group so the `nobody` user can talk to the
+    # socket. Override DOCKER_GID in .env on Linux (typically 999).
+    group_add:
+      - "${DOCKER_GID:-999}"
     restart: unless-stopped
 
   photon:

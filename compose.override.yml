@@ -1,0 +1,4 @@
+services:
+  photon:
+    ports:
+      - "2322:2322"

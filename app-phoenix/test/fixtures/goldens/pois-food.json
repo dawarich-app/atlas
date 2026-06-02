@@ -1,0 +1,18 @@
+{
+  "data": {
+    "features": []
+  },
+  "meta": {
+    "bbox": [
+      13.0,
+      52.0,
+      14.0,
+      53.0
+    ],
+    "q": null,
+    "timestamp": "2026-06-02T19:26:20Z",
+    "types": [
+      "restaurant"
+    ]
+  }
+}

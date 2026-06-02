@@ -54,18 +54,21 @@ Docs source: [`dawarich-app/atlas-website`](https://github.com/dawarich-app/atla
 
 ## CI / images
 
-CI runs on GitHub Actions (`.github/workflows/`) and publishes four artifacts:
+The app is the Phoenix application in [`app-phoenix/`](app-phoenix/). It serves
+the map UI, admin Settings, the public + admin JSON APIs, and the control plane
+(the former Go `atlas-control` sidecar is absorbed into it — Phoenix execs
+`docker compose` against the host daemon directly). CI runs on GitHub Actions
+(`.github/workflows/`):
 
 | Job | Trigger | Output |
 |---|---|---|
-| `test-rails` | push / PR touching `app/**` | RSpec suite |
-| `test-sidecar` | push / PR touching `atlas-control/**` | `go test -race ./...` |
-| `build-app` | push to `main` touching `app/**` | `ghcr.io/dawarich-app/atlas/app:latest` + `:<sha>` (multi-arch amd64+arm64) |
-| `build-control` | push to `main` touching `atlas-control/**` | `ghcr.io/dawarich-app/atlas/atlas-control:latest` + `:<sha>` (multi-arch) |
+| `test-phoenix` | push / PR touching `app-phoenix/**` | `mix test --include parity` (incl. byte-diff parity gate against the Rails goldens) + `credo` |
+| `build-app` | push to `main` touching `app-phoenix/**` | `ghcr.io/dawarich-app/atlas/app:latest` + `:<sha>` (multi-arch amd64+arm64) |
+| `test-rails` | push / PR touching `app/**` | RSpec — the legacy Rails app (`app/`) is retained only as the parity reference for the golden capture; it is no longer built or shipped |
 
-Compose defaults consume those tags directly — `docker compose up -d` against a fresh checkout pulls from GHCR with no auth.
+Compose defaults consume the `app` tag directly — `docker compose up -d` against a fresh checkout pulls from GHCR with no auth.
 
-Override either image when iterating locally:
+Override the image when iterating locally:
 
 ```bash
 APP_IMAGE=atlas-app:dev docker compose build app
@@ -74,8 +77,8 @@ APP_IMAGE=atlas-app:dev APP_PULL_POLICY=never docker compose up -d
 
 ## Development
 
-- Rails app: [`app/README.md`](app/README.md)
-- Go sidecar: [`atlas-control/README.md`](atlas-control/README.md)
+- Phoenix app (the shipped app): [`app-phoenix/README.md`](app-phoenix/README.md)
+- Legacy Rails app (parity reference only): [`app/README.md`](app/README.md)
 
 End-user documentation source lives in the separate [atlas-website repo](https://github.com/dawarich-app/atlas-website) — open PRs against the docs there.
 

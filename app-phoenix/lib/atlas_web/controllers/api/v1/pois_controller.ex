@@ -13,7 +13,9 @@ defmodule AtlasWeb.Api.V1.PoisController do
     parameters: [
       parameter(:bbox, :query, :string, "BBox 's,w,n,e' (south,west,north,east)", required: true),
       parameter(:types, :query, :string, "Comma-separated POI type ids", required: false),
-      parameter(:q, :query, :string, "Free-text query (uses Photon when present)", required: false),
+      parameter(:q, :query, :string, "Free-text query (uses Photon when present)",
+        required: false
+      ),
       parameter(:limit, :query, :integer, "Max results (1-1000)", required: false),
       parameter(:lang, :query, :string, "Language code", required: false)
     ],
@@ -37,9 +39,7 @@ defmodule AtlasWeb.Api.V1.PoisController do
             meta(conn, %{
               types: types,
               bbox: bbox,
-              q: if(query == "", do: nil, else: query),
-              upstream: result.upstream_status,
-              count: length(result.features)
+              q: if(query == "", do: nil, else: query)
             })
         })
       end

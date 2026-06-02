@@ -1,0 +1,13 @@
+# Build artifacts and deps — rebuilt inside the image
+_build/
+deps/
+assets/node_modules/
+node_modules/
+
+# Local dev databases / crash dumps / editor state
+*.db
+*.db-shm
+*.db-wal
+erl_crash.dump
+.elixir_ls/
+.fmt/

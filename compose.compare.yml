@@ -1,0 +1,235 @@
+# Side-by-side Rails (v1) + Phoenix (v2) compose for visual / functional
+# comparison. Both apps share the same OSM/POI/routing sidecars but write
+# to separate data volumes so their SQLite databases don't trample each
+# other.
+#
+# Access:
+#   Rails:   http://localhost:3002
+#   Phoenix: http://localhost:4000
+#
+# Usage:
+#
+#   # First boot — build Phoenix image, pull Rails image, start both:
+#   docker compose --env-file .env.phoenix -f compose.compare.yml up --build -d
+#
+#   # With sidecars (geocoding + routing + pois + transit):
+#   docker compose --env-file .env.phoenix -f compose.compare.yml --profile all up --build -d
+#
+#   # Just the two apps (no sidecars; degraded mode):
+#   docker compose --env-file .env.phoenix -f compose.compare.yml up --build rails phoenix
+#
+#   # Shut everything down:
+#   docker compose -f compose.compare.yml down
+#
+# .env.phoenix needs (already set up earlier):
+#   SECRET_KEY_BASE=<openssl rand -hex 32>
+#   ADMIN_USERNAME=admin
+#   ADMIN_PASSWORD=admin
+
+services:
+  # ------------------------------------------------------------------
+  # Rails (v1) — the current production app, pulled from GHCR
+  # ------------------------------------------------------------------
+
+  rails:
+    image: ${RAILS_IMAGE:-ghcr.io/dawarich-app/atlas/app:latest}
+    pull_policy: ${RAILS_PULL_POLICY:-always}
+    container_name: apo-rails
+    environment:
+      RAILS_ENV: production
+      DATABASE_URL: ${DATABASE_URL:-sqlite3:/data/app.sqlite3}
+      SECRET_KEY_BASE: ${SECRET_KEY_BASE:?Set SECRET_KEY_BASE in .env.phoenix}
+      RAILS_LOG_TO_STDOUT: "true"
+      RAILS_SERVE_STATIC_FILES: "true"
+      SOLID_QUEUE_IN_PUMA: "1"
+      PHOTON_URL:      http://photon:2322
+      PLACEHOLDER_URL: http://placeholder:3000
+      LIBPOSTAL_URL:   http://libpostal:4400
+      VALHALLA_URL:    http://valhalla:8002
+      OVERPASS_URL:    http://overpass:80
+      OTP_URL:         http://otp:8080
+      TILES_URL:    ${TILES_URL:-}
+      TILES_THEME:  ${TILES_THEME:-light}
+      DEFAULT_LAT:  ${DEFAULT_LAT:-51.1657}
+      DEFAULT_LON:  ${DEFAULT_LON:-10.4515}
+      DEFAULT_ZOOM: ${DEFAULT_ZOOM:-5}
+      CONTROL_PLANE_URL: http://apo-atlas-control:8090
+      ADMIN_USERNAME: ${ADMIN_USERNAME:-}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-}
+    volumes:
+      - ./data/rails-app:/data
+      - ./regions:/rails/regions:ro
+    ports:
+      - "3002:3000"
+    restart: unless-stopped
+
+  # Atlas Control (Go sidecar) — required by Rails for compose/osmium exec.
+  # Phoenix doesn't use it (absorbed into the BEAM in M2).
+  atlas-control:
+    image: ${ATLAS_CONTROL_IMAGE:-ghcr.io/dawarich-app/atlas/atlas-control:latest}
+    pull_policy: ${ATLAS_CONTROL_PULL_POLICY:-always}
+    container_name: apo-atlas-control
+    environment:
+      COMPOSE_FILE:     /work/compose.compare.yml
+      HOST_PROJECT_DIR: ${HOST_PROJECT_DIR:-${PWD}}
+      DATA_DIR:         /work/data
+      REGIONS_DIR:      /work/regions
+      LISTEN_ADDR:      ":8090"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - .:/work:ro
+      - ./data:/work/data
+    restart: unless-stopped
+
+  # ------------------------------------------------------------------
+  # Phoenix (v2) — built locally from app-phoenix/Dockerfile
+  # ------------------------------------------------------------------
+
+  phoenix:
+    build:
+      context: ./app-phoenix
+      dockerfile: Dockerfile
+    image: atlas-phoenix:dev
+    container_name: apo-phoenix
+    environment:
+      PHX_SERVER: "true"
+      PHX_HOST: ${PHX_HOST:-localhost}
+      PORT: "4000"
+      SECRET_KEY_BASE: ${SECRET_KEY_BASE:?Set SECRET_KEY_BASE in .env.phoenix}
+      DATABASE_PATH: /data/atlas.sqlite3
+      PHOTON_URL:      http://photon:2322
+      PLACEHOLDER_URL: http://placeholder:3000
+      LIBPOSTAL_URL:   http://libpostal:4400
+      VALHALLA_URL:    http://valhalla:8002
+      OVERPASS_URL:    http://overpass:80
+      OTP_URL:         http://otp:8080
+      TILES_URL:    ${TILES_URL:-}
+      TILES_THEME:  ${TILES_THEME:-forest-patina}
+      DEFAULT_LAT:  ${DEFAULT_LAT:-51.1657}
+      DEFAULT_LON:  ${DEFAULT_LON:-10.4515}
+      DEFAULT_ZOOM: ${DEFAULT_ZOOM:-5}
+      ADMIN_USERNAME: ${ADMIN_USERNAME:-}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-}
+      COMPOSE_FILE: /work/compose.compare.yml
+      COMPOSE_PROJECT_NAME: atlas
+      COMPOSE_PROJECT_DIRECTORY: ${HOST_PROJECT_DIR:-${PWD}}
+      HOST_PROJECT_DIR: ${HOST_PROJECT_DIR:-${PWD}}
+      HOST_DATA_DIR: ${HOST_PROJECT_DIR:-${PWD}}/data/phoenix-app
+      OSM_DIR: /work/data/osm
+      HOST_OSM_DIR: ${HOST_PROJECT_DIR:-${PWD}}/data/osm
+    volumes:
+      - ./data/phoenix-app:/data
+      - ./regions:/work/regions:ro
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ./compose.compare.yml:/work/compose.compare.yml:ro
+      - .:/work:ro
+      - ./data/osm:/work/data/osm
+    group_add:
+      - "${DOCKER_GID:-999}"
+    ports:
+      - "4000:4000"
+    restart: unless-stopped
+
+  # Caddy in front of Phoenix at :8484 — mirrors the original Atlas
+  # dev surface so existing bookmarks / tile clients keep working.
+  caddy-phoenix:
+    image: caddy:2.11.3-alpine
+    container_name: apo-caddy-phoenix
+    depends_on:
+      - phoenix
+    volumes:
+      - ./Caddyfile.phoenix:/etc/caddy/Caddyfile:ro
+      - ./data/tiles:/srv/tiles:ro
+      - ./data/caddy-phoenix:/data:rw
+      - ./data/caddy-phoenix-config:/config:rw
+    ports:
+      - "8484:80"
+    restart: unless-stopped
+
+  # ------------------------------------------------------------------
+  # Sidecars — shared between Rails and Phoenix
+  # ------------------------------------------------------------------
+
+  photon:
+    image: rtuszik/photon-docker:2.2.0
+    container_name: apo-photon
+    profiles: [geocoding, all]
+    environment:
+      UPDATE_STRATEGY: PARALLEL
+      REGION: ${COUNTRY_CODE:-de}
+    volumes:
+      - ./data/photon:/photon/data
+    restart: unless-stopped
+
+  whosonfirst:
+    image: pelias/whosonfirst:v8.4.0
+    container_name: apo-whosonfirst
+    profiles: [data-setup]
+    user: "${UID:-1001}:${GID:-1001}"
+    environment:
+      WHOSONFIRST_COUNTRY_CODE: ${WHOSONFIRST_COUNTRY_CODE:-${COUNTRY_CODE:-de}}
+    volumes:
+      - ./data/whosonfirst:/mnt/pelias/whosonfirst
+    command: ["bash", "/code/pelias/whosonfirst/bin/download"]
+
+  placeholder:
+    image: pelias/placeholder:v5.5.0
+    container_name: apo-placeholder
+    profiles: [geocoding, all]
+    environment:
+      PORT: 3000
+      PLACEHOLDER_DATA: /data
+      WOF_DIR: /wof/sqlite
+    volumes:
+      - ./data/placeholder:/data
+      - ./data/whosonfirst:/wof:ro
+    restart: unless-stopped
+
+  libpostal:
+    image: pelias/libpostal-service:nodejs-20
+    container_name: apo-libpostal
+    profiles: [geocoding, all]
+    restart: unless-stopped
+
+  valhalla:
+    image: ghcr.io/gis-ops/docker-valhalla/valhalla:3.5.1
+    container_name: apo-valhalla
+    profiles: [routing, all]
+    environment:
+      serve_tiles: "True"
+      build_admins: "True"
+      build_elevation: ${BUILD_ELEVATION:-False}
+      use_tiles_ignore_pbf: "False"
+    volumes:
+      - ./data/valhalla:/custom_files
+      - ./data/srtm:/custom_files/elevation_data
+      - ./data/osm:/osm:ro
+    restart: unless-stopped
+
+  overpass:
+    image: wiktorn/overpass-api:v0.7.62.11
+    container_name: apo-overpass
+    profiles: [pois, all]
+    environment:
+      OVERPASS_META: ${OVERPASS_META:-no}
+      OVERPASS_MODE: init
+      OVERPASS_PLANET_URL: file:///osm/current.osm.bz2
+      OVERPASS_DIFF_URL: ${OVERPASS_DIFF_URL:-https://download.geofabrik.de/europe/germany-updates/}
+      OVERPASS_RULES_LOAD: 10
+      OVERPASS_COMPRESSION: lz4
+    volumes:
+      - ./data/overpass:/db
+      - ./data/osm:/osm:ro
+    restart: unless-stopped
+
+  otp:
+    image: opentripplanner/opentripplanner:2.10.0_2026-05-18T08-51
+    container_name: apo-otp
+    profiles: [transit, all]
+    command: ["--build", "--save", "--serve"]
+    environment:
+      JAVA_OPTS: ${OTP_JAVA_OPTS:--Xmx4g -XX:+UseG1GC -XX:MaxGCPauseMillis=500}
+    volumes:
+      - ./data/otp:/var/opentripplanner
+      - ./data/osm:/osm:ro
+    restart: unless-stopped
