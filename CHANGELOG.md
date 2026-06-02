@@ -4,7 +4,7 @@ All notable changes to Dawarich Atlas are documented here.
 
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.2.0] - Unreleased
+## [0.2.0] - 2026-06-02
 
 ### Changed
 - **The shipped application is now the Phoenix app (`app-phoenix/`), replacing the Rails app.** `ghcr.io/dawarich-app/atlas/app` is now built from `app-phoenix/` and `compose.yml` runs it (Phoenix on port 4000; Caddy proxies `app:4000`).
