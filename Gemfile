@@ -80,7 +80,7 @@ end
 
 group :test do
   gem "capybara", "~> 3.40"
-  gem "selenium-webdriver", "~> 4.20"
+  gem "selenium-webdriver", "~> 4.44"
   gem "rails-controller-testing", "~> 1.0"
   gem "timecop", "~> 0.9"
 end
