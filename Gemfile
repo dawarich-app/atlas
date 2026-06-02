@@ -63,7 +63,7 @@ gem "omniauth-github", "~> 2.0"
 gem "omniauth-rails_csrf_protection", "~> 2.0"
 
 # Markdown -> token tree
-gem "commonmarker", "~> 1.1"
+gem "commonmarker", "~> 2.8"
 
 # Rate limiting middleware
 gem "rack-attack", "~> 6.7"
