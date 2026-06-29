@@ -31,6 +31,14 @@ defmodule AtlasWeb.Router do
     get "/pois", PoisController, :index
     get "/pois/categories", PoisController, :categories
     get "/geocode", GeocodeController, :index
+
+    get "/photon/api", PhotonController, :search
+    get "/photon/reverse", PhotonController, :reverse
+    get "/photon/lookup", PhotonController, :lookup
+    get "/photon/status", PhotonController, :status
+
+    get "/version", VersionController, :show
+    get "/health", HealthController, :show
   end
 
   scope "/api" do

@@ -42,5 +42,11 @@ defmodule Atlas.Control.Supervisor do
   end
 
   @doc "Called after supervision is up. Seeds DB rows + starts a ServiceState per known service."
-  def post_start, do: Seeder.seed_and_start!()
+  def post_start do
+    Seeder.seed_and_start!()
+
+    # Probe docker/compose/socket/dirs off the boot path; results render as a
+    # Settings banner instead of failing silently on the first user action.
+    Task.start(fn -> Atlas.Control.Preflight.refresh() end)
+  end
 end

@@ -16,18 +16,30 @@ defmodule Atlas.Maps.SearchTest do
   test "autocomplete returns features + upstream_status=ok on Photon success", %{bypass: bypass} do
     Bypass.expect(bypass, fn conn ->
       case conn.request_path do
-        "/parser" -> Plug.Conn.resp(conn, 200, ~s([{"label":"city","value":"berlin"}]))
-        "/api" -> Plug.Conn.resp(conn, 200, ~s({"features":[{"type":"Feature","geometry":{"type":"Point","coordinates":[13.4,52.5]},"properties":{"name":"Berlin","city":"Berlin","country":"Germany","osm_id":1,"osm_type":"R","osm_key":"place","osm_value":"city"}}]}))
-        "/parser/search" -> Plug.Conn.resp(conn, 200, "[]")
+        "/parser" ->
+          Plug.Conn.resp(conn, 200, ~s([{"label":"city","value":"berlin"}]))
+
+        "/api" ->
+          Plug.Conn.resp(
+            conn,
+            200,
+            ~s({"features":[{"type":"Feature","geometry":{"type":"Point","coordinates":[13.4,52.5]},"properties":{"name":"Berlin","city":"Berlin","country":"Germany","osm_id":1,"osm_type":"R","osm_key":"place","osm_value":"city"}}]})
+          )
+
+        "/parser/search" ->
+          Plug.Conn.resp(conn, 200, "[]")
       end
     end)
 
-    {:ok, %Result{features: features, upstream_status: "ok"}} = Search.autocomplete(%{query: "berlin", limit: 5})
+    {:ok, %Result{features: features, upstream_status: "ok"}} =
+      Search.autocomplete(%{query: "berlin", limit: 5})
+
     assert [%{name: "Berlin", coords: %{lat: 52.5, lon: 13.4}}] = features
   end
 
   test "autocomplete returns {:error, %Unavailable{}} when Photon down", %{bypass: bypass} do
     Bypass.down(bypass)
+
     assert {:error, %Atlas.Maps.Upstream.Client.Unavailable{}} =
              Search.autocomplete(%{query: "berlin", limit: 5})
   end
@@ -35,9 +47,18 @@ defmodule Atlas.Maps.SearchTest do
   test "autocomplete normalizes Photon GeoJSON into Atlas feature shape", %{bypass: bypass} do
     Bypass.expect(bypass, fn conn ->
       case conn.request_path do
-        "/parser" -> Plug.Conn.resp(conn, 200, ~s([{"label":"x","value":"berlin"}]))
-        "/api" -> Plug.Conn.resp(conn, 200, ~s({"features":[{"geometry":{"coordinates":[13.4,52.5]},"properties":{"osm_id":1,"osm_type":"R","name":"Berlin","city":"Berlin","state":"Berlin","country":"Germany","postcode":"10115","osm_key":"place","osm_value":"city"}}]}))
-        "/parser/search" -> Plug.Conn.resp(conn, 200, "[]")
+        "/parser" ->
+          Plug.Conn.resp(conn, 200, ~s([{"label":"x","value":"berlin"}]))
+
+        "/api" ->
+          Plug.Conn.resp(
+            conn,
+            200,
+            ~s({"features":[{"geometry":{"coordinates":[13.4,52.5]},"properties":{"osm_id":1,"osm_type":"R","name":"Berlin","city":"Berlin","state":"Berlin","country":"Germany","postcode":"10115","osm_key":"place","osm_value":"city"}}]})
+          )
+
+        "/parser/search" ->
+          Plug.Conn.resp(conn, 200, "[]")
       end
     end)
 
@@ -45,19 +66,60 @@ defmodule Atlas.Maps.SearchTest do
     assert feature.id == "R:1"
     assert feature.label == "Berlin, Germany"
     assert feature.type == "city"
-    assert feature.admin == %{country: "Germany", state: "Berlin", city: "Berlin", postcode: "10115"}
+
+    assert feature.admin == %{
+             country: "Germany",
+             state: "Berlin",
+             city: "Berlin",
+             postcode: "10115"
+           }
   end
 
   test "autocomplete label includes state component and dedupes via uniq", %{bypass: bypass} do
     Bypass.expect(bypass, fn conn ->
       case conn.request_path do
-        "/parser" -> Plug.Conn.resp(conn, 200, ~s([{"label":"x","value":"mitte"}]))
-        "/api" -> Plug.Conn.resp(conn, 200, ~s({"features":[{"geometry":{"coordinates":[13.4,52.5]},"properties":{"osm_id":2,"osm_type":"R","name":"Mitte","city":"Berlin","state":"Berlin","country":"Germany","osm_key":"place","osm_value":"suburb"}}]}))
-        "/parser/search" -> Plug.Conn.resp(conn, 200, "[]")
+        "/parser" ->
+          Plug.Conn.resp(conn, 200, ~s([{"label":"x","value":"mitte"}]))
+
+        "/api" ->
+          Plug.Conn.resp(
+            conn,
+            200,
+            ~s({"features":[{"geometry":{"coordinates":[13.4,52.5]},"properties":{"osm_id":2,"osm_type":"R","name":"Mitte","city":"Berlin","state":"Berlin","country":"Germany","osm_key":"place","osm_value":"suburb"}}]})
+          )
+
+        "/parser/search" ->
+          Plug.Conn.resp(conn, 200, "[]")
       end
     end)
 
     {:ok, %Result{features: [feature]}} = Search.autocomplete(%{query: "mitte", limit: 5})
     assert feature.label == "Mitte, Berlin, Germany"
+  end
+
+  test "autocomplete features carry the canonical address + match_type fields", %{bypass: bypass} do
+    Bypass.expect(bypass, fn conn ->
+      case conn.request_path do
+        "/parser" ->
+          Plug.Conn.resp(conn, 200, ~s([{"label":"x","value":"x"}]))
+
+        "/api" ->
+          Plug.Conn.resp(
+            conn,
+            200,
+            ~s({"features":[{"geometry":{"coordinates":[13.4,52.5]},"properties":{"osm_type":"W","osm_id":1,"name":"X","street":"Main","city":"Berlin","country":"Germany"}}]})
+          )
+
+        "/parser/search" ->
+          Plug.Conn.resp(conn, 200, "[]")
+      end
+    end)
+
+    {:ok, result} = Atlas.Maps.Search.autocomplete(%{query: "x", limit: 5})
+    [feature | _] = result.features
+    assert feature.match_type == "street"
+    assert feature.address[:street] == "Main"
+    assert feature.confidence == nil
+    assert feature.admin[:city] == "Berlin"
   end
 end

@@ -51,8 +51,13 @@ defmodule AtlasWeb.Admin.TilesLive do
     if trimmed == "" do
       {:noreply, put_flash(socket, :error, "Provide a tile pack URL")}
     else
-      Task.start(fn -> TilesDownloader.download(trimmed) end)
-      {:noreply, assign(socket, download_state: :running, progress: 0.0)}
+      case TilesDownloader.download(trimmed) do
+        {:ok, _job_id, _dest} ->
+          {:noreply, assign(socket, download_state: :running, progress: 0.0)}
+
+        {:error, :busy} ->
+          {:noreply, put_flash(socket, :error, "A tile-pack download is already running")}
+      end
     end
   end
 
@@ -76,7 +81,7 @@ defmodule AtlasWeb.Admin.TilesLive do
     {:noreply,
      socket
      |> assign(download_state: :error)
-     |> put_flash(:error, "Download failed: #{inspect(reason)}")}
+     |> put_flash(:error, "Download failed: #{reason}")}
   end
 
   def handle_info(_other, socket), do: {:noreply, socket}

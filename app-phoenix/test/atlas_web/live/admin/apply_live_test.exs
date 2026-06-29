@@ -43,9 +43,12 @@ defmodule AtlasWeb.Admin.ApplyLiveTest do
     Repo.insert!(%RegionSelection{region_name: "berlin", active: true, position: 0})
 
     test_pid = self()
+    tmp = Path.join(System.tmp_dir!(), "apply-live-#{System.unique_integer([:positive])}")
+    File.mkdir_p!(tmp)
+    on_exit(fn -> File.rm_rf!(tmp) end)
 
-    runner = fn data_dir, sources, output ->
-      send(test_pid, {:runner_called, data_dir, sources, output})
+    downloader = fn url, dest, _progress ->
+      send(test_pid, {:download_called, url, dest})
 
       receive do
         :proceed -> :ok
@@ -53,15 +56,29 @@ defmodule AtlasWeb.Admin.ApplyLiveTest do
         2_000 -> :ok
       end
 
-      :ok
+      File.mkdir_p!(Path.dirname(dest))
+      File.write!(dest, "pbf")
+      {:ok, dest}
     end
+
+    Phoenix.PubSub.subscribe(Atlas.PubSub, RegionApplier.topic())
 
     start_supervised!(
       {RegionApplier,
-       runner: runner,
-       pbf_lookup: fn r -> "#{r}.osm.pbf" end,
-       data_dir: "/tmp/atlas-test",
-       output_path: "out.pbf"}
+       downloader: downloader,
+       osmium_convert: fn _dir, _in, out ->
+         File.write!(Path.expand(out, tmp), "bz2")
+         {:ok, "ok"}
+       end,
+       restart: fn _names -> :ok end,
+       catalog_find: fn name ->
+         %Atlas.Control.RegionCatalog{
+           name: name,
+           label: name,
+           pbf_urls: ["http://example.test/#{name}.osm.pbf"]
+         }
+       end,
+       data_dir: tmp}
     )
 
     {:ok, view, _html} = live(conn, ~p"/admin/apply")
@@ -69,7 +86,8 @@ defmodule AtlasWeb.Admin.ApplyLiveTest do
     html = view |> render_click("confirm_apply", %{})
 
     assert html =~ "Applying"
-    assert_receive {:runner_called, "/tmp/atlas-test", ["berlin.osm.pbf"], "out.pbf"}, 1_000
+    assert_receive {:download_called, "http://example.test/berlin.osm.pbf", _dest}, 1_000
+    assert_receive {:apply_done, _}, 4_000
   end
 
   test "confirm_apply errors when RegionApplier is not running", %{conn: conn} do
@@ -120,26 +138,44 @@ defmodule AtlasWeb.Admin.ApplyLiveTest do
     Repo.insert!(%RegionSelection{region_name: "berlin", active: true, position: 0})
 
     test_pid = self()
+    tmp = Path.join(System.tmp_dir!(), "apply-live-#{System.unique_integer([:positive])}")
+    File.mkdir_p!(tmp)
+    on_exit(fn -> File.rm_rf!(tmp) end)
 
-    runner = fn _data_dir, sources, _output ->
-      send(test_pid, {:runner_called, sources})
-      :ok
+    downloader = fn url, dest, _progress ->
+      send(test_pid, {:download_called, url})
+      File.mkdir_p!(Path.dirname(dest))
+      File.write!(dest, "pbf")
+      {:ok, dest}
     end
 
     start_supervised!(
       {RegionApplier,
-       runner: runner,
-       pbf_lookup: fn r -> "#{r}.osm.pbf" end,
-       data_dir: "/tmp/atlas-test",
-       output_path: "out.pbf"}
+       downloader: downloader,
+       osmium_convert: fn _dir, _in, out ->
+         File.write!(Path.expand(out, tmp), "bz2")
+         {:ok, "ok"}
+       end,
+       restart: fn _names -> :ok end,
+       catalog_find: fn name ->
+         %Atlas.Control.RegionCatalog{
+           name: name,
+           label: name,
+           pbf_urls: ["http://example.test/#{name}.osm.pbf"]
+         }
+       end,
+       data_dir: tmp}
     )
+
+    Phoenix.PubSub.subscribe(Atlas.PubSub, RegionApplier.topic())
 
     {:ok, view, _html} = live(conn, ~p"/admin/apply")
     view |> render_click("project", %{})
     html = view |> render_click("confirm_apply", %{})
 
     assert html =~ "Applying"
-    assert_receive {:runner_called, ["berlin.osm.pbf"]}, 1_000
+    assert_receive {:download_called, "http://example.test/berlin.osm.pbf"}, 1_000
+    assert_receive {:apply_done, _}, 2_000
   end
 
   test "project event renders region_not_found error for unknown region", %{conn: conn} do

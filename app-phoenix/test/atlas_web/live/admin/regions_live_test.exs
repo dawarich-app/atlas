@@ -21,13 +21,13 @@ defmodule AtlasWeb.Admin.RegionsLiveTest do
     {:ok, conn: conn}
   end
 
-  test "GET /admin/regions lists region presets from priv/regions/", %{conn: conn} do
+  test "GET /admin/regions renders continent roots from the catalog", %{conn: conn} do
     {:ok, _view, html} = live(conn, ~p"/admin/regions")
 
     assert html =~ "Regions"
-    # Shipping presets should render as chips
-    for label <- ~w[berlin germany europe planet] do
-      assert html =~ label
+    # With the baked catalog present, continents are the tree roots.
+    for node <- ~w[gf:asia gf:africa gf:north-america] do
+      assert html =~ ~s(data-node="#{node}")
     end
   end
 
@@ -35,12 +35,12 @@ defmodule AtlasWeb.Admin.RegionsLiveTest do
     {:ok, view, _html} = live(conn, ~p"/admin/regions")
 
     html = view |> render_click("toggle", %{"name" => "berlin"})
-    # When selected, the chip uses btn-primary class
-    assert html =~ "btn-primary"
+    # When selected, the region appears as a chip in the selected tray.
+    assert html =~ "data-selected-chip=\"berlin\""
 
     html2 = view |> render_click("toggle", %{"name" => "berlin"})
-    # Toggling again returns to outline style
-    assert html2 =~ "btn-outline"
+    # Toggling again removes it from the tray.
+    refute html2 =~ "data-selected-chip=\"berlin\""
   end
 
   test "save event persists the selection", %{conn: conn} do
@@ -92,5 +92,35 @@ defmodule AtlasWeb.Admin.RegionsLiveTest do
     names = RegionSelection |> Repo.all() |> Enum.map(& &1.region_name)
     assert "stale" not in names
     assert "berlin" in names
+  end
+
+  test "typing in search filters the visible regions", %{conn: conn} do
+    {:ok, view, _html} = live(conn, ~p"/admin/regions")
+
+    html = view |> render_change("search", %{"q" => "germ"})
+    assert html =~ "germany"
+    refute html =~ "data-region=\"planet\""
+  end
+
+  test "expanding a continent reveals its countries", %{conn: conn} do
+    {:ok, view, html} = live(conn, ~p"/admin/regions")
+
+    assert html =~ ~s(data-node="gf:asia")
+    # Countries are lazy — not rendered until their continent is expanded.
+    refute html =~ ~s(data-node="gf:china")
+
+    expanded = view |> render_click("expand", %{"name" => "gf:asia"})
+    assert expanded =~ ~s(data-node="gf:china")
+  end
+
+  test "selected regions show as removable chips that toggle off", %{conn: conn} do
+    {:ok, view, _html} = live(conn, ~p"/admin/regions")
+
+    view |> render_click("toggle", %{"name" => "berlin"})
+    html = render(view)
+    assert html =~ "data-selected-chip=\"berlin\""
+
+    removed = view |> render_click("toggle", %{"name" => "berlin"})
+    refute removed =~ "data-selected-chip=\"berlin\""
   end
 end

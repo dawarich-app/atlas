@@ -145,7 +145,8 @@ defmodule AtlasWeb.ServiceCard do
   defp status_badge(:stopped), do: "badge badge-ghost"
   defp status_badge(_), do: "badge badge-ghost"
 
-  defp status_label(nil), do: "unknown"
+  defp status_label(nil), do: "off"
+  defp status_label(:unknown), do: "off"
   defp status_label(s) when is_atom(s), do: Atom.to_string(s)
   defp status_label(s), do: to_string(s)
 

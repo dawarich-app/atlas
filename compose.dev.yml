@@ -1,42 +1,37 @@
-# Local-build compose for the Phoenix-based Atlas (v2).
+# Development compose for Atlas — ALWAYS builds the app from local source.
 #
-# Builds app-phoenix/ from source, runs it alongside the OSM/POI/routing
-# sidecars. The Go atlas-control sidecar is OMITTED — M2 absorbed it into
-# the Phoenix app, which now talks to docker compose directly via the
-# bind-mounted socket.
+# Unlike compose.yml (which pulls the published ghcr release image), this file
+# builds app-phoenix/ locally on every `up` via `pull_policy: build`, so your
+# working-tree changes are always reflected without remembering `--build`.
 #
 # Usage:
 #
-#   # First boot — build image, start app + caddy:
-#   docker compose -f compose.phoenix.yml up --build -d
+#   # App + Caddy (rebuilds the app image, then runs):
+#   docker compose -f compose.dev.yml up
+#
+#   # Detached:
+#   docker compose -f compose.dev.yml up -d
 #
 #   # With sidecars (geocoding + routing + pois + transit):
-#   docker compose -f compose.phoenix.yml --profile all up --build -d
+#   docker compose -f compose.dev.yml --profile all up
 #
-#   # Or pick specific sidecar profiles:
-#   docker compose -f compose.phoenix.yml --profile geocoding up --build -d
-#
-#   # Just the Phoenix app (no sidecars) for UI smoke tests:
-#   docker compose -f compose.phoenix.yml up --build app caddy
-#
-# First-time setup (only needed once):
-#
-#   echo "SECRET_KEY_BASE=$(openssl rand -hex 32)" > .env.phoenix
-#   echo "ADMIN_USERNAME=admin"                  >> .env.phoenix
-#   echo "ADMIN_PASSWORD=$(openssl rand -hex 16)" >> .env.phoenix
-#
-# Then point compose at it:
-#
-#   docker compose --env-file .env.phoenix -f compose.phoenix.yml up --build
+#   # Pick specific sidecar profiles:
+#   docker compose -f compose.dev.yml --profile geocoding --profile routing up
 #
 # Visit http://localhost:8484 (via Caddy) or http://localhost:4000 (direct).
+#
+# No .env required: SECRET_KEY_BASE auto-generates on first boot (persisted to
+# data/app/.secret_key_base). Set ADMIN_USERNAME/ADMIN_PASSWORD to unlock /admin.
+# `pull_policy: build` forces a fresh build each `up`; for a clean rebuild that
+# ignores Docker's layer cache, add `--build` with `docker compose ... build
+# --no-cache app`.
 
 services:
   caddy:
     image: caddy:2.11.3-alpine
     container_name: atlas-caddy
     volumes:
-      - ./Caddyfile.phoenix:/etc/caddy/Caddyfile:ro
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - ./data/tiles:/srv/tiles:ro
       - ./data/caddy:/data
       - ./data/caddy-config:/config
@@ -49,74 +44,62 @@ services:
     build:
       context: ./app-phoenix
       dockerfile: Dockerfile
-    image: atlas-phoenix:dev
+    image: atlas-app:dev
+    # Always (re)build from local source on `up`, even if atlas-app:dev exists.
+    pull_policy: build
     container_name: atlas-app
     environment:
-      # Phoenix runtime
+      # Phoenix runtime. Migrations run automatically on boot.
       PHX_SERVER: "true"
       PHX_HOST: ${PHX_HOST:-localhost}
       PORT: "4000"
-      SECRET_KEY_BASE: ${SECRET_KEY_BASE:?Set SECRET_KEY_BASE in .env.phoenix — run `openssl rand -hex 32`}
-
-      # SQLite default. Set DATABASE_URL=postgres://... + rebuild with
-      # ATLAS_DB_ADAPTER=postgres for Postgres.
-      DATABASE_PATH: /data/atlas.sqlite3
-
-      # Sidecar URLs (matches Phoenix Atlas.Maps.Upstream.* defaults).
-      PHOTON_URL:      http://photon:2322
+      SECRET_KEY_BASE: ${SECRET_KEY_BASE:-}
+      # SQLite by default. For Postgres set DATABASE_URL=postgres://... AND
+      # rebuild with ATLAS_DB_ADAPTER=postgres.
+      DATABASE_PATH: ${DATABASE_PATH:-/data/atlas.sqlite3}
+      DATABASE_URL: ${DATABASE_URL:-}
+      PHOTON_URL: http://photon:2322
       PLACEHOLDER_URL: http://placeholder:3000
-      LIBPOSTAL_URL:   http://libpostal:4400
-      VALHALLA_URL:    http://valhalla:8002
-      OVERPASS_URL:    http://overpass:80
-      OTP_URL:         http://otp:8080
-
-      # Map UI defaults
-      TILES_URL:    ${TILES_URL:-}
-      TILES_THEME:  ${TILES_THEME:-atlas-light}
-      DEFAULT_LAT:  ${DEFAULT_LAT:-51.1657}
-      DEFAULT_LON:  ${DEFAULT_LON:-10.4515}
-      DEFAULT_ZOOM: ${DEFAULT_ZOOM:-5}
-
-      # Admin panel auth — without these /admin returns 503
+      LIBPOSTAL_URL: http://libpostal:4400
+      VALHALLA_URL: http://valhalla:8002
+      OVERPASS_URL: http://overpass:80
+      OTP_URL: http://otp:8080
+      TILES_URL: ${TILES_URL:-}
+      TILES_THEME: ${TILES_THEME:-atlas-light}
+      DEFAULT_LAT: ${DEFAULT_LAT:-51.1657}
+      DEFAULT_LON: ${DEFAULT_LON:-10.4515}
+      DEFAULT_ZOOM: ${DEFAULT_ZOOM:-2}
       ADMIN_USERNAME: ${ADMIN_USERNAME:-}
       ADMIN_PASSWORD: ${ADMIN_PASSWORD:-}
-
-      # Control plane — Phoenix execs `docker compose` directly via the
-      # socket bind mount below. COMPOSE_FILE points at THIS file so the
-      # in-container `docker compose` commands target the same project.
-      COMPOSE_FILE: /work/compose.phoenix.yml
+      # Control plane — the app execs `docker compose` against the host daemon
+      # via the socket below. COMPOSE_FILE points at THIS file so in-container
+      # `docker compose` targets the same dev project. Region data (PBF
+      # download, osmium merge, OTP staging) is processed natively under
+      # /work/data.
+      COMPOSE_FILE: /work/compose.dev.yml
+      # Lets in-container `docker compose` resolve the file's relative bind
+      # paths (./data/photon, …) against the HOST checkout — the daemon only
+      # understands host paths.
       HOST_PROJECT_DIR: ${HOST_PROJECT_DIR:-${PWD}}
     volumes:
-      # Persistent app data (SQLite, uploaded fixtures, cached tile downloads)
       - ./data/app:/data
-
-      # Region presets (Phoenix RegionCatalog reads these)
       - ./regions:/work/regions:ro
-
-      # Docker socket — Phoenix's Atlas.Control execs `docker compose`
-      # against the host daemon to start/stop/update sidecar containers.
       - /var/run/docker.sock:/var/run/docker.sock
-
-      # Compose file mounted read-only so `docker compose` inside the
-      # container can resolve services by name.
-      - ./compose.phoenix.yml:/work/compose.phoenix.yml:ro
+      - ./compose.dev.yml:/work/compose.dev.yml:ro
       - .:/work:ro
-
-      # OSM data shared with sidecars (Phoenix RegionApplier writes here
-      # via osmium-tool, sidecars read it on apply).
       - ./data/osm:/work/data/osm
-    # Match the host's docker group so the nobody user inside can talk
-    # to /var/run/docker.sock. Override DOCKER_GID in .env.phoenix on
-    # Linux (typically 999); macOS Desktop maps this transparently.
+      - ./data/gtfs:/work/data/gtfs
+      - ./data/otp:/work/data/otp
+      - ./data/tiles:/work/data/tiles
+    # Match the docker socket's group so the `nobody` user can talk to it.
+    # Linux: usually `stat -c %g /var/run/docker.sock` (often 999).
+    # macOS (OrbStack / Docker Desktop): the socket maps as gid 0 — set
+    # DOCKER_GID=0 in .env.
     group_add:
       - "${DOCKER_GID:-999}"
     ports:
       - "4000:4000"
     restart: unless-stopped
-
-  # ------------------------------------------------------------------
-  # Sidecars — pulled from upstream images, no local build needed
-  # ------------------------------------------------------------------
 
   photon:
     image: rtuszik/photon-docker:2.2.0
@@ -124,6 +107,7 @@ services:
     profiles: [geocoding, all]
     environment:
       UPDATE_STRATEGY: PARALLEL
+      # rtuszik/photon-docker reads REGION (NOT COUNTRY_CODE). Empty/unset → planet (~56 GB compressed).
       REGION: ${COUNTRY_CODE:-de}
     volumes:
       - ./data/photon:/photon/data

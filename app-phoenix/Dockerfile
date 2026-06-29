@@ -33,12 +33,27 @@ RUN mix release
 
 FROM debian:bookworm-20260518-slim AS runner
 
+# docker-ce-cli + docker-compose-plugin from Docker's apt repo: Debian's
+# docker.io ships CLI 20.10 without the compose v2 plugin, which breaks every
+# `docker compose` call the control plane makes (and pulls in the full daemon).
 RUN apt-get update -y && \
     apt-get install -y --no-install-recommends \
       libstdc++6 openssl libncurses6 locales ca-certificates \
-      docker.io osmium-tool curl && \
+      osmium-tool curl gnupg && \
+    install -m 0755 -d /etc/apt/keyrings && \
+    curl -fsSL https://download.docker.com/linux/debian/gpg -o /etc/apt/keyrings/docker.asc && \
+    echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/debian bookworm stable" \
+      > /etc/apt/sources.list.d/docker.list && \
+    apt-get update -y && \
+    apt-get install -y --no-install-recommends docker-ce-cli docker-compose-plugin && \
+    apt-get purge -y gnupg && apt-get autoremove -y && \
     apt-get clean && rm -f /var/lib/apt/lists/*_* && \
     sed -i '/en_US.UTF-8/s/^# //g' /etc/locale.gen && locale-gen
+
+# Git SHA of the build, surfaced by Atlas.Version (UI footer, /api/v1/version).
+# CI passes --build-arg APP_REVISION=$GITHUB_SHA; local builds leave it empty.
+ARG APP_REVISION=""
+ENV APP_REVISION=${APP_REVISION}
 
 ENV LANG=en_US.UTF-8 \
     LANGUAGE=en_US:en \

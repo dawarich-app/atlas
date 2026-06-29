@@ -50,6 +50,31 @@ defmodule Atlas.Control.RegionSelection do
     |> Enum.map(& &1.region_name)
   end
 
+  @doc "Remove every selection."
+  def clear, do: Repo.delete_all(__MODULE__)
+
+  @applied_key "applied_regions"
+
+  @doc "Record the current active selection as the last successfully submitted apply."
+  def mark_applied! do
+    {:ok, _} = Atlas.Settings.set(@applied_key, Enum.join(active_names(), ","))
+    :ok
+  end
+
+  @doc "Region names recorded by `mark_applied!/0`."
+  def applied_names do
+    case Atlas.Settings.get(@applied_key) do
+      nil -> []
+      "" -> []
+      value -> String.split(value, ",", trim: true)
+    end
+  end
+
+  @doc "True when the active selection differs from the last applied one."
+  def pending_change? do
+    Enum.sort(active_names()) != Enum.sort(applied_names())
+  end
+
   defp next_position do
     case Repo.aggregate(__MODULE__, :max, :position) do
       nil -> 0

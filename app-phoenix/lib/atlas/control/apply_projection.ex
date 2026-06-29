@@ -26,6 +26,15 @@ defmodule Atlas.Control.ApplyProjection do
     "otp" => 5.0
   }
 
+  @subregion_disk %{
+    "photon" => 8.0,
+    "placeholder" => 4.0,
+    "libpostal" => 0.0,
+    "valhalla" => 5.0,
+    "overpass" => 18.0,
+    "otp" => 2.0
+  }
+
   @continent_disk %{
     "photon" => 30.0,
     "placeholder" => 4.0,
@@ -144,6 +153,7 @@ defmodule Atlas.Control.ApplyProjection do
   defp scaling_table([first | _]) do
     case classify(first) do
       :city -> @city_disk
+      :subregion -> @subregion_disk
       :country -> @country_disk
       :continent -> @continent_disk
       :planet -> @planet_disk
@@ -151,6 +161,11 @@ defmodule Atlas.Control.ApplyProjection do
   end
 
   defp classify(%{name: "planet"}), do: :planet
+  defp classify(%{kind: "planet"}), do: :planet
+  defp classify(%{kind: "continent"}), do: :continent
+  defp classify(%{kind: "country"}), do: :country
+  defp classify(%{kind: "subregion"}), do: :subregion
+  defp classify(%{kind: "city"}), do: :city
   defp classify(%{name: "europe"}), do: :continent
 
   defp classify(%{name: name})

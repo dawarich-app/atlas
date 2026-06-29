@@ -4,21 +4,38 @@ defmodule AtlasWeb.Admin.ApplyLive do
   import Ecto.Query
 
   alias Atlas.Repo
-  alias Atlas.Control.{RegionApplier, RegionCatalog, RegionSelection}
+  alias Atlas.Control.{RegionApplier, RegionCatalog, RegionSelection, Safe}
   import AtlasWeb.AdminErrorComponents
 
   @impl true
   def mount(_params, _session, socket) do
+    if connected?(socket) do
+      Phoenix.PubSub.subscribe(Atlas.PubSub, RegionApplier.topic())
+    end
+
+    status = Safe.call(fn -> RegionApplier.status() end, nil)
+
     {:ok,
-     assign(socket,
+     socket
+     |> assign(
        selected: load_selected(),
-       apply_state: :idle,
        projection: nil,
        missing_region: nil,
-       job_id: nil,
-       error: nil,
        page_title: "Apply"
-     )}
+     )
+     |> assign_status(status)}
+  end
+
+  defp assign_status(socket, nil) do
+    assign(socket, apply_state: :idle, job: nil, error: nil)
+  end
+
+  defp assign_status(socket, %{error: error} = status) when not is_nil(error) do
+    assign(socket, apply_state: :error, job: status, error: error)
+  end
+
+  defp assign_status(socket, status) do
+    assign(socket, apply_state: :applying, job: status, error: nil)
   end
 
   @impl true
@@ -28,7 +45,9 @@ defmodule AtlasWeb.Admin.ApplyLive do
     case missing_region(region_names) do
       nil ->
         projection = RegionApplier.project(region_names, [])
-        {:noreply, assign(socket, apply_state: :projected, projection: projection, missing_region: nil)}
+
+        {:noreply,
+         assign(socket, apply_state: :projected, projection: projection, missing_region: nil)}
 
       name ->
         {:noreply, assign(socket, apply_state: :error, missing_region: name)}
@@ -49,41 +68,50 @@ defmodule AtlasWeb.Admin.ApplyLive do
 
       case start_apply(regions) do
         {:ok, job_id} ->
-          Phoenix.PubSub.subscribe(Atlas.PubSub, "control:apply:#{job_id}")
-          {:noreply, assign(socket, apply_state: :applying, job_id: job_id, error: nil)}
+          job = %{job_id: job_id, regions: regions, phase: :downloading, progress: nil}
+          {:noreply, assign(socket, apply_state: :applying, job: job, error: nil)}
 
-        {:error, reason} ->
+        error_term ->
+          message = format_error(unwrap_error(error_term))
+
           {:noreply,
            socket
-           |> assign(apply_state: :error, error: inspect(reason))
-           |> put_flash(:error, "Failed to start apply: #{inspect(reason)}")}
+           |> assign(apply_state: :error, error: message)
+           |> put_flash(:error, "Failed to start apply: #{message}")}
       end
     end
   end
 
   @impl true
-  def handle_info({:apply_start, job_id, _regions}, socket) do
-    if job_id == socket.assigns.job_id do
-      {:noreply, assign(socket, apply_state: :applying)}
+  def handle_info({:apply_start, %{job_id: job_id, regions: regions}}, socket) do
+    job = %{job_id: job_id, regions: regions, phase: :downloading, progress: nil}
+    {:noreply, assign(socket, apply_state: :applying, job: job, error: nil)}
+  end
+
+  def handle_info({:apply_progress, %{job_id: job_id} = progress}, socket) do
+    if match?(%{job_id: ^job_id}, socket.assigns.job) do
+      {:noreply, assign(socket, job: Map.merge(socket.assigns.job, progress))}
     else
       {:noreply, socket}
     end
   end
 
-  def handle_info({:apply_done, job_id, _regions}, socket) do
-    if job_id == socket.assigns.job_id do
+  def handle_info({:apply_done, %{job_id: job_id}}, socket) do
+    if match?(%{job_id: ^job_id}, socket.assigns.job) do
       {:noreply, socket |> assign(apply_state: :done) |> put_flash(:info, "Apply complete")}
     else
       {:noreply, socket}
     end
   end
 
-  def handle_info({:apply_error, job_id, reason}, socket) do
-    if job_id == socket.assigns.job_id do
+  def handle_info({:apply_error, %{job_id: job_id, reason: reason}}, socket) do
+    if match?(%{job_id: ^job_id}, socket.assigns.job) do
+      message = format_error(reason)
+
       {:noreply,
        socket
-       |> assign(apply_state: :error, error: inspect(reason))
-       |> put_flash(:error, "Apply failed: #{inspect(reason)}")}
+       |> assign(apply_state: :error, error: message)
+       |> put_flash(:error, "Apply failed: #{message}")}
     else
       {:noreply, socket}
     end
@@ -94,10 +122,13 @@ defmodule AtlasWeb.Admin.ApplyLive do
   defp start_apply(regions) do
     RegionApplier.start(regions)
   rescue
-    e -> {:error, Exception.message(e)}
+    e -> {:error, e}
   catch
-    :exit, reason -> {:error, reason}
+    :exit, _reason -> {:error, :unavailable}
   end
+
+  defp unwrap_error({:error, reason}), do: reason
+  defp unwrap_error(other), do: other
 
   defp load_selected do
     RegionSelection
@@ -194,7 +225,28 @@ defmodule AtlasWeb.Admin.ApplyLive do
 
   defp render_state(%{apply_state: :applying} = assigns) do
     ~H"""
-    <button disabled class="btn btn-primary">Applying…</button>
+    <div class="card bg-base-200 mb-3 max-w-2xl">
+      <div class="card-body">
+        <h3 class="font-semibold flex items-center gap-2">
+          <span class="loading loading-spinner loading-sm"></span> Applying…
+        </h3>
+        <%= if @job do %>
+          <p class="text-sm font-mono">
+            {phase_label(@job[:phase])}<%= if @job[:region] do %> · {@job[:region]}<% end %>
+            <%= if is_number(@job[:progress]) do %>
+              · {round(@job[:progress] * 100)}%
+            <% end %>
+          </p>
+          <progress
+            :if={is_number(@job[:progress])}
+            class="progress progress-primary w-full"
+            value={round(@job[:progress] * 100)}
+            max="100"
+          >
+          </progress>
+        <% end %>
+      </div>
+    </div>
     """
   end
 
@@ -225,6 +277,13 @@ defmodule AtlasWeb.Admin.ApplyLive do
     <% end %>
     """
   end
+
+  defp phase_label(:downloading), do: "downloading"
+  defp phase_label(:merging), do: "merging"
+  defp phase_label(:converting), do: "converting for overpass"
+  defp phase_label(:staging), do: "staging transit inputs"
+  defp phase_label(:restarting), do: "restarting services"
+  defp phase_label(_), do: "working"
 
   defp available_region_names do
     RegionCatalog.all() |> Enum.map(& &1.name)

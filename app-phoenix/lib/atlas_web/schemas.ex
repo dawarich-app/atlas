@@ -32,4 +32,52 @@ defmodule AtlasWeb.Schemas do
       }
     })
   end
+
+  defmodule Place do
+    @moduledoc false
+    require OpenApiSpex
+    alias OpenApiSpex.Schema
+
+    OpenApiSpex.schema(%{
+      title: "Place",
+      description: "Canonical geocoding result shared by search/reverse/geocode.",
+      type: :object,
+      properties: %{
+        id: %Schema{type: :string, example: "W:42"},
+        name: %Schema{type: :string, nullable: true},
+        label: %Schema{type: :string},
+        type: %Schema{type: :string, nullable: true},
+        coords: %Schema{
+          type: :object,
+          properties: %{lat: %Schema{type: :number}, lon: %Schema{type: :number}}
+        },
+        admin: %Schema{
+          type: :object,
+          description: "Legacy admin block (deprecated; use address)."
+        },
+        address: %Schema{
+          type: :object,
+          properties: %{
+            house_number: %Schema{type: :string, nullable: true},
+            street: %Schema{type: :string, nullable: true},
+            city: %Schema{type: :string, nullable: true},
+            county: %Schema{type: :string, nullable: true},
+            state: %Schema{type: :string, nullable: true},
+            postcode: %Schema{type: :string, nullable: true},
+            country: %Schema{type: :string, nullable: true},
+            countrycode: %Schema{type: :string, nullable: true}
+          }
+        },
+        match_type: %Schema{
+          type: :string,
+          enum: ["rooftop", "street", "locality", "region", "country", "unknown"]
+        },
+        confidence: %Schema{
+          type: :number,
+          nullable: true,
+          description: "Reserved for enrichment (SP3); null today."
+        }
+      }
+    })
+  end
 end

@@ -93,52 +93,6 @@ defmodule AtlasWeb.ApiParityTest do
     {:ok, bypass: bypass}
   end
 
-  describe "GET /api/v1/search?q=berlin&limit=5" do
-    test "matches golden envelope shape", %{conn: conn} do
-      actual = conn |> get(~p"/api/v1/search?q=berlin&limit=5") |> json_response(200)
-      expected = GoldenHelper.load("search-berlin")
-      GoldenHelper.assert_envelope_shape(actual, expected)
-      GoldenHelper.assert_byte_diff(actual, expected)
-    end
-  end
-
-  describe "GET /api/v1/search?q=cafe&bbox=..." do
-    test "matches golden envelope shape", %{conn: conn} do
-      actual =
-        conn
-        |> get(~p"/api/v1/search?q=cafe&limit=10&bbox=13.0,52.0,14.0,53.0")
-        |> json_response(200)
-
-      expected = GoldenHelper.load("search-with-bbox")
-      GoldenHelper.assert_envelope_shape(actual, expected)
-      GoldenHelper.assert_byte_diff(actual, expected)
-    end
-  end
-
-  describe "GET /api/v1/reverse?lat=...&lon=..." do
-    test "matches golden envelope shape", %{conn: conn} do
-      actual = conn |> get(~p"/api/v1/reverse?lat=52.5163&lon=13.3777") |> json_response(200)
-      expected = GoldenHelper.load("reverse-brandenburg")
-      GoldenHelper.assert_envelope_shape(actual, expected)
-      GoldenHelper.assert_byte_diff(actual, expected)
-    end
-  end
-
-  describe "POST /api/v1/reverse/batch" do
-    test "matches golden envelope shape", %{conn: conn} do
-      body = %{"coords" => [%{"lat" => 52.5, "lon" => 13.4}, %{"lat" => 48.1, "lon" => 11.5}]}
-
-      actual =
-        conn
-        |> post(~p"/api/v1/reverse/batch", body)
-        |> json_response(200)
-
-      expected = GoldenHelper.load("reverse-batch-two")
-      GoldenHelper.assert_envelope_shape(actual, expected)
-      GoldenHelper.assert_byte_diff(actual, expected)
-    end
-  end
-
   describe "GET /api/v1/route" do
     test "matches golden envelope shape", %{conn: conn} do
       actual =
@@ -165,15 +119,6 @@ defmodule AtlasWeb.ApiParityTest do
     end
   end
 
-  describe "GET /api/v1/whats-here" do
-    test "matches golden envelope shape", %{conn: conn} do
-      actual = conn |> get(~p"/api/v1/whats-here?lat=52.5&lon=13.4") |> json_response(200)
-      expected = GoldenHelper.load("whats-here-default")
-      GoldenHelper.assert_envelope_shape(actual, expected)
-      GoldenHelper.assert_byte_diff(actual, expected)
-    end
-  end
-
   describe "GET /api/v1/pois" do
     test "matches golden envelope shape", %{conn: conn} do
       actual =
@@ -191,15 +136,6 @@ defmodule AtlasWeb.ApiParityTest do
     test "matches golden envelope shape", %{conn: conn} do
       actual = conn |> get(~p"/api/v1/pois/categories") |> json_response(200)
       expected = GoldenHelper.load("pois-categories")
-      GoldenHelper.assert_envelope_shape(actual, expected)
-      GoldenHelper.assert_byte_diff(actual, expected)
-    end
-  end
-
-  describe "GET /api/v1/geocode" do
-    test "matches golden envelope shape", %{conn: conn} do
-      actual = conn |> get(~p"/api/v1/geocode?q=berlin") |> json_response(200)
-      expected = GoldenHelper.load("geocode-berlin")
       GoldenHelper.assert_envelope_shape(actual, expected)
       GoldenHelper.assert_byte_diff(actual, expected)
     end

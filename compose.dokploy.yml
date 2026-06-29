@@ -1,0 +1,208 @@
+# Atlas on Dokploy.
+#
+# As shipped this is the MINIMAL setup: just `app` + `caddy`, pointed at an
+# EXISTING Photon you run elsewhere (set PHOTON_URL in the env). Map + search
+# work; routing / POIs / transit stay hidden until you add those services
+# (uncomment the blocks at the bottom — see DEPLOY-DOKPLOY.md).
+#
+# Dokploy ideas (same as zeitboard): external `dokploy-network`, Traefik
+# labels, `expose` not `ports`, GHCR image, env via ${...}. Named volumes
+# persist data across redeploys. No docker socket — services are Dokploy-
+# managed, the app talks to them via the *_URL env vars below.
+#
+# Dokploy → Environment (minimal): ATLAS_HOST, PHOTON_URL, SECRET_KEY_BASE,
+# ADMIN_USERNAME, ADMIN_PASSWORD.
+
+networks:
+  dokploy-network:
+    external: true
+  atlas:
+    driver: bridge
+  # Shared with your Photon stack so the app reaches photon:2322 directly,
+  # bypassing the API-key proxy. Create once: `docker network create photon-net`,
+  # and add it to the `photon` service in your Photon compose (see
+  # DEPLOY-DOKPLOY.md). Using a public PHOTON_URL instead? Remove this network
+  # and the `photon-net` line under app.networks below.
+  photon-net:
+    external: true
+
+volumes:
+  atlas_app:
+  atlas_tiles:
+  atlas_caddy:
+  # Used by the optional routing/POIs/transit services (bottom of file):
+  atlas_osm:
+  atlas_gtfs:
+  atlas_otp:
+  atlas_valhalla:
+  atlas_srtm:
+  atlas_overpass:
+
+# The Caddyfile is carried INLINE (no repo file / bind mount), so this compose
+# pastes cleanly into Dokploy "raw" mode. Edit here if you change routing.
+configs:
+  caddyfile:
+    content: |
+      :80 {
+        encode zstd gzip
+
+        handle /tiles/* {
+          root * /srv
+          file_server
+          header {
+            Access-Control-Allow-Origin   *
+            Access-Control-Allow-Methods  "GET, HEAD, OPTIONS"
+            Access-Control-Allow-Headers  "Range"
+            Access-Control-Expose-Headers "Content-Length, Content-Range"
+            Cache-Control                 "public, max-age=86400"
+          }
+
+          @pmtiles path *.pmtiles
+          header @pmtiles Content-Type application/octet-stream
+        }
+
+        # Overpass for the maptoposter sidecar. handle_path strips /overpass so
+        # OSMnx's /api/interpreter reaches the overpass root. Unique alias for
+        # the same dokploy-network collision reason noted below.
+        # ⚠️ PUBLIC via Traefik — restrict to the sidecar's egress before use,
+        # e.g. add `@ovp remote_ip A.B.C.D/32` then `reverse_proxy @ovp ...`.
+        handle_path /overpass/* {
+          reverse_proxy atlas-overpass:80
+        }
+
+        handle {
+          reverse_proxy app:4000
+        }
+      }
+
+services:
+  caddy:
+    image: caddy:2.11.3-alpine
+    pull_policy: always
+    configs:
+      - source: caddyfile
+        target: /etc/caddy/Caddyfile
+    volumes:
+      - atlas_tiles:/srv/tiles:ro
+      - atlas_caddy:/data
+    expose:
+      - "80"
+    depends_on: [app]
+    restart: unless-stopped
+    networks:
+      - dokploy-network
+      - atlas
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.atlas.rule=Host(`${ATLAS_HOST:-atlas.dwri.xyz}`)"
+      - "traefik.http.routers.atlas.entrypoints=websecure"
+      - "traefik.http.routers.atlas.tls=true"
+      - "traefik.http.routers.atlas.tls.certresolver=letsencrypt"
+      - "traefik.http.services.atlas.loadbalancer.server.port=80"
+
+  app:
+    image: ${APP_IMAGE:-ghcr.io/dawarich-app/atlas/app:latest}
+    pull_policy: ${APP_PULL_POLICY:-always}
+    environment:
+      PHX_SERVER: "true"
+      PHX_HOST: ${ATLAS_HOST:-atlas.dwri.xyz}
+      PORT: "4000"
+      SECRET_KEY_BASE: ${SECRET_KEY_BASE:-}
+      DATABASE_PATH: ${DATABASE_PATH:-/data/atlas.sqlite3}
+      DATABASE_URL: ${DATABASE_URL:-}
+      # ⚠️ Your existing Photon (required for search). Over the shared
+      # photon-net network this is http://photon:2322 (bypasses the API-key
+      # proxy). A keyless public endpoint would be https://photon.example.com.
+      PHOTON_URL: ${PHOTON_URL:-http://photon:2322}
+      # Internal names — resolve once you uncomment the services at the bottom.
+      VALHALLA_URL: http://valhalla:8002
+      OVERPASS_URL: http://overpass:80
+      OTP_URL: http://otp:8080
+      TILES_URL: ${TILES_URL:-}
+      TILES_THEME: ${TILES_THEME:-atlas-light}
+      DEFAULT_LAT: ${DEFAULT_LAT:-51.1657}
+      DEFAULT_LON: ${DEFAULT_LON:-10.4515}
+      DEFAULT_ZOOM: ${DEFAULT_ZOOM:-2}
+      ADMIN_USERNAME: ${ADMIN_USERNAME:-}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-}
+    volumes:
+      - atlas_app:/data
+      - atlas_osm:/work/data/osm
+      - atlas_gtfs:/work/data/gtfs
+      - atlas_otp:/work/data/otp
+      - atlas_tiles:/work/data/tiles
+    restart: unless-stopped
+    networks:
+      atlas:
+        # Caddy proxies to this alias — unambiguous even though caddy also
+        # joins the shared dokploy-network, where another project's service
+        # named `app` would collide with our bare service name.
+        aliases: [atlas-app]
+      photon-net:
+        # Same alias on the shared network so external proxies (chibigeo /
+        # photon-proxy) can reach the photon passthrough at atlas-app:4000.
+        aliases: [atlas-app]
+
+  # ── Optional upstream services ────────────────────────────────────────────
+  # Add later by uncommenting a block. valhalla/overpass/otp build from OSM
+  # data you stage via the map's Settings → "apply region"; after applying,
+  # restart the service in Dokploy. (Need a bundled Photon instead of an
+  # external one? Uncomment `photon` and set PHOTON_URL=http://photon:2322.)
+  #
+  # photon:
+  #   image: rtuszik/photon-docker:2.2.0
+  #   environment:
+  #     UPDATE_STRATEGY: PARALLEL
+  #     REGION: ${COUNTRY_CODE:-de}
+  #   volumes:
+  #     - atlas_photon:/photon/data    # also add `atlas_photon:` under volumes:
+  #   restart: unless-stopped
+  #   networks: [atlas]
+  #
+  # valhalla:
+  #   image: ghcr.io/gis-ops/docker-valhalla/valhalla:3.5.1
+  #   environment:
+  #     serve_tiles: "True"
+  #     build_admins: "True"
+  #     build_elevation: ${BUILD_ELEVATION:-False}
+  #     use_tiles_ignore_pbf: "False"
+  #   volumes:
+  #     - atlas_valhalla:/custom_files
+  #     - atlas_srtm:/custom_files/elevation_data
+  #     - atlas_osm:/osm:ro
+  #   restart: unless-stopped
+  #   networks: [atlas]
+  #
+  # Overpass for the maptoposter poster sidecar (uncommented = Cloud poster
+  # backend). ⚠️ PLANET sizing: the DB built from a planet PBF is large
+  # (hundreds of GB of disk; ingest is RAM-hungry) — provision the host first.
+  overpass:
+    image: wiktorn/overpass-api:v0.7.62.11
+    environment:
+      OVERPASS_META: ${OVERPASS_META:-no}
+      OVERPASS_MODE: init
+      # current.osm.bz2 must be the PLANET in OSM-XML+bz2, staged by the app's
+      # apply step. Posters tolerate stale data, so diff updates are OFF by
+      # default (static snapshot); re-import periodically instead.
+      OVERPASS_PLANET_URL: file:///osm/current.osm.bz2
+      OVERPASS_DIFF_URL: ${OVERPASS_DIFF_URL:-}
+      OVERPASS_RULES_LOAD: 10
+      OVERPASS_COMPRESSION: lz4
+    volumes:
+      - atlas_overpass:/db
+      - atlas_osm:/osm:ro
+    restart: unless-stopped
+    networks:
+      atlas:
+        aliases: [atlas-overpass]
+  #
+  # otp:
+  #   image: opentripplanner/opentripplanner:2.10.0_2026-05-18T08-51
+  #   command: ["--build", "--save", "--serve"]
+  #   environment:
+  #     JAVA_OPTS: ${OTP_JAVA_OPTS:--Xmx4g -XX:+UseG1GC -XX:MaxGCPauseMillis=500}
+  #   volumes:
+  #     - atlas_otp:/var/opentripplanner
+  #     - atlas_osm:/osm:ro
+  #   restart: unless-stopped
+  #   networks: [atlas]

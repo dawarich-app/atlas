@@ -58,5 +58,7 @@ jobs:
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
+          build-args: |
+            APP_REVISION=${{ github.sha }}
           cache-from: type=gha,scope=atlas-app
           cache-to: type=gha,mode=max,scope=atlas-app

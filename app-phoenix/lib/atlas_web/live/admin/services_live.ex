@@ -99,6 +99,12 @@ defmodule AtlasWeb.Admin.ServicesLive do
 
   def handle_info(_other, socket), do: {:noreply, socket}
 
+  defp preflight_failures do
+    Atlas.Control.Preflight.results() |> Atlas.Control.Preflight.failures()
+  rescue
+    _ -> []
+  end
+
   defp load_services do
     Enum.map(Seeder.known_services(), fn known ->
       row =
@@ -110,7 +116,7 @@ defmodule AtlasWeb.Admin.ServicesLive do
     end)
   end
 
-  @snapshot_passthrough_keys [:name, :profile, :status, :phase, :progress, :last_log]
+  @snapshot_passthrough_keys [:name, :profile, :status, :phase, :progress, :last_log, :last_error]
 
   defp merge_snapshot(base, snap) do
     passthrough =
@@ -133,8 +139,25 @@ defmodule AtlasWeb.Admin.ServicesLive do
 
   @impl true
   def render(assigns) do
+    assigns = assign(assigns, :preflight_failures, preflight_failures())
+
     ~H"""
     <h1 class="text-2xl font-bold mb-4">Services</h1>
+
+    <div
+      :if={@preflight_failures != []}
+      class="alert alert-error mb-4 max-w-3xl items-start"
+      data-role="preflight-banner"
+    >
+      <div>
+        <h3 class="font-semibold">Control plane degraded</h3>
+        <div :for={f <- @preflight_failures} class="mt-2 text-sm">
+          <span :if={f.detail} class="font-mono text-xs">{f.detail}</span>
+          <p :if={f.remedy} class="text-xs mt-0.5">{f.remedy}</p>
+        </div>
+      </div>
+    </div>
+
     <div class="space-y-4">
       <.live_component
         :for={service <- @services}

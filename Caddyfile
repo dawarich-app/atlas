@@ -5,15 +5,21 @@
 		root * /srv
 		file_server
 		header {
-			Access-Control-Allow-Origin   *
-			Access-Control-Allow-Methods  "GET, HEAD, OPTIONS"
-			Access-Control-Allow-Headers  "Range"
+			Access-Control-Allow-Origin *
+			Access-Control-Allow-Methods "GET, HEAD, OPTIONS"
+			Access-Control-Allow-Headers "Range"
 			Access-Control-Expose-Headers "Content-Length, Content-Range"
-			Cache-Control                 "public, max-age=86400"
+			Cache-Control "public, max-age=86400"
 		}
 
 		@pmtiles path *.pmtiles
 		header @pmtiles Content-Type application/octet-stream
+	}
+
+	# Overpass for the maptoposter sidecar. handle_path strips /overpass, so
+	# OSMnx's /api/interpreter lands on the overpass container's root.
+	handle_path /overpass/* {
+		reverse_proxy overpass:80
 	}
 
 	handle {

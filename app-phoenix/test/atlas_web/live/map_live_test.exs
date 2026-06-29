@@ -116,13 +116,40 @@ defmodule AtlasWeb.MapLiveTest do
     assert Repo.all(from r in RegionSelection, where: r.region_name == ^"germany") == []
   end
 
-  test "toggle_service does not crash even if DockerCompose is unavailable", %{conn: conn} do
+  test "toggle_service stages an intent instead of starting the service", %{conn: conn} do
     {:ok, view, _html} = live(conn, ~p"/")
 
-    # Even if no docker is available, the LiveView must stay up.
+    # Staging must not crash the LiveView even when docker is unavailable.
     render_hook(view, "toggle_service", %{"name" => "photon"})
 
-    assert render(view) =~ "Settings"
+    html = render(view)
+    assert html =~ "Settings"
+    # A pending-changes summary now lists photon among the staged enables.
+    assert html =~ "Pending changes"
+    assert html =~ "photon"
+  end
+
+  test "applying a staged service clears the pending summary", %{conn: conn} do
+    {:ok, view, _html} = live(conn, ~p"/")
+
+    render_hook(view, "toggle_service", %{"name" => "photon"})
+    assert render(view) =~ "Pending changes"
+
+    render_hook(view, "apply_selection", %{})
+
+    # Safe.call swallows the unavailable ServiceState/RegionApplier; pending clears.
+    refute render(view) =~ "Pending changes"
+  end
+
+  test "toggling a staged service back to its current state removes it from pending",
+       %{conn: conn} do
+    {:ok, view, _html} = live(conn, ~p"/")
+
+    render_hook(view, "toggle_service", %{"name" => "photon"})
+    assert render(view) =~ "Pending changes"
+
+    render_hook(view, "toggle_service", %{"name" => "photon"})
+    refute render(view) =~ "Pending changes"
   end
 
   test "route event pushes map:draw_route with decoded LineString features", %{
@@ -156,5 +183,86 @@ defmodule AtlasWeb.MapLiveTest do
       assert is_list(coords)
       assert length(coords) >= 2
     end)
+  end
+
+  describe "service logs modal" do
+    test "opens full-page, streams lines, and closes from the root LiveView", %{conn: conn} do
+      {:ok, view, _html} = live(conn, ~p"/?tab=settings")
+
+      view
+      |> element("button[phx-click=settings_tab][phx-value-tab=services]")
+      |> render_click()
+
+      view
+      |> element(~s(button[phx-click=open_logs][phx-value-name=photon]))
+      |> render_click()
+
+      html = render(view)
+      # Full-page overlay (fixed to the viewport, not absolute inside the panel).
+      assert html =~ ~s(data-role="logs-modal")
+      assert html =~ "fixed inset-0"
+      assert html =~ "Waiting for log output…" or html =~ "Could not start the log stream"
+
+      send(view.pid, {:log_line, "photon booted"})
+      assert render(view) =~ "photon booted"
+
+      view |> element("button[phx-click=close_logs]") |> render_click()
+      refute render(view) =~ ~s(data-role="logs-modal")
+    end
+
+    test "modal panel does not swallow clicks with stopPropagation", %{conn: conn} do
+      {:ok, view, _html} = live(conn, ~p"/?tab=settings")
+
+      view
+      |> element("button[phx-click=settings_tab][phx-value-tab=services]")
+      |> render_click()
+
+      view
+      |> element(~s(button[phx-click=open_logs][phx-value-name=photon]))
+      |> render_click()
+
+      refute render(view) =~ "stopPropagation"
+    end
+  end
+
+  describe "apply progress" do
+    test "apply lifecycle broadcasts render the progress card, then the error", %{conn: conn} do
+      {:ok, view, _html} = live(conn, ~p"/")
+
+      job_id = Ecto.UUID.generate()
+
+      send(view.pid, {:apply_start, %{job_id: job_id, regions: ["berlin"]}})
+
+      send(
+        view.pid,
+        {:apply_progress,
+         %{job_id: job_id, phase: :downloading, region: "berlin", progress: 0.4}}
+      )
+
+      html = render(view)
+      assert html =~ "apply-card"
+      assert html =~ "Applying berlin"
+      assert html =~ "40%"
+
+      send(
+        view.pid,
+        {:apply_error, %{job_id: job_id, phase: :downloading, reason: "HTTP 503"}}
+      )
+
+      html = render(view)
+      assert html =~ "Region apply failed"
+      assert html =~ "HTTP 503"
+    end
+
+    test "apply_done clears the progress card", %{conn: conn} do
+      {:ok, view, _html} = live(conn, ~p"/")
+
+      job_id = Ecto.UUID.generate()
+      send(view.pid, {:apply_start, %{job_id: job_id, regions: ["berlin"]}})
+      assert render(view) =~ "apply-card"
+
+      send(view.pid, {:apply_done, %{job_id: job_id, regions: ["berlin"]}})
+      refute render(view) =~ "apply-card"
+    end
   end
 end

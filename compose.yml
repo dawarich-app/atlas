@@ -40,11 +40,14 @@ services:
       ADMIN_USERNAME: ${ADMIN_USERNAME:-}
       ADMIN_PASSWORD: ${ADMIN_PASSWORD:-}
       # Control plane — the Go atlas-control sidecar is absorbed into the app,
-      # which execs `docker compose` / `docker run` against the host daemon via
-      # the socket below. COMPOSE_FILE points at THIS file so in-container
-      # `docker compose` targets the same project; HOST_PROJECT_DIR translates
-      # bind-mount paths to host paths.
+      # which execs `docker compose` against the host daemon via the socket
+      # below. COMPOSE_FILE points at THIS file so in-container
+      # `docker compose` targets the same project. Region data (PBF download,
+      # osmium merge, OTP staging) is processed natively under /work/data.
       COMPOSE_FILE: /work/compose.yml
+      # Lets in-container `docker compose` resolve the file's relative bind
+      # paths (./data/photon, …) against the HOST checkout — the daemon only
+      # understands host paths.
       HOST_PROJECT_DIR: ${HOST_PROJECT_DIR:-${PWD}}
     volumes:
       - ./data/app:/data
@@ -53,8 +56,13 @@ services:
       - ./compose.yml:/work/compose.yml:ro
       - .:/work:ro
       - ./data/osm:/work/data/osm
-    # Match the host's docker group so the `nobody` user can talk to the
-    # socket. Override DOCKER_GID in .env on Linux (typically 999).
+      - ./data/gtfs:/work/data/gtfs
+      - ./data/otp:/work/data/otp
+      - ./data/tiles:/work/data/tiles
+    # Match the docker socket's group so the `nobody` user can talk to it.
+    # Linux: usually `stat -c %g /var/run/docker.sock` (often 999).
+    # macOS (OrbStack / Docker Desktop): the socket maps as gid 0 — set
+    # DOCKER_GID=0 in .env.
     group_add:
       - "${DOCKER_GID:-999}"
     restart: unless-stopped

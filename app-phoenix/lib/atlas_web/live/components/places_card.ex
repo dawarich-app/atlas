@@ -42,22 +42,23 @@ defmodule AtlasWeb.PlacesCard do
   def render(assigns) do
     ~H"""
     <div class="flex flex-col h-full">
-      <header class="px-4 pt-4 pb-3 border-b border-base-200 flex items-end justify-between gap-3">
-        <div>
-          <div class="font-mono text-[10px] uppercase tracking-[0.14em] text-primary/80">
-            POIs &amp; categories
-          </div>
-          <h2 class="text-base font-semibold leading-tight mt-0.5 font-display">Places</h2>
+      <header class="px-4 pt-4">
+        <AtlasWeb.Settings.Atoms.eyebrow>POIs &amp; categories</AtlasWeb.Settings.Atoms.eyebrow>
+        <div class="mt-1 flex items-end justify-between gap-3">
+          <h2 class="font-display text-3xl font-extrabold leading-none tracking-tight">Places</h2>
+          <button
+            type="button"
+            phx-click="places_clear"
+            class="pb-0.5 text-[12.5px] font-semibold text-base-content/55 transition hover:text-primary"
+          >
+            clear
+          </button>
         </div>
-        <button type="button" phx-click="places_clear" class="btn btn-xs btn-ghost">Clear</button>
       </header>
 
       <%!-- Search across all categories --%>
-      <div class="px-4 pb-2">
+      <div class="px-4 pb-3 pt-4">
         <div class="relative">
-          <span class="absolute left-3 top-1/2 -translate-y-1/2 text-base-content/40 pointer-events-none">
-            {icon("search", class: "w-4 h-4")}
-          </span>
           <form phx-change="filter_changed" phx-target={@myself}>
             <input
               type="search"
@@ -66,18 +67,25 @@ defmodule AtlasWeb.PlacesCard do
               placeholder="Filter categories…"
               autocomplete="off"
               spellcheck="false"
-              class="input input-bordered input-sm w-full pl-9 pr-9"
+              class="w-full rounded-2xl border-2 border-base-content/10 bg-base-300/40 px-4 py-2.5 pr-11 text-[14px] text-base-content outline-none transition focus:border-base-content"
             />
           </form>
           <button
+            :if={@filter != ""}
             type="button"
             phx-click="clear_filter"
             phx-target={@myself}
-            class="absolute right-2 top-1/2 -translate-y-1/2 btn btn-square btn-ghost btn-xs"
+            class="absolute right-2 top-1/2 grid h-[30px] w-[30px] -translate-y-1/2 place-items-center rounded-lg text-base-content/55"
             aria-label="Clear filter"
           >
-            {icon("x", class: "w-3 h-3")}
+            {icon("x", class: "w-3.5 h-3.5")}
           </button>
+          <span
+            :if={@filter == ""}
+            class="pointer-events-none absolute right-3.5 top-1/2 -translate-y-1/2 text-base-content/55"
+          >
+            {icon("search", class: "w-[18px] h-[18px]")}
+          </span>
         </div>
       </div>
 
@@ -107,32 +115,25 @@ defmodule AtlasWeb.PlacesCard do
       <%!-- Name/address search within selected categories — hidden until a chip is active --%>
       <div :if={@selected_chips != []} class="px-4 pb-2">
         <div class="relative">
-          <span class="absolute left-3 top-1/2 -translate-y-1/2 text-base-content/40 pointer-events-none">
-            {icon("search", class: "w-3.5 h-3.5")}
-          </span>
           <input
             type="search"
             placeholder="Search by name or address…"
             autocomplete="off"
             spellcheck="false"
-            class="input input-bordered input-sm w-full pl-8 pr-8"
+            class="w-full rounded-2xl border-2 border-base-content/10 bg-base-300/40 px-4 py-2.5 pr-11 text-[14px] text-base-content outline-none transition focus:border-base-content"
           />
-          <button
-            type="button"
-            class="absolute right-2 top-1/2 -translate-y-1/2 btn btn-square btn-ghost btn-xs"
-            aria-label="Clear name search"
-          >
-            {icon("x", class: "w-3 h-3")}
-          </button>
+          <span class="pointer-events-none absolute right-3.5 top-1/2 -translate-y-1/2 text-base-content/55">
+            {icon("search", class: "w-[18px] h-[18px]")}
+          </span>
         </div>
       </div>
 
       <%!-- Quick picks — always visible pinned tier --%>
       <div class="px-4 pb-2">
-        <div class="font-mono text-[10px] uppercase tracking-[0.14em] text-base-content/55 mb-1.5">
+        <div class="mb-[11px] font-mono text-[11px] uppercase tracking-[0.2em] text-base-content/55">
           Quick picks
         </div>
-        <div class="grid grid-cols-2 gap-1">
+        <div class="grid grid-cols-2 gap-2">
           <button
             :for={item <- @pinned}
             type="button"
@@ -141,10 +142,10 @@ defmodule AtlasWeb.PlacesCard do
             phx-value-selector={item.selector}
             phx-value-label={item.label}
             class={[
-              "flex items-center gap-1.5 px-2 py-1 rounded-md border text-left text-xs truncate transition-colors",
+              "flex items-center gap-2 truncate rounded-xl border px-2.5 py-2 text-left text-[13px] font-medium transition",
               if(chip_selected?(@selected_chips, item.selector),
                 do: "border-primary bg-primary/10 text-primary",
-                else: "border-base-300 text-base-content/80 hover:bg-base-200/60 hover:border-base-content/20"
+                else: "border-base-content/15 text-base-content/80 hover:bg-base-200/60"
               )
             ]}
             title={item.selector}
@@ -163,27 +164,27 @@ defmodule AtlasWeb.PlacesCard do
       </div>
 
       <%!-- Accordion sections / search results --%>
-      <div class="px-2 border-t border-base-200 max-h-[40vh] overflow-y-auto">
+      <div class="max-h-[40vh] overflow-y-auto px-4">
         <section
           :for={section <- filtered_sections(@sections, @filter)}
-          class="border-b border-base-200 last:border-b-0"
+          class="border-t border-base-content/[0.07]"
         >
           <details class="group">
-            <summary class="cursor-pointer select-none w-full px-3 py-3 flex items-center justify-between gap-2 hover:bg-base-200/40 text-left transition-colors list-none [&::-webkit-details-marker]:hidden">
-              <span class="flex items-center gap-2 text-xs uppercase tracking-wide text-base-content/70 font-medium">
-                <span class="text-base-content/50">
-                  {icon(section.icon, class: "w-3.5 h-3.5")}
-                </span>
-                <span>{section.label}</span>
-                <span class="text-[10px] text-base-content/40 tabular-nums font-normal normal-case">
-                  {length(section.items)}
-                </span>
+            <summary class="flex w-full cursor-pointer select-none items-center gap-3 px-1 py-3 text-left list-none [&::-webkit-details-marker]:hidden">
+              <span class="text-base-content/70">
+                {icon(section.icon, class: "w-5 h-5")}
               </span>
-              <span class="text-base-content/40 transition-transform group-open:rotate-180">
-                {icon("chevron-down", class: "w-3.5 h-3.5")}
+              <span class="text-[15px] font-bold uppercase tracking-[0.03em] text-base-content">
+                {section.label}
+              </span>
+              <span class="text-sm font-medium text-base-content/55">
+                {length(section.items)}
+              </span>
+              <span class="ml-auto text-base-content/55 transition-transform duration-200 group-open:rotate-180">
+                {icon("chevron-down", class: "w-4 h-4")}
               </span>
             </summary>
-            <div class="grid grid-cols-2 gap-1 px-3 pb-3 pt-1">
+            <div class="grid grid-cols-2 gap-2 pb-3 pt-1">
               <button
                 :for={item <- visible_items(section.items, @filter)}
                 type="button"
@@ -192,10 +193,10 @@ defmodule AtlasWeb.PlacesCard do
                 phx-value-selector={item.selector}
                 phx-value-label={item.label}
                 class={[
-                  "flex items-center gap-1.5 px-2 py-1 rounded-md border text-left text-xs truncate transition-colors",
+                  "flex items-center gap-2 truncate rounded-xl border px-2.5 py-2 text-left text-[13px] font-medium transition",
                   if(chip_selected?(@selected_chips, item.selector),
                     do: "border-primary bg-primary/10 text-primary",
-                    else: "border-base-300 text-base-content/80 hover:bg-base-200/60 hover:border-base-content/20"
+                    else: "border-base-content/15 text-base-content/80 hover:bg-base-200/60"
                   )
                 ]}
                 title={item.selector}
@@ -216,21 +217,18 @@ defmodule AtlasWeb.PlacesCard do
       </div>
 
       <%!-- Results list --%>
-      <ul class="flex-1 min-h-0 overflow-y-auto px-2 border-t border-base-200">
-        <li
-          :if={@places == []}
-          class="text-xs text-base-content/60 px-2 py-3"
-        >
+      <ul class="min-h-0 flex-1 overflow-y-auto border-t border-base-content/[0.07] px-4 py-2">
+        <li :if={@places == []} class="px-1 py-2 text-[13px] text-base-content/60">
           No places loaded yet.
         </li>
         <li
           :for={place <- @places}
-          class="flex items-start gap-2 p-2 rounded-md hover:bg-base-200"
+          class="flex items-start gap-2.5 rounded-xl px-3 py-2.5 transition hover:bg-base-200/60"
         >
-          <span class="text-base-content/40 mt-0.5">
+          <span class="mt-0.5 text-base-content/40">
             {icon("map-pin", class: "w-4 h-4")}
           </span>
-          <span class="text-sm leading-tight">{place.label}</span>
+          <span class="text-sm font-medium leading-tight">{place.label}</span>
         </li>
       </ul>
     </div>

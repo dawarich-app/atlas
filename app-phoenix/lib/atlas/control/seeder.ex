@@ -26,8 +26,10 @@ defmodule Atlas.Control.Seeder do
   ]
 
   @doc """
-  Insert service rows (idempotent via `ON CONFLICT`) and start a ServiceState
-  per service. Safe to call multiple times.
+  Insert service rows (idempotent via `ON CONFLICT`), start a ServiceState
+  per service, and reconcile each actor's desired state against the actual
+  containers (an enabled service whose container is gone — compose down,
+  redeploy — gets started again). Safe to call multiple times.
   """
   def seed_and_start! do
     now = DateTime.utc_now() |> DateTime.truncate(:second)
@@ -45,6 +47,8 @@ defmodule Atlas.Control.Seeder do
         {:error, {:already_started, _pid}} -> :ok
       end
     end)
+
+    Enum.each(@services, fn s -> Atlas.Control.ServiceState.reconcile(s.name) end)
 
     :ok
   end

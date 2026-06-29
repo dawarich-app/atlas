@@ -33,7 +33,7 @@ defmodule Atlas.Maps.Reverse do
       {:error, :too_many, 500}
   """
   require Logger
-  alias Atlas.Maps.{Result, Upstream.Photon, Upstream.Placeholder, Upstream.Client}
+  alias Atlas.Maps.{Place, Result, Upstream.Photon, Upstream.Placeholder, Upstream.Client}
 
   @max_coords 500
   @grid_decimals 4
@@ -64,35 +64,8 @@ defmodule Atlas.Maps.Reverse do
     end
   end
 
-  defp normalize_feature(%{"features" => [feature | _]}), do: do_normalize(feature)
+  defp normalize_feature(%{"features" => [feature | _]}), do: Place.from_photon_feature(feature)
   defp normalize_feature(_), do: nil
-
-  defp do_normalize(%{"properties" => props, "geometry" => geom}) do
-    coords = Map.get(geom, "coordinates", [])
-    [lon, lat | _] = coords ++ [nil, nil]
-
-    %{
-      id: [props["osm_type"], props["osm_id"]] |> Enum.reject(&is_nil/1) |> Enum.join(":"),
-      name: props["name"],
-      label:
-        [props["name"], props["city"], props["state"], props["country"]]
-        |> Enum.reject(&is_nil/1)
-        |> Enum.uniq()
-        |> Enum.join(", "),
-      type: props["osm_value"] || props["osm_key"],
-      coords: %{lon: lon, lat: lat},
-      admin:
-        %{
-          country: props["country"],
-          state: props["state"],
-          county: props["county"],
-          city: props["city"],
-          postcode: props["postcode"]
-        }
-        |> Enum.reject(fn {_k, v} -> is_nil(v) end)
-        |> Map.new()
-    }
-  end
 
   defp maybe_enrich_admin(%{admin: admin} = feature, lang) do
     if Map.get(admin, :city) && Map.get(admin, :country) do
@@ -162,6 +135,7 @@ defmodule Atlas.Maps.Reverse do
             here: nil,
             admin: %{}
           }
+
           %{acc | results: acc.results ++ [item], upstream_errors: acc.upstream_errors + 1}
       end
     )
@@ -177,14 +151,12 @@ defmodule Atlas.Maps.Reverse do
       do_lookup_with_cache(key, id, lat, lon, lang)
     else
       {:error, msg} ->
-        {:bad_input,
-         %{id: id, coord: %{raw_lat: raw_lat, raw_lon: raw_lon}, error: msg}}
+        {:bad_input, %{id: id, coord: %{raw_lat: raw_lat, raw_lon: raw_lon}, error: msg}}
     end
   end
 
   defp raw_fields(coord) when is_map(coord) do
-    {Map.get(coord, "lat") || Map.get(coord, :lat),
-     Map.get(coord, "lon") || Map.get(coord, :lon),
+    {Map.get(coord, "lat") || Map.get(coord, :lat), Map.get(coord, "lon") || Map.get(coord, :lon),
      Map.get(coord, "id") || Map.get(coord, :id)}
   end
 
@@ -218,8 +190,7 @@ defmodule Atlas.Maps.Reverse do
         {:miss_ok, %{id: id, coord: %{lat: lat, lon: lon}, here: here, admin: admin}}
 
       _ ->
-        {:miss_error,
-         %{id: id, coord: %{lat: lat, lon: lon}, here: nil, admin: %{}}}
+        {:miss_error, %{id: id, coord: %{lat: lat, lon: lon}, here: nil, admin: %{}}}
     end
   end
 

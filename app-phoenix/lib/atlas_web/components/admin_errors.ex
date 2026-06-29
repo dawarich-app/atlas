@@ -23,6 +23,25 @@ defmodule AtlasWeb.AdminErrorComponents do
   use AtlasWeb, :verified_routes
 
   @doc """
+  Human-readable text for control-plane error terms. Templates must never
+  render raw `inspect/1` output to operators.
+  """
+  def format_error(:busy), do: "An apply is already running — wait for it to finish."
+  def format_error(:unavailable), do: "The control plane is not running on this build."
+
+  def format_error({:region_not_found, name}),
+    do: "Region “#{name}” is not in the catalog."
+
+  def format_error({:http_status, status}), do: "The server responded with HTTP #{status}."
+
+  def format_error({code, output}) when is_integer(code) and is_binary(output),
+    do: "Command failed (exit #{code}): #{String.trim(output)}"
+
+  def format_error(%{__exception__: true} = e), do: Exception.message(e)
+  def format_error(reason) when is_binary(reason), do: reason
+  def format_error(reason), do: inspect(reason)
+
+  @doc """
   Atlas Control (docker-compose) is unreachable. Shown when `DockerCompose`
   returns a connection failure or the manage script is missing.
   """

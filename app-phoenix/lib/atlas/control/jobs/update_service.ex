@@ -24,11 +24,11 @@ defmodule Atlas.Control.Jobs.UpdateService do
     case begin_update!(name) do
       :ok ->
         case DockerCompose.update(name, :pull) do
-          {0, _output} ->
+          {:ok, _output} ->
             finish_update!(name, success: true, duration_s: elapsed_s(started))
             :ok
 
-          {_code, output} ->
+          {:error, _code, output} ->
             finish_update!(name,
               success: false,
               duration_s: elapsed_s(started),

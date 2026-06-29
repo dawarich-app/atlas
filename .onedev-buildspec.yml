@@ -1,0 +1,46 @@
+# OneDev CI — builds the Atlas app image (app-phoenix/) and pushes it to
+# OneDev's own built-in container registry (onedev.dwri.xyz). Used for
+# testing; the GHCR/production pipeline lives in .github/workflows/.
+#
+# One-time setup on the OneDev side (see notes at the bottom of this file):
+#   1. Enable the built-in registry + set the server URL in System Settings.
+#   2. Create an access token for a user with package-write on `atlas`.
+#   3. Add it as a job secret named `onedev-access-token`.
+#   4. Replace REPLACE_WITH_ONEDEV_USERNAME below with that user's username.
+version: 47
+jobs:
+- name: build app docker image
+  steps:
+  - type: CheckoutStep
+    name: checkout
+    cloneCredential:
+      type: DefaultCredential
+    withLfs: false
+    withSubmodules: false
+    condition: SUCCESSFUL
+    optional: false
+  - type: BuildImageStep
+    name: build and publish image
+    buildPath: app-phoenix
+    dockerfile: app-phoenix/Dockerfile
+    output:
+      type: RegistryOutput
+      tags: onedev.dwri.xyz/@project_path@/app:latest onedev.dwri.xyz/@project_path@/app:@commit_hash@
+    registryLogins:
+    - registryUrl: onedev.dwri.xyz
+      userName: REPLACE_WITH_ONEDEV_USERNAME
+      passwordSecret: onedev-access-token
+    # Single-arch (the executor's native platform) keeps a testing instance
+    # simple — multi-arch needs QEMU/binfmt on the executor host. To build
+    # both, add:  platforms: linux/amd64,linux/arm64
+    moreOptions: --build-arg APP_REVISION=@commit_hash@
+    condition: SUCCESSFUL
+    optional: false
+  triggers:
+  - type: BranchUpdateTrigger
+    branches: main
+    userMatch: anyone
+  retryCondition: never
+  maxRetries: 3
+  retryDelay: 30
+  timeout: 3600

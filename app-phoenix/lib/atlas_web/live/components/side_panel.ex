@@ -21,7 +21,10 @@ defmodule AtlasWeb.SidePanel do
   attr :tiles_url, :string, required: true
   attr :theme, :string, required: true
   attr :service_status, :map, required: true
+  attr :pending_services, :map, default: %{}
   attr :tiles_download, :any, default: nil
+  attr :apply_status, :any, default: nil
+  attr :basemap_confirm, :any, default: nil
 
   def side_panel(assigns) do
     ~H"""
@@ -79,23 +82,37 @@ defmodule AtlasWeb.SidePanel do
               tiles_url={@tiles_url}
               theme={@theme}
               service_status={@service_status}
+              pending_services={@pending_services}
               tiles_download={@tiles_download}
+              apply_status={@apply_status}
+              basemap_confirm={@basemap_confirm}
             />
           </div>
         </div>
       </div>
 
-      <div class="apo-brand-text px-2.5 py-2 text-[11px] leading-none text-base-content/50 flex-shrink-0">
-        Made by
+      <div class="apo-brand-text flex items-center px-2.5 py-2 text-[11px] leading-none text-base-content/50 flex-shrink-0">
+        <span>
+          Made by
+          <a
+            href="https://dawarich.app?utm_source=atlas-map&utm_medium=referral&utm_campaign=atlas-map"
+            target="_blank"
+            rel="noopener noreferrer"
+            class="font-medium text-base-content/70 hover:text-primary transition-colors"
+          >
+            Dawarich
+          </a>
+          people
+        </span>
         <a
-          href="https://dawarich.app?utm_source=atlas-map&utm_medium=referral&utm_campaign=atlas-map"
+          href="https://github.com/dawarich-app/atlas/releases"
           target="_blank"
           rel="noopener noreferrer"
-          class="font-medium text-base-content/70 hover:text-primary transition-colors"
+          class="ml-auto font-mono text-[10.5px] text-base-content/50 transition-colors hover:text-primary"
+          data-role="app-version"
         >
-          Dawarich
+          {Atlas.Version.display()}
         </a>
-        people
       </div>
     </aside>
     """

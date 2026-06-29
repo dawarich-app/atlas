@@ -69,4 +69,32 @@ defmodule Atlas.Control.ApplyProjectionTest do
 
     refute Enum.any?(proj.lines, &(&1.name == "photon"))
   end
+
+  test "classify uses kind from the catalog entry, not hardcoded names" do
+    alias Atlas.Control.RegionCatalog
+
+    {:ok, _} =
+      Atlas.Repo.insert(%Atlas.Control.Service{
+        name: "overpass",
+        profile: "overpass",
+        enabled: true
+      })
+
+    {:ok, _} =
+      Atlas.Repo.insert(%Atlas.Control.Service{
+        name: "valhalla",
+        profile: "routing",
+        enabled: true
+      })
+
+    sub = %RegionCatalog{name: "gf:germany/bayern", label: "Bayern", kind: "subregion", pbf_urls: ["x"]}
+    city = %RegionCatalog{name: "bbbike:berlin", label: "Berlin", kind: "city", pbf_urls: ["x"]}
+    country = %RegionCatalog{name: "gf:spain", label: "Spain", kind: "country", pbf_urls: ["x"]}
+
+    assert ApplyProjection.summary([sub]).total_disk_gb >
+             ApplyProjection.summary([city]).total_disk_gb
+
+    assert ApplyProjection.summary([country]).total_disk_gb >
+             ApplyProjection.summary([sub]).total_disk_gb
+  end
 end

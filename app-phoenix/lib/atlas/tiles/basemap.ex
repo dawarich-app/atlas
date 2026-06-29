@@ -1,8 +1,7 @@
 defmodule Atlas.Tiles.Basemap do
   @moduledoc """
   Resolve a basemap preset id and either set its URL directly (no
-  download), or kick off a download via `TilesDownloader` and report
-  the resulting state machine back to the caller.
+  download), or kick off an asynchronous download via `TilesDownloader`.
 
   Used by `MapLive` and any other surface that needs the
   "click a preset, apply it" flow.
@@ -11,9 +10,10 @@ defmodule Atlas.Tiles.Basemap do
 
     * `{:set_style, url}` — preset is a hosted style, persisted; caller
       should `push_event("map:set_style", %{url: url})`
-    * `{:downloaded, local_url, dest}` — preset was downloaded; caller
-      should set tiles_url + push set_style + flash success
-    * `{:download_failed, reason}` — download attempt errored
+    * `{:download_started, job_id, dest}` — download accepted; progress
+      arrives on `TilesDownloader.topic()`, and the downloader persists the
+      served URL itself on completion
+    * `{:download_failed, reason}` — download could not start
     * `:downloader_unavailable` — `TilesDownloader` process not running
     * `:unknown` — no matching preset id
   """
@@ -38,10 +38,11 @@ defmodule Atlas.Tiles.Basemap do
 
   defp download(url) do
     case TilesDownloader.download(url) do
-      {:ok, _job_id, dest} ->
-        local_url = "file://" <> dest
-        Settings.set("tiles_url", local_url)
-        {:downloaded, local_url, dest}
+      {:ok, job_id, dest} ->
+        {:download_started, job_id, dest}
+
+      {:error, :busy} ->
+        {:download_failed, "a tile-pack download is already running"}
 
       {:error, reason} ->
         {:download_failed, reason}

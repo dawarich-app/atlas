@@ -22,7 +22,20 @@ docker compose up -d
 
 That's it — no `.env` file required. The app auto-generates a `SECRET_KEY_BASE` on first boot (persisted to `data/app/.secret_key_base`) and stores its data in a local SQLite file under `data/app/`.
 
-Visit [http://localhost:8484](http://localhost:8484). The map page is live as soon as Caddy and Atlas come up. Open the **Settings** tab in the side panel to toggle Search / Routing / POIs / Transit and pick the active region. Save & apply — the sidecar handles downloads and ingest, with progress streaming back over Action Cable.
+One knob you may need: the in-app control plane talks to the host docker
+socket as the `nobody` user via the `DOCKER_GID` supplementary group
+(default `999`). If the Settings panel shows a "Control plane degraded"
+banner, set it to the socket's group and recreate the container:
+
+```bash
+# Linux
+echo "DOCKER_GID=$(stat -c %g /var/run/docker.sock)" >> .env
+# macOS (OrbStack / Docker Desktop) — the socket maps as gid 0
+echo "DOCKER_GID=0" >> .env
+docker compose up -d app
+```
+
+Visit [http://localhost:8484](http://localhost:8484). The map page is live as soon as Caddy and Atlas come up. Open the **Settings** tab in the side panel to toggle Search / Routing / POIs / Transit and pick the active region. Save & apply — the app downloads the region data, merges it with osmium, and restarts the ingest services, with live progress in the panel.
 
 To pin a specific region preset up front (instead of picking in the UI), copy one into `.env` before booting:
 

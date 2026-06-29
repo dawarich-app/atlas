@@ -14,8 +14,15 @@ defmodule Atlas.Maps.ReverseTest do
   test "lookup returns feature + admin + ok status", %{bypass: bypass} do
     Bypass.expect(bypass, fn conn ->
       case conn.request_path do
-        "/reverse" -> Plug.Conn.resp(conn, 200, ~s({"features":[{"geometry":{"coordinates":[13.4,52.5]},"properties":{"osm_id":1,"osm_type":"N","name":"Brandenburg Gate","city":"Berlin","country":"Germany"}}]}))
-        "/parser/search" -> Plug.Conn.resp(conn, 200, "[]")
+        "/reverse" ->
+          Plug.Conn.resp(
+            conn,
+            200,
+            ~s({"features":[{"geometry":{"coordinates":[13.4,52.5]},"properties":{"osm_id":1,"osm_type":"N","name":"Brandenburg Gate","city":"Berlin","country":"Germany"}}]})
+          )
+
+        "/parser/search" ->
+          Plug.Conn.resp(conn, 200, "[]")
       end
     end)
 
@@ -36,12 +43,41 @@ defmodule Atlas.Maps.ReverseTest do
   test "lookup feature.label includes state component and dedupes via uniq", %{bypass: bypass} do
     Bypass.expect(bypass, fn conn ->
       case conn.request_path do
-        "/reverse" -> Plug.Conn.resp(conn, 200, ~s({"features":[{"geometry":{"coordinates":[13.4,52.5]},"properties":{"osm_id":2,"osm_type":"N","name":"Mitte","city":"Berlin","state":"Berlin","country":"Germany"}}]}))
-        "/parser/search" -> Plug.Conn.resp(conn, 200, "[]")
+        "/reverse" ->
+          Plug.Conn.resp(
+            conn,
+            200,
+            ~s({"features":[{"geometry":{"coordinates":[13.4,52.5]},"properties":{"osm_id":2,"osm_type":"N","name":"Mitte","city":"Berlin","state":"Berlin","country":"Germany"}}]})
+          )
+
+        "/parser/search" ->
+          Plug.Conn.resp(conn, 200, "[]")
       end
     end)
 
     assert {:ok, %Result{features: %{here: feature}}} = Reverse.lookup(lat: 52.5, lon: 13.4)
     assert feature.label == "Mitte, Berlin, Germany"
+  end
+
+  test "reverse lookup's `here` feature carries canonical address + match_type", %{bypass: bypass} do
+    Bypass.expect(bypass, fn conn ->
+      case conn.request_path do
+        "/reverse" ->
+          Plug.Conn.resp(
+            conn,
+            200,
+            ~s({"features":[{"geometry":{"coordinates":[13.4,52.5]},"properties":{"osm_type":"N","osm_id":9,"name":"X","housenumber":"5","street":"Main","city":"Berlin","country":"Germany"}}]})
+          )
+
+        "/parser/search" ->
+          Plug.Conn.resp(conn, 200, "[]")
+      end
+    end)
+
+    {:ok, result} = Atlas.Maps.Reverse.lookup(lat: 52.5, lon: 13.4)
+    here = result.features.here
+    assert here.match_type == "rooftop"
+    assert here.address[:house_number] == "5"
+    assert here.confidence == nil
   end
 end

@@ -1,5 +1,5 @@
 <div class="flex h-screen">
-  <aside class="w-64 bg-base-200 p-4">
+  <aside class="flex w-64 flex-col bg-base-200 p-4">
     <h1 class="text-xl font-bold mb-4">Atlas Admin</h1>
     <ul class="menu">
       <li><.link navigate={~p"/admin/services"}>Services</.link></li>
@@ -7,6 +7,15 @@
       <li><.link navigate={~p"/admin/tiles"}>Tiles</.link></li>
       <li><.link navigate={~p"/admin/apply"}>Apply</.link></li>
     </ul>
+    <a
+      href="https://github.com/dawarich-app/atlas/releases"
+      target="_blank"
+      rel="noopener noreferrer"
+      class="mt-auto pl-1 font-mono text-xs text-base-content/50 transition hover:text-primary"
+      data-role="app-version"
+    >
+      {Atlas.Version.display()}
+    </a>
   </aside>
   <main class="flex-1 p-6 overflow-y-auto">
     <.flash_group flash={@flash} />

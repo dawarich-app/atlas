@@ -1,0 +1,27 @@
+name: Refresh region catalog
+on:
+  schedule:
+    - cron: "0 4 1 * *"   # 04:00 UTC on the 1st of each month
+  workflow_dispatch: {}
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: app-phoenix
+    steps:
+      - uses: actions/checkout@v4
+      - uses: erlef/setup-beam@v1
+        with:
+          version-file: app-phoenix/.tool-versions
+          version-type: strict
+      - run: mix deps.get
+      - run: mix atlas.gen_catalog
+      - run: mix test test/atlas/control/catalog_json_test.exs --include catalog_artifact
+      - uses: peter-evans/create-pull-request@v6
+        with:
+          commit-message: "chore(atlas): monthly region catalog refresh"
+          title: "chore(atlas): monthly region catalog refresh"
+          branch: chore/region-catalog-refresh
+          add-paths: app-phoenix/priv/regions/catalog.json

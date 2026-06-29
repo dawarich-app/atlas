@@ -70,15 +70,17 @@ if config_env() == :prod do
 
   config :atlas, :dns_cluster_query, System.get_env("DNS_CLUSTER_QUERY")
 
+  # Docker bridge networks are IPv4, so bind 0.0.0.0 by default — binding the
+  # IPv6 wildcard (::) refuses IPv4 connections on hosts without dual-stack.
+  # Set PHX_BIND_IPV6=true to bind :: instead on a dual-stack host.
+  bind_ip =
+    if System.get_env("PHX_BIND_IPV6") in ~w(true 1),
+      do: {0, 0, 0, 0, 0, 0, 0, 0},
+      else: {0, 0, 0, 0}
+
   config :atlas, AtlasWeb.Endpoint,
     url: [host: host, port: 443, scheme: "https"],
-    http: [
-      # Enable IPv6 and bind on all interfaces.
-      # Set it to  {0, 0, 0, 0, 0, 0, 0, 1} for local network only access.
-      # See the documentation on https://hexdocs.pm/bandit/Bandit.html#t:options/0
-      # for details about using IPv6 vs IPv4 and loopback vs public addresses.
-      ip: {0, 0, 0, 0, 0, 0, 0, 0}
-    ],
+    http: [ip: bind_ip],
     secret_key_base: secret_key_base
 
   # ## SSL Support
