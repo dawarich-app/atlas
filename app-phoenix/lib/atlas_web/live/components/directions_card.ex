@@ -95,6 +95,14 @@ defmodule AtlasWeb.DirectionsCard do
           >
             {icon("arrow-up-down", class: "w-4 h-4")}
           </button>
+
+          <button
+            type="submit"
+            class="col-span-2 mt-1 flex items-center justify-center gap-2 rounded-2xl bg-primary py-2.5 text-[14px] font-semibold text-primary-content transition hover:brightness-110"
+          >
+            {icon("route", class: "w-4 h-4")}
+            <span>Get directions</span>
+          </button>
         </form>
 
         <details>
