@@ -1,4 +1,5 @@
 import maplibregl from "../../vendor/maplibre-gl"
+import SearchClusters from "./search_clusters"
 
 // Hardcoded OSM raster fallback — used when no TILES_URL is configured.
 // Matches the Rails JS controller's OSM_RASTER_FALLBACK byte-for-byte.
@@ -43,48 +44,17 @@ export default {
       maxWidth: 120,
       unit: "metric"
     }), "bottom-left")
-    this.resultMarkers = []
-
-    this.clearResultMarkers = () => {
-      this.resultMarkers.forEach((m) => m.remove())
-      this.resultMarkers = []
-    }
-
-    // Report the viewport after every pan/zoom so the server can scope search
-    // to what is on screen. `moveend` (not `move`) keeps this to one message
-    // per gesture rather than one per frame.
-    // `eventData` passed to flyTo comes back on the resulting moveend, which is
-    // how a flight we started is told apart from a pan the user made. Both
-    // report their bounds; only a user pan re-runs the search.
-    this.reportViewport = (event) => {
-      const b = this.map.getBounds()
-      this.pushEvent("viewport_changed", {
-        bbox: [b.getWest(), b.getSouth(), b.getEast(), b.getNorth()],
-        programmatic: Boolean(event && event.atlasProgrammatic)
-      })
-    }
-    this.map.on("moveend", this.reportViewport)
-    // The first report is the map announcing where it opened, not a gesture.
-    // Sending it as a pan re-ran a shared ?q= link against the viewer's own
-    // default bounds and replaced the results the link was meant to show.
-    this.map.once("load", () => this.reportViewport({ atlasProgrammatic: true }))
+    this.searchClusters = new SearchClusters(this.map, maplibregl, resultMarker)
 
     this.handleEvent("map:fly_to", ({ lat, lon, zoom }) => {
       this.map.flyTo({ center: [lon, lat], zoom: zoom || 14 }, { atlasProgrammatic: true })
     })
 
-    // One event owns the whole result-marker set. Replacing wholesale (rather
-    // than clear + add) means a pan-triggered refresh cannot race a selection
-    // and leave the map bare.
+    this.handleEvent("map:fit_results", () => this.searchClusters.fitBounds())
+
     this.handleEvent("map:set_results", ({ points }) => {
-      this.clearResultMarkers()
-
-      ;(points || []).forEach((p) => {
-        const marker = resultMarker(p).addTo(this.map)
-        this.resultMarkers.push(marker)
-      })
+      this.searchClusters.setPoints(points)
     })
-
 
     this.routeGeoJSON = null
 
@@ -133,24 +103,10 @@ export default {
       this._tilesUrl = url || null
       const nextStyle = url ? url : OSM_RASTER_FALLBACK
 
-      // A style swap destroys marker DOM, so the set is rebuilt from the point
-      // payloads each marker carries. Reading the popup's DOM instead loses
-      // everything: getElement() is undefined until a popup has been opened, so
-      // most pins came back with no popup at all and opened ones degraded to a
-      // text blob without the OSM link.
-      const savedPoints = this.resultMarkers.map((m) => m._atlasPoint).filter(Boolean)
-
-      this.clearResultMarkers()
-
-      const onStyle = () => {
-        savedPoints.forEach((p) => {
-          this.resultMarkers.push(resultMarker(p).addTo(this.map))
-        })
-        // Re-add the route source/layer if we had one.
+      // The cluster source restores itself from its current dataset on style.load.
+      this.map.once("style.load", () => {
         if (this.routeGeoJSON) this._renderRoute()
-      }
-
-      this.map.once("styledata", onStyle)
+      })
       this.map.setStyle(nextStyle)
     })
   },
@@ -183,6 +139,7 @@ export default {
 
   destroyed() {
     if (this.resizeObserver) this.resizeObserver.disconnect()
+    if (this.searchClusters) this.searchClusters.destroy()
     if (this.map) this.map.remove()
   }
 }

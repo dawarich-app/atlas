@@ -14,6 +14,9 @@ defmodule AtlasWeb.SearchCard do
   attr :id, :string, required: true
   attr :query, :string, required: true
   attr :results, :list, required: true
+  attr :loading, :boolean, default: false
+  attr :complete, :boolean, default: true
+  attr :count, :integer, default: 0
   attr :status, :string, default: "ok"
   attr :service, :string, default: "photon"
   attr :snapshot, :any, default: nil
@@ -46,7 +49,7 @@ defmodule AtlasWeb.SearchCard do
             placeholder="Places, addresses…"
             autocomplete="off"
             spellcheck="false"
-            phx-debounce="200"
+            phx-debounce="350"
             phx-hook="SearchKeys"
             data-has-active={to_string(@active >= 0)}
             class="w-full rounded-2xl border-2 border-base-content/10 bg-base-300/40 px-4 py-3 pr-11 text-[15px] text-base-content outline-none transition focus:border-base-content"
@@ -55,6 +58,18 @@ defmodule AtlasWeb.SearchCard do
             {icon("search", class: "w-[18px] h-[18px]")}
           </span>
         </form>
+
+        <div :if={@loading or @count > 0} id="search-count" role="status" aria-live="polite" class="text-sm text-base-content/75">
+          <span :if={@loading} class="loading loading-spinner loading-xs mr-1"></span>
+          <strong>{@count}</strong> matches on the map
+          <button :if={@count > 0} type="button" phx-click="show_search_results" class="ml-2 link link-primary text-xs">Show all</button>
+          <span :if={@loading}> · Searching all installed data…</span>
+          <span :if={not @loading and @complete}> · All matches loaded</span>
+          <p :if={@count > length(@results)} class="mt-1 text-xs opacity-70">Showing the first {length(@results)} in this list. Zoom into a cluster to explore every place.</p>
+        </div>
+        <p :if={@searched and not @loading and not @complete and @count > 0} role="status" class="text-sm text-warning">
+          Some matches could not be loaded. This count is incomplete; try a more specific search.
+        </p>
 
         <div
           :if={@state == :not_installed}
@@ -149,6 +164,7 @@ defmodule AtlasWeb.SearchCard do
   # `:idle` keys off whether a search actually ran, not off an empty box: a
   # query below the minimum length is never sent, so answering it with
   # "No results" would be a claim we never checked.
+  defp state(%{loading: true, results: []}), do: :loading
   defp state(%{results: [_ | _]}), do: :results
   defp state(%{searched: false}), do: :idle
   defp state(%{status: "ok"}), do: :empty

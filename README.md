@@ -4,6 +4,10 @@ A local-first, self-hostable maps stack. Built on OpenStreetMap data and FOSS co
 
 Atlas is the maps engine that powers Dawarich, packaged so it stands on its own — install it on your own box, plug your own clients into the API.
 
+Map search loads matches across the installed Photon dataset and groups them into
+numbered clusters. Zoom or click a cluster to explore; **Show all** fits the full
+result set. See [search behavior and limits](docs/search.md).
+
 ## Screenshots
 
 | Search | Routing |

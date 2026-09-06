@@ -13,6 +13,7 @@ defmodule Atlas.Maps.Upstream.Photon do
     params =
       [{"q", opts[:query]}, {"limit", opts[:limit] || 10}]
       |> maybe_add("lang", opts[:lang])
+      |> maybe_add("dedupe", opts[:dedupe])
       |> maybe_add("lat", opts[:lat])
       |> maybe_add("lon", opts[:lon])
       |> maybe_add_bbox(opts[:bbox])

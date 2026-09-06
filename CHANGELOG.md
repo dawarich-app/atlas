@@ -4,6 +4,11 @@ All notable changes to Dawarich Atlas are documented here.
 
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+- Search collects matches across the installed Photon dataset, subdividing full spatial pages instead of silently showing only 40 results. Numbered map clusters expand on click, and Show all fits the entire result set. Zooming no longer replaces results. Loading, cancellation and incomplete coverage are explicit; the sidebar keeps 40 ranked suggestions while the map receives all collected matches.
+
 ## [0.4.0] - 2026-09-06
 
 ### Fixed

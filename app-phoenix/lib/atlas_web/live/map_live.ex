@@ -34,6 +34,10 @@ defmodule AtlasWeb.MapLive do
        active_tab: "search",
        search_query: "",
        search_results: [],
+       search_loading: false,
+       search_complete: false,
+       search_request_id: nil,
+       search_count: 0,
        directions: nil,
        mode: "auto",
        route_from: "",
@@ -71,31 +75,22 @@ defmodule AtlasWeb.MapLive do
   # the back button alike, instead of three that can disagree.
   @impl true
   def handle_event("search", %{"q" => q}, socket) do
-    {:noreply, push_patch(socket, to: search_path(socket, q), replace: true)}
+    if q == socket.assigns.search_query and not socket.assigns.search_loading and
+         (not socket.assigns.search_searched or not socket.assigns.search_complete) do
+      {:noreply, run_search(socket, q)}
+    else
+      {:noreply, push_patch(socket, to: search_path(socket, q), replace: true)}
+    end
   end
 
-  # The map reports its viewport after every pan/zoom. Re-running the active
-  # query against the new bounds is what makes a brand search ("McDonald's")
-  # answer "which ones can I see" instead of "the global top N".
-  #
-  # A move we caused ourselves is exempt. Picking a result flies the map, and
-  # treating that flight as a pan re-ran the query still sitting in the box,
-  # restoring the list and every marker a second after the selection dismissed
-  # them. The bounds are still recorded, so the next typed search is scoped to
-  # where the map now is.
-  def handle_event("viewport_changed", %{"bbox" => [_w, _s, _e, _n] = bbox} = params, socket) do
-    socket = assign(socket, viewport: bbox)
+  # Zoom changes only cluster presentation. Never replace a complete dataset
+  # with a new ranked subset just because the map moved.
+  def handle_event("viewport_changed", %{"bbox" => [_w, _s, _e, _n] = bbox}, socket) do
+    {:noreply, assign(socket, viewport: bbox)}
+  end
 
-    # `search_results != []` is the dismissal test. Both `select_feature` and
-    # `search_dismiss` leave the query in the box deliberately, so re-querying
-    # on the query alone resurrected a list the user had just dismissed — the
-    # fly-to defect one gesture later. A list on screen still refreshes.
-    if params["programmatic"] != true and socket.assigns.search_results != [] and
-         searchable?(socket.assigns.search_query) do
-      {:noreply, run_search(socket, socket.assigns.search_query)}
-    else
-      {:noreply, socket}
-    end
+  def handle_event("show_search_results", _params, socket) do
+    {:noreply, push_event(socket, "map:fit_results", %{})}
   end
 
   def handle_event("search_move", %{"dir" => dir}, socket) when dir in [1, -1] do
@@ -123,7 +118,8 @@ defmodule AtlasWeb.MapLive do
   def handle_event("search_dismiss", _params, socket) do
     {:noreply,
      socket
-     |> assign(search_results: [], search_active: -1, search_searched: false)
+     |> cancel_search()
+     |> assign(search_results: [], search_active: -1, search_searched: false, search_count: 0)
      |> push_results([])}
   end
 
@@ -565,15 +561,17 @@ defmodule AtlasWeb.MapLive do
     {:noreply, assign(socket, :timeline, timeline)}
   end
 
+  def handle_info({:search_progress, id, result}, %{assigns: %{search_request_id: id}} = socket) do
+    {:noreply, apply_search_result(socket, result)}
+  end
+
   def handle_info(_other, socket), do: {:noreply, socket}
 
   # Rails used the same two-character floor: one letter matches most of the
   # planet, so it costs a Photon round trip per keystroke to return noise.
   @min_query_length 2
 
-  # 40, not 8: the list is scoped to the viewport, so a brand search wants every
-  # visible branch rather than the global top handful.
-  @search_limit 40
+  @search_list_limit 40
 
   # Keeps whatever else is in the URL (a `tab`, say) and drops `q` entirely when
   # the box is empty, so a cleared search leaves `/` rather than `/?q=`.
@@ -596,8 +594,10 @@ defmodule AtlasWeb.MapLive do
       # The markers go with the list. Escape cleared them; backspacing did not,
       # so emptying the box left every pin stranded on the map.
       socket
+      |> cancel_search()
       |> assign(
         search_query: q,
+        search_count: 0,
         search_results: [],
         search_active: -1,
         search_searched: false
@@ -607,40 +607,56 @@ defmodule AtlasWeb.MapLive do
   end
 
   defp dispatch_search(socket, q) do
-    params = %{
-      query: String.trim(q),
-      limit: @search_limit,
-      lang: nil,
-      lat: nil,
-      lon: nil,
-      bbox: socket.assigns.viewport
-    }
+    owner = self()
+    request_id = make_ref()
 
-    case Maps.Search.autocomplete(params) do
-      {:ok, result} ->
-        socket
-        |> assign(
-          search_query: q,
-          search_results: result.features,
-          search_status: result.upstream_status,
-          upstream_status: result.upstream_status,
-          search_active: -1,
-          search_searched: true
-        )
-        |> push_results(result.features)
+    socket
+    |> cancel_search()
+    |> assign(
+      search_query: q,
+      search_results: [],
+      search_count: 0,
+      search_status: "ok",
+      search_active: -1,
+      search_searched: true,
+      search_loading: true,
+      search_complete: false,
+      search_request_id: request_id
+    )
+    |> push_results([])
+    |> start_async(:map_search, fn ->
+      Maps.SearchAll.run(q,
+        on_progress: fn result -> send(owner, {:search_progress, request_id, result}) end
+      )
+    end)
+  end
 
-      {:error, _e} ->
-        socket
-        |> assign(
-          search_query: q,
-          search_results: [],
-          search_status: "unavailable",
-          upstream_status: "unavailable",
-          search_active: -1,
-          search_searched: true
-        )
-        |> push_results([])
-    end
+  defp cancel_search(socket) do
+    socket
+    |> cancel_async(:map_search)
+    |> assign(search_request_id: nil, search_loading: false, search_complete: false)
+  end
+
+  defp apply_search_result(socket, result) do
+    socket
+    |> assign(
+      search_results: Enum.take(result.suggestions, @search_list_limit),
+      search_count: length(result.features),
+      search_complete: result.complete,
+      search_status:
+        if(result.features == [] and not result.complete, do: "unavailable", else: "ok")
+    )
+    |> push_results(result.features)
+  end
+
+  @impl true
+  def handle_async(:map_search, {:ok, result}, socket) do
+    {:noreply, socket |> apply_search_result(result) |> assign(search_loading: false)}
+  end
+
+  def handle_async(:map_search, {:exit, _reason}, socket) do
+    {:noreply,
+     assign(socket, search_loading: false, search_complete: false, search_status: "unavailable")}
   end
 
   # One event replaces the whole marker set, mirroring the Rails map: every
@@ -655,7 +671,9 @@ defmodule AtlasWeb.MapLive do
     coords = feature.coords
 
     socket
+    |> cancel_search()
     |> assign(
+      search_count: 0,
       search_query: feature.label || "",
       search_results: [],
       search_active: -1,
@@ -762,6 +780,9 @@ defmodule AtlasWeb.MapLive do
         active_tab={@active_tab}
         search_query={@search_query}
         search_results={@search_results}
+        search_loading={@search_loading}
+        search_complete={@search_complete}
+        search_count={@search_count}
         search_status={@search_status}
         search_active={@search_active}
         search_searched={@search_searched}
