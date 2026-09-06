@@ -23,7 +23,11 @@ defmodule AtlasWeb.SidePanel do
   attr :route_from, :string, default: ""
   attr :route_to, :string, default: ""
   attr :route_options, :map, default: %{}
-  attr :places, :list, required: true
+  attr :categories, :list, default: []
+  attr :scope, :string, default: "all"
+  attr :area_changed, :boolean, default: false
+  attr :viewport_ready, :boolean, default: false
+  attr :search_service, :string, default: "photon"
   attr :tiles_url, :string, required: true
   attr :theme, :string, required: true
   attr :service_status, :map, required: true
@@ -46,7 +50,6 @@ defmodule AtlasWeb.SidePanel do
         <nav class="flex flex-col gap-1 p-1.5 flex-shrink-0">
           <.tab_button active={@active_tab} tab="search" icon="search" label="Search" />
           <.tab_button active={@active_tab} tab="route" icon="route" label="Directions" />
-          <.tab_button active={@active_tab} tab="places" icon="map-pin" label="Places" />
           <.tab_button active={@active_tab} tab="settings" icon="settings" label="Settings" />
           <div class="flex-1"></div>
           <button
@@ -70,8 +73,12 @@ defmodule AtlasWeb.SidePanel do
               complete={@search_complete}
               count={@search_count}
               status={@search_status}
-              service="photon"
-              snapshot={@service_status["photon"]}
+              service={@search_service}
+              snapshot={@service_status[@search_service]}
+              categories={@categories}
+              scope={@scope}
+              area_changed={@area_changed}
+              viewport_ready={@viewport_ready}
               active={@search_active}
               searched={@search_searched}
             />
@@ -85,9 +92,6 @@ defmodule AtlasWeb.SidePanel do
               route_to={@route_to}
               route_options={@route_options}
             />
-          </div>
-          <div class={tab_visible_class(@active_tab, "places")}>
-            <.live_component module={AtlasWeb.PlacesCard} id="places-card" places={@places} />
           </div>
           <div class={tab_visible_class(@active_tab, "settings")}>
             <.live_component

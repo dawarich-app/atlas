@@ -1,6 +1,26 @@
 # Map search
 
-Search covers the data installed in Photon, independently of the current map view.
+Search and Places share one Search panel. Type a name or address immediately,
+choose an optional category, or do both. Category suggestions are explicitly
+labelled **Category** and only apply when clicked; choosing one consumes the
+category text. Quick chips toggle on/off, and **More categories** opens the full
+catalog. Several categories match with OR semantics. If a filter gives no matches,
+**Search all categories** removes it while keeping the query.
+
+**All installed data** is the default scope. **This map area** captures a bounding
+box; moving or zooming the map keeps those results until **Search here** is clicked.
+The UI identifies results from the previous area. Query, categories and captured
+bounds are stored in the URL. **Reset all** cancels loading and clears the query,
+filters and markers, returning to the default scope.
+
+Name/address queries use Photon with category tags forwarded to every subdivided
+request. A category with no text uses the installed Overpass dataset, including
+nodes, ways and relations, collected in pages of 500 with two requests in flight.
+Its coverage can differ from Photon if different extracts or update dates were
+installed. Overpass timeout remarks are treated as incomplete, even with HTTP 200.
+
+
+In the default scope, search covers the installed dataset independently of the current map view.
 The map displays all collected matches in numbered clusters; clicking one zooms
 into its members. Zooming and panning change the presentation, not the result set.
 **Show all** fits every match. Individual points retain their address/OSM popups.
@@ -23,7 +43,7 @@ Freshness and coverage follow the installed OSM/Photon dataset.
 
 An upstream failure, an overflowing coincident location or an excessively broad
 query is shown as **incomplete**, never as a full total. A query uses at most four
-concurrent requests, 4096 cells, 32 subdivision levels and approximately 60 seconds
+concurrent requests (two for Overpass), 4096 cells, 32 subdivision levels and approximately 60 seconds
 (plus any in-flight HTTP timeout). More specific queries can finish sooner.
 
 Cluster counts use accessible HTML buttons and the local application font, so

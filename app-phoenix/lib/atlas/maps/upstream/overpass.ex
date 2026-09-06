@@ -40,13 +40,16 @@ defmodule Atlas.Maps.Upstream.Overpass do
           ~s|node(#{bbox_clause});way(#{bbox_clause});relation(#{bbox_clause});|
 
         filters ->
-          Enum.map_join(filters, "", fn sel ->
-            [k, v] = String.split(sel, "=", parts: 2)
-            ~s|node["#{k}"="#{v}"](#{bbox_clause});way["#{k}"="#{v}"](#{bbox_clause});|
-          end)
+          Enum.map_join(filters, "", &bbox_selector(&1, bbox_clause, opts[:relations]))
       end
 
     ~s|[out:json][timeout:#{timeout}];(#{statements});out body center #{limit};|
+  end
+
+  defp bbox_selector(selector, bbox_clause, relations?) do
+    [key, value] = String.split(selector, "=", parts: 2)
+    kinds = if relations?, do: ~w(node way relation), else: ~w(node way)
+    Enum.map_join(kinds, "", &~s|#{&1}["#{key}"="#{value}"](#{bbox_clause});|)
   end
 
   defp build_query(opts) do

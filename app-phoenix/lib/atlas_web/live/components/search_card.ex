@@ -23,6 +23,11 @@ defmodule AtlasWeb.SearchCard do
   attr :active, :integer, default: -1
   attr :searched, :boolean, default: false
 
+  attr :categories, :list, default: []
+  attr :scope, :string, default: "all"
+  attr :area_changed, :boolean, default: false
+  attr :viewport_ready, :boolean, default: false
+
   def search_card(assigns) do
     assigns =
       assigns
@@ -33,10 +38,12 @@ defmodule AtlasWeb.SearchCard do
     ~H"""
     <div id={@id} class="flex flex-col h-full">
       <header class="px-4 pt-4">
-        <.eyebrow>Geocoding</.eyebrow>
-        <h2 class="mt-1 font-display text-3xl font-extrabold leading-none tracking-tight">
-          Search
-        </h2>
+        <.eyebrow>Places &amp; addresses</.eyebrow>
+        <div class="mt-1 flex items-end justify-between gap-2">
+          <h2 class="font-display text-3xl font-extrabold leading-none tracking-tight">Search</h2>
+          <button :if={@query != "" or @categories != [] or @searched or @scope != "all"} type="button" phx-click="search_reset"
+            class="text-xs link link-primary pb-0.5">Reset all</button>
+        </div>
       </header>
 
       <div class="flex flex-col gap-4 px-4 py-4 overflow-y-auto flex-1 min-h-0">
@@ -46,7 +53,8 @@ defmodule AtlasWeb.SearchCard do
             name="q"
             id="search-input"
             value={@query}
-            placeholder="Places, addresses…"
+            placeholder="Name, address or category…"
+            aria-label="Name, address or category"
             autocomplete="off"
             spellcheck="false"
             phx-debounce="350"
@@ -59,11 +67,16 @@ defmodule AtlasWeb.SearchCard do
           </span>
         </form>
 
+        <AtlasWeb.DiscoveryFilters.filters query={@query} categories={@categories} scope={@scope}
+          area_changed={@area_changed} viewport_ready={@viewport_ready} />
+        <p :if={not @searched and @query == "" and @categories == []} class="text-sm text-base-content/60">
+          Search by name or address, or choose a category to explore places.
+        </p>
         <div :if={@loading or @count > 0} id="search-count" role="status" aria-live="polite" class="text-sm text-base-content/75">
           <span :if={@loading} class="loading loading-spinner loading-xs mr-1"></span>
           <strong>{@count}</strong> matches on the map
           <button :if={@count > 0} type="button" phx-click="show_search_results" class="ml-2 link link-primary text-xs">Show all</button>
-          <span :if={@loading}> · Searching all installed data…</span>
+          <span :if={@loading}> · {if @scope == "all", do: "Searching all installed data…", else: "Searching the selected area…"}</span>
           <span :if={not @loading and @complete}> · All matches loaded</span>
           <p :if={@count > length(@results)} class="mt-1 text-xs opacity-70">Showing the first {length(@results)} in this list. Zoom into a cluster to explore every place.</p>
         </div>
@@ -77,7 +90,7 @@ defmodule AtlasWeb.SearchCard do
         >
           <div class="font-semibold text-base-content">{@service_name} is not installed</div>
           <p class="mt-1 leading-relaxed">
-            Search needs the {@service_name} geocoder and its dataset. Install it from
+            Search needs the {@service_name} service and its dataset. Install it from
             <.link navigate="/admin/services" class="link link-hover font-medium">services</.link>.
           </p>
         </div>
@@ -110,9 +123,15 @@ defmodule AtlasWeb.SearchCard do
           :if={@state == :empty}
           class="rounded-2xl bg-base-200/60 px-4 py-5 text-sm text-base-content/70"
         >
-          No results for <span class="font-medium text-base-content">{@query}</span>.
+          <span :if={@query != ""}>No results for <span class="font-medium text-base-content">{@query}</span>.</span>
+          <span :if={@query == ""}>No places found for these categories.</span>
+          <p class="mt-1 text-xs">{if @scope == "area", do: "Within the selected map area.", else: "Across the installed data."}</p>
+          <button :if={@categories != []} type="button" phx-click="clear_categories" class="mt-2 link link-primary">
+            Search all categories
+          </button>
         </div>
 
+        <button :if={@searched and not @loading and not @complete} type="button" phx-click="search_retry" class="link link-primary text-sm text-left">Retry search</button>
         <div :if={@state == :results}>
           <div class="mb-1.5 font-mono text-[11px] uppercase tracking-[0.2em] text-base-content/55">
             Results

@@ -15,7 +15,7 @@ defmodule Atlas.Maps.SearchAll do
 
   def run(query, opts \\ []) do
     state = %{
-      queue: [{@world, 0}],
+      queue: [{Keyword.get(opts, :bbox, @world), 0}],
       places: %{},
       suggestions: [],
       complete: true,
@@ -26,7 +26,10 @@ defmodule Atlas.Maps.SearchAll do
       page_size: Keyword.get(opts, :page_size, @page_size),
       fetch: Keyword.get(opts, :fetch, &Photon.search/1),
       progress: Keyword.get(opts, :on_progress, fn _ -> :ok end),
-      query: String.trim(query)
+      query: String.trim(query),
+      osm_tags: Keyword.get(opts, :osm_tags),
+      concurrency: Keyword.get(opts, :concurrency, 4),
+      request_timeout: Keyword.get(opts, :request_timeout, 10_000)
     }
 
     collect(state)
@@ -39,19 +42,28 @@ defmodule Atlas.Maps.SearchAll do
          System.monotonic_time(:millisecond) >= state.deadline do
       result(%{state | complete: false})
     else
-      {batch, pending} = Enum.split(state.queue, min(4, state.max_requests - state.requests))
+      {batch, pending} =
+        Enum.split(state.queue, min(state.concurrency, state.max_requests - state.requests))
+
       fetch = state.fetch
       query = state.query
       page_size = state.page_size
+      osm_tags = state.osm_tags
 
       responses =
         Task.async_stream(
           batch,
           fn {bbox, _depth} ->
-            fetch.(query: query, limit: page_size, bbox: bbox, dedupe: false)
+            fetch.(
+              query: query,
+              limit: page_size,
+              bbox: bbox,
+              dedupe: false,
+              osm_tags: osm_tags
+            )
           end,
-          max_concurrency: 4,
-          timeout: 10_000,
+          max_concurrency: state.concurrency,
+          timeout: state.request_timeout,
           on_timeout: :kill_task
         )
 

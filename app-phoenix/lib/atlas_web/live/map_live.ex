@@ -3,6 +3,7 @@ defmodule AtlasWeb.MapLive do
 
   alias Atlas.Geometry.Coord
   alias Atlas.Maps
+  alias Atlas.Maps.{Discovery, Poi.Catalog}
   alias Atlas.Settings
   alias AtlasWeb.SearchMarkers
 
@@ -42,7 +43,11 @@ defmodule AtlasWeb.MapLive do
        mode: "auto",
        route_from: "",
        route_to: "",
-       places: [],
+       categories: [],
+       search_scope: "all",
+       search_bbox: nil,
+       search_area_changed: false,
+       selected_place: false,
        route_options: %{
          "avoid_tolls" => false,
          "avoid_highways" => false,
@@ -67,7 +72,7 @@ defmodule AtlasWeb.MapLive do
   @impl true
   def handle_event("select_tab", %{"tab" => tab}, socket)
       when tab in ~w(search route places settings) do
-    {:noreply, assign(socket, active_tab: tab)}
+    {:noreply, assign(socket, active_tab: if(tab == "places", do: "search", else: tab))}
   end
 
   # The URL is the single source of truth for the query: the event patches it,
@@ -86,8 +91,84 @@ defmodule AtlasWeb.MapLive do
   # Zoom changes only cluster presentation. Never replace a complete dataset
   # with a new ranked subset just because the map moved.
   def handle_event("viewport_changed", %{"bbox" => [_w, _s, _e, _n] = bbox}, socket) do
-    {:noreply, assign(socket, viewport: bbox)}
+    case Discovery.bbox(Enum.join(bbox, ",")) do
+      nil ->
+        {:noreply, socket}
+
+      bbox ->
+        socket =
+          assign(socket,
+            viewport: bbox,
+            search_area_changed:
+              socket.assigns.search_scope == "area" and
+                area_changed?(socket.assigns.search_bbox, bbox)
+          )
+
+        if socket.assigns.search_scope == "area" and is_nil(socket.assigns.search_bbox) do
+          {:noreply, patch_discovery(socket, %{"bbox" => Enum.join(bbox, ",")})}
+        else
+          {:noreply, socket}
+        end
+    end
   end
+
+  def handle_event("toggle_category", %{"id" => id}, socket) do
+    if Catalog.find_item(id) do
+      categories = socket.assigns.categories
+
+      categories =
+        if id in categories, do: List.delete(categories, id), else: Enum.sort([id | categories])
+
+      changes = %{"categories" => Enum.join(categories, ",")}
+      changes = if socket.assigns.selected_place, do: Map.put(changes, "q", ""), else: changes
+      {:noreply, patch_discovery(socket, changes)}
+    else
+      {:noreply, socket}
+    end
+  end
+
+  def handle_event("choose_category", %{"id" => id}, socket) do
+    if Catalog.find_item(id) do
+      categories = Enum.sort(Enum.uniq([id | socket.assigns.categories]))
+
+      {:noreply,
+       patch_discovery(socket, %{"categories" => Enum.join(categories, ","), "q" => ""})}
+    else
+      {:noreply, socket}
+    end
+  end
+
+  def handle_event("clear_categories", _, socket) do
+    {:noreply, patch_discovery(socket, %{"categories" => ""})}
+  end
+
+  def handle_event("search_scope", %{"scope" => "all"}, socket) do
+    {:noreply, patch_discovery(socket, %{"scope" => "", "bbox" => ""})}
+  end
+
+  def handle_event("search_scope", %{"scope" => "area"}, socket), do: search_here(socket)
+  def handle_event("search_here", _, socket), do: search_here(socket)
+
+  def handle_event("search_reset", _, socket) do
+    socket =
+      socket
+      |> cancel_search()
+      |> assign(
+        search_query: "",
+        search_results: [],
+        search_count: 0,
+        search_searched: false,
+        search_active: -1,
+        selected_place: false
+      )
+      |> push_results([])
+
+    {:noreply,
+     patch_discovery(socket, %{"q" => "", "categories" => "", "scope" => "", "bbox" => ""})}
+  end
+
+  def handle_event("search_retry", _, socket),
+    do: {:noreply, run_search(socket, socket.assigns.search_query)}
 
   def handle_event("show_search_results", _params, socket) do
     {:noreply, push_event(socket, "map:fit_results", %{})}
@@ -225,11 +306,6 @@ defmodule AtlasWeb.MapLive do
       Map.update(socket.assigns.route_options, option, true, fn current -> not current end)
 
     {:noreply, assign(socket, route_options: options)}
-  end
-
-  @impl true
-  def handle_event("places_clear", _params, socket) do
-    {:noreply, assign(socket, places: [])}
   end
 
   @impl true
@@ -458,16 +534,28 @@ defmodule AtlasWeb.MapLive do
 
   @impl true
   def handle_params(params, _uri, socket) do
-    socket = assign(socket, url_params: Map.drop(params, ["q"]))
     q = Map.get(params, "q", "")
+    categories = Discovery.category_ids(params["categories"])
+    scope = if params["scope"] == "area", do: "area", else: "all"
+    bbox = if scope == "area", do: Discovery.bbox(params["bbox"]), else: nil
 
-    # The dead render is a throwaway that the connected mount immediately
-    # replaces, so searching there bought nothing and cost a second Photon
-    # round trip for every visit to a shared ?q= link.
-    if q == socket.assigns.search_query or not connected?(socket) do
-      {:noreply, assign(socket, search_query: q)}
-    else
+    changed =
+      q != socket.assigns.search_query or categories != socket.assigns.categories or
+        scope != socket.assigns.search_scope or bbox != socket.assigns.search_bbox
+
+    socket =
+      assign(socket,
+        url_params: Map.drop(params, ["q"]),
+        categories: categories,
+        search_scope: scope,
+        search_bbox: bbox,
+        search_area_changed: scope == "area" and area_changed?(bbox, socket.assigns.viewport)
+      )
+
+    if changed and connected?(socket) do
       {:noreply, run_search(socket, q)}
+    else
+      {:noreply, assign(socket, search_query: q)}
     end
   end
 
@@ -575,6 +663,32 @@ defmodule AtlasWeb.MapLive do
 
   # Keeps whatever else is in the URL (a `tab`, say) and drops `q` entirely when
   # the box is empty, so a cleared search leaves `/` rather than `/?q=`.
+  defp search_here(%{assigns: %{viewport: nil}} = socket), do: {:noreply, socket}
+
+  defp search_here(socket) do
+    {:noreply,
+     patch_discovery(socket, %{
+       "scope" => "area",
+       "bbox" => Enum.join(socket.assigns.viewport, ",")
+     })}
+  end
+
+  defp area_changed?(nil, _), do: false
+  defp area_changed?(_, nil), do: false
+
+  defp area_changed?(before, after_bbox) do
+    Enum.zip(before, after_bbox) |> Enum.any?(fn {a, b} -> abs(a - b) > 0.00001 end)
+  end
+
+  defp patch_discovery(socket, changes) do
+    params =
+      socket.assigns.url_params |> Map.put("q", socket.assigns.search_query) |> Map.merge(changes)
+
+    params = Map.reject(params, fn {_key, value} -> value in [nil, ""] end)
+    path = if params == %{}, do: ~p"/", else: ~p"/?#{params}"
+    push_patch(socket, to: path, replace: true)
+  end
+
   defp search_path(socket, q) do
     params =
       socket.assigns
@@ -588,7 +702,8 @@ defmodule AtlasWeb.MapLive do
   defp searchable?(_), do: false
 
   defp run_search(socket, q) do
-    if searchable?(q) do
+    if (searchable?(q) or (String.trim(q) == "" and socket.assigns.categories != [])) and
+         (socket.assigns.search_scope == "all" or not is_nil(socket.assigns.search_bbox)) do
       dispatch_search(socket, q)
     else
       # The markers go with the list. Escape cleared them; backspacing did not,
@@ -609,6 +724,10 @@ defmodule AtlasWeb.MapLive do
   defp dispatch_search(socket, q) do
     owner = self()
     request_id = make_ref()
+    categories = socket.assigns.categories
+
+    opts =
+      if socket.assigns.search_scope == "area", do: [bbox: socket.assigns.search_bbox], else: []
 
     socket
     |> cancel_search()
@@ -621,12 +740,17 @@ defmodule AtlasWeb.MapLive do
       search_searched: true,
       search_loading: true,
       search_complete: false,
-      search_request_id: request_id
+      search_request_id: request_id,
+      selected_place: socket.assigns.selected_place and q == socket.assigns.search_query
     )
     |> push_results([])
     |> start_async(:map_search, fn ->
-      Maps.SearchAll.run(q,
-        on_progress: fn result -> send(owner, {:search_progress, request_id, result}) end
+      Discovery.run(
+        q,
+        categories,
+        Keyword.put(opts, :on_progress, fn result ->
+          send(owner, {:search_progress, request_id, result})
+        end)
       )
     end)
   end
@@ -674,6 +798,7 @@ defmodule AtlasWeb.MapLive do
     |> cancel_search()
     |> assign(
       search_count: 0,
+      selected_place: true,
       search_query: feature.label || "",
       search_results: [],
       search_active: -1,
@@ -791,7 +916,11 @@ defmodule AtlasWeb.MapLive do
         route_from={@route_from}
         route_to={@route_to}
         route_options={@route_options}
-        places={@places}
+        categories={@categories}
+        scope={@search_scope}
+        area_changed={@search_area_changed}
+        viewport_ready={not is_nil(@viewport)}
+        search_service={if String.trim(@search_query) == "" and @categories != [], do: "overpass", else: "photon"}
         tiles_url={@tiles_url}
         theme={@theme}
         service_status={@service_status}
@@ -810,6 +939,7 @@ defmodule AtlasWeb.MapLive do
           data-tiles-url={@tiles_url}
           data-theme={@theme}
           data-center="[10.4515, 51.1657]"
+          data-bounds={if @search_bbox, do: Jason.encode!(@search_bbox)}
           data-zoom="5"
         >
         </div>

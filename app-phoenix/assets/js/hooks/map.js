@@ -21,6 +21,7 @@ export default {
     const tilesUrl = this.el.dataset.tilesUrl
     const theme = this.el.dataset.theme || "forest-patina"
     const initialCenter = JSON.parse(this.el.dataset.center || "[10.4515, 51.1657]")
+    const initialBounds = this.el.dataset.bounds ? JSON.parse(this.el.dataset.bounds) : null
     const initialZoom = parseFloat(this.el.dataset.zoom || "5")
 
     const style = tilesUrl ? tilesUrl : OSM_RASTER_FALLBACK
@@ -29,7 +30,8 @@ export default {
       container: this.el,
       style: style,
       center: initialCenter,
-      zoom: initialZoom
+      zoom: initialZoom,
+      ...(initialBounds ? {bounds: [[initialBounds[0], initialBounds[1]], [initialBounds[2], initialBounds[3]]]} : {})
     })
 
     this.resizeObserver = new ResizeObserver(() => this.map.resize())
@@ -55,6 +57,18 @@ export default {
     this.handleEvent("map:set_results", ({ points }) => {
       this.searchClusters.setPoints(points)
     })
+
+    const reportViewport = () => {
+      const bounds = this.map.getBounds()
+      const west = bounds.getWest(), east = bounds.getEast()
+      // A wrapped view spans the antimeridian; use a valid encompassing box.
+      const bbox = [Math.max(-180, west), Math.max(-90, bounds.getSouth()),
+        Math.min(180, east), Math.min(90, bounds.getNorth())]
+      if (bbox[0] >= bbox[2]) { bbox[0] = -180; bbox[2] = 180 }
+      this.pushEvent("viewport_changed", { bbox })
+    }
+    this.map.on("load", reportViewport)
+    this.map.on("moveend", reportViewport)
 
     this.routeGeoJSON = null
 
