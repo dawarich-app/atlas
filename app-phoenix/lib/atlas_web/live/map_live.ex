@@ -148,21 +148,27 @@ defmodule AtlasWeb.MapLive do
   @impl true
   def handle_event("route", %{"from" => from, "to" => to} = params, socket) do
     mode = Map.get(params, "mode", socket.assigns.mode)
-    socket = assign(socket, route_from: from, route_to: to)
+    socket = assign(socket, route_from: from, route_to: to, mode: mode)
 
     with {:ok, from_coords} <- Coord.parse_latlon(from),
          {:ok, to_coords} <- Coord.parse_latlon(to),
-         {:ok, result} <- Maps.Route.plan(from: from_coords, to: to_coords, mode: mode) do
-      case result.features do
-        %{legs: legs} when is_list(legs) and legs != [] ->
+         {:ok, result} <- plan_route(mode, from_coords, to_coords, socket.assigns.route_options) do
+      socket = assign(socket, upstream_status: result.upstream_status)
+
+      case route_legs(result.features) do
+        [_ | _] = legs ->
           {:noreply,
            socket
-           |> assign(directions: result.features, upstream_status: result.upstream_status)
+           |> assign(directions: result.features)
            |> push_event("map:draw_route", %{geojson: Coord.legs_to_geojson(legs)})}
 
-        _ ->
+        [] ->
+          # Clear any stale line and tell the user nothing was found.
           {:noreply,
-           assign(socket, directions: result.features, upstream_status: result.upstream_status)}
+           socket
+           |> assign(directions: nil)
+           |> push_event("map:draw_route", %{geojson: Coord.legs_to_geojson([])})
+           |> put_flash(:info, "No route found for this trip.")}
       end
     else
       :error ->
@@ -647,6 +653,37 @@ defmodule AtlasWeb.MapLive do
   defp move_active(-1, 1, _count), do: 0
   defp move_active(-1, -1, count), do: count - 1
   defp move_active(current, dir, count), do: Integer.mod(current + dir, count)
+
+  # Transit goes to OTP; everything else (auto/bicycle/pedestrian) to Valhalla.
+  # Valhalla.route/2 raises on an unknown costing, so transit must never reach it.
+  defp plan_route("transit", from, to, _options) do
+    Maps.Transit.plan(from: from, to: to)
+  end
+
+  defp plan_route(mode, from, to, options) do
+    Maps.Route.plan(from: from, to: to, mode: mode, options: costing_options(options))
+  end
+
+  # The route-option toggles are stored string-keyed; Valhalla's costing options
+  # want atoms. Whitelist the three known keys rather than String.to_atom/1.
+  defp costing_options(options) when is_map(options) do
+    %{
+      avoid_tolls: Map.get(options, "avoid_tolls", false),
+      avoid_highways: Map.get(options, "avoid_highways", false),
+      avoid_ferries: Map.get(options, "avoid_ferries", false)
+    }
+  end
+
+  defp costing_options(_), do: %{}
+
+  # Valhalla results carry a flat `legs` list; OTP transit results carry
+  # `itineraries`, each with its own `legs`. Draw the first itinerary.
+  defp route_legs(%{legs: legs}) when is_list(legs), do: legs
+
+  defp route_legs(%{itineraries: [itinerary | _]}) when is_map(itinerary),
+    do: Map.get(itinerary, :legs, [])
+
+  defp route_legs(_), do: []
 
   defp refresh_service_status do
     Seeder.known_services()

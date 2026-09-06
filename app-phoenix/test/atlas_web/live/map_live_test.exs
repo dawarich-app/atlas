@@ -7,13 +7,13 @@ defmodule AtlasWeb.MapLiveTest do
     bypass = Bypass.open()
 
     Enum.each(
-      ~w[PHOTON_URL PLACEHOLDER_URL LIBPOSTAL_URL VALHALLA_URL],
+      ~w[PHOTON_URL PLACEHOLDER_URL LIBPOSTAL_URL VALHALLA_URL OTP_URL],
       &System.put_env(&1, "http://localhost:#{bypass.port}")
     )
 
     on_exit(fn ->
       Enum.each(
-        ~w[PHOTON_URL PLACEHOLDER_URL LIBPOSTAL_URL VALHALLA_URL],
+        ~w[PHOTON_URL PLACEHOLDER_URL LIBPOSTAL_URL VALHALLA_URL OTP_URL],
         &System.delete_env/1
       )
     end)
@@ -756,6 +756,45 @@ defmodule AtlasWeb.MapLiveTest do
     Enum.each(features, fn feature ->
       assert %{type: "Feature", geometry: %{type: "LineString", coordinates: coords}} = feature
       assert is_list(coords)
+      assert length(coords) >= 2
+    end)
+  end
+
+  test "route event with transit mode queries OTP and draws the itinerary", %{
+    conn: conn,
+    bypass: bypass
+  } do
+    # Regression: the "transit" mode button must reach OTP, not Valhalla.
+    # Valhalla.route/2 raises on an unknown costing, so a misrouted transit
+    # request would crash the LiveView instead of returning an itinerary.
+    Bypass.expect(bypass, fn c ->
+      case c.request_path do
+        "/otp/gtfs/v1" ->
+          body =
+            ~s({"data":{"planConnection":{"edges":[{"node":{"start":1,"end":2,"duration":600,"numberOfTransfers":0,"legs":[{"mode":"BUS","start":1,"end":2,"duration":600,"legGeometry":{"points":"_p~iF~ps|U_ulLnnqC_mqNvxq`@"}}]}}]}}})
+
+          Plug.Conn.resp(c, 200, body)
+
+        _ ->
+          # A "/route" hit here would mean the request went to Valhalla by mistake.
+          Plug.Conn.resp(c, 200, "{}")
+      end
+    end)
+
+    {:ok, view, _html} = live(conn, ~p"/")
+
+    render_hook(view, "route", %{
+      "from" => "52.5,13.4",
+      "to" => "52.6,13.5",
+      "mode" => "transit"
+    })
+
+    assert_push_event(view, "map:draw_route", %{geojson: geojson})
+    assert %{type: "FeatureCollection", features: features} = geojson
+    assert features != []
+    # Transit leg geometry is google_polyline5; decoding must yield real points.
+    Enum.each(features, fn feature ->
+      assert %{type: "Feature", geometry: %{type: "LineString", coordinates: coords}} = feature
       assert length(coords) >= 2
     end)
   end
