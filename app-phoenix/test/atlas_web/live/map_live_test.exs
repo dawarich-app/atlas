@@ -686,9 +686,9 @@ defmodule AtlasWeb.MapLiveTest do
     assert html =~ "All matches loaded"
     assert has_element?(view, "#search-count strong", "90")
     assert length(Regex.scan(~r/phx-click="select_result"/, html)) == 40
-    assert_push_event(view, "map:set_results", %{points: [_ | _] = initial})
+    assert_push_event(view, "map:set_results", %{points: [_ | _] = initial, loading: true})
     assert length(initial) == 50
-    assert_push_event(view, "map:set_results", %{points: [_ | _] = all})
+    assert_push_event(view, "map:set_results", %{points: [_ | _] = all, loading: false})
     assert length(all) == 90
     assert MapSet.size(MapSet.new(Enum.map(all, & &1.id))) == 90
   end

@@ -49,3 +49,10 @@ concurrent requests (two for Overpass), 4096 cells, 32 subdivision levels and ap
 Cluster counts use accessible HTML buttons and the local application font, so
 number labels do not require an external glyph server. MapLibre performs the
 clustering in its worker; only visible clusters and points create DOM markers.
+
+During progressive loading, visible markers stay in place until the worker has
+indexed the next batch. Nearby clusters reuse their existing marker elements,
+updating counts and click targets together. A soft halo pulses around clusters
+and individual points while loading; their bodies and labels remain opaque.
+The halo stops after the final batch is rendered, and reduced-motion preferences
+show a static ring. Clearing a search still removes its markers immediately.

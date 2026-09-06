@@ -54,9 +54,10 @@ export default {
 
     this.handleEvent("map:fit_results", () => this.searchClusters.fitBounds())
 
-    this.handleEvent("map:set_results", ({ points }) => {
-      this.searchClusters.setPoints(points)
+    this.handleEvent("map:set_results", ({ points, loading = false }) => {
+      this.searchClusters.setPoints(points, loading)
     })
+    this.handleEvent("map:search_loading", ({ loading }) => this.searchClusters.setLoading(loading))
 
     const reportViewport = () => {
       const bounds = this.map.getBounds()

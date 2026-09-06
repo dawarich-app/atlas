@@ -759,6 +759,7 @@ defmodule AtlasWeb.MapLive do
     socket
     |> cancel_async(:map_search)
     |> assign(search_request_id: nil, search_loading: false, search_complete: false)
+    |> push_event("map:search_loading", %{loading: false})
   end
 
   defp apply_search_result(socket, result) do
@@ -775,12 +776,14 @@ defmodule AtlasWeb.MapLive do
 
   @impl true
   def handle_async(:map_search, {:ok, result}, socket) do
-    {:noreply, socket |> apply_search_result(result) |> assign(search_loading: false)}
+    {:noreply, socket |> assign(search_loading: false) |> apply_search_result(result)}
   end
 
   def handle_async(:map_search, {:exit, _reason}, socket) do
     {:noreply,
-     assign(socket, search_loading: false, search_complete: false, search_status: "unavailable")}
+     socket
+     |> assign(search_loading: false, search_complete: false, search_status: "unavailable")
+     |> push_event("map:search_loading", %{loading: false})}
   end
 
   # One event replaces the whole marker set, mirroring the Rails map: every
@@ -788,7 +791,10 @@ defmodule AtlasWeb.MapLive do
   # Replacing wholesale also removes the clear-then-add ordering that let a
   # pan-triggered refresh wipe the pin a user had just dropped.
   defp push_results(socket, features) do
-    push_event(socket, "map:set_results", %{points: SearchMarkers.points(features)})
+    push_event(socket, "map:set_results", %{
+      points: SearchMarkers.points(features),
+      loading: socket.assigns.search_loading
+    })
   end
 
   defp select_feature(socket, feature) do
