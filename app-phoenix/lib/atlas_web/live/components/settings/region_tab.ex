@@ -8,6 +8,7 @@ defmodule AtlasWeb.Settings.RegionTab do
   import AtlasWeb.IconHelpers
 
   alias Atlas.Control.RegionCatalog
+  alias AtlasWeb.Components.ApplyTimelineComponent
 
   attr :regions, :list, required: true
   attr :tree_index, :map, required: true
@@ -16,7 +17,7 @@ defmodule AtlasWeb.Settings.RegionTab do
   attr :region_query, :string, required: true
   attr :expanded, :any, required: true
   attr :quick_picks, :list, required: true
-  attr :apply_status, :any, default: nil
+  attr :timeline, :any, default: nil
   attr :myself, :any, required: true
 
   def region_tab(assigns) do
@@ -33,7 +34,7 @@ defmodule AtlasWeb.Settings.RegionTab do
 
     ~H"""
     <div>
-      <.apply_card :if={@apply_status} status={@apply_status} />
+      <ApplyTimelineComponent.timeline timeline={@timeline} />
 
       <.selected_tray selection={@selection} by_name={@by_name} />
 
@@ -96,67 +97,6 @@ defmodule AtlasWeb.Settings.RegionTab do
     </div>
     """
   end
-
-  attr :status, :map, required: true
-
-  defp apply_card(assigns) do
-    error = Map.get(assigns.status, :error)
-
-    assigns =
-      assigns
-      |> assign(:error, error)
-      |> assign(:phase, Map.get(assigns.status, :phase))
-      |> assign(:region, Map.get(assigns.status, :region))
-      |> assign(:progress, Map.get(assigns.status, :progress))
-      |> assign(:regions, Map.get(assigns.status, :regions, []))
-
-    ~H"""
-    <div
-      class={[
-        "mb-4 rounded-2xl px-3.5 py-3",
-        @error && "bg-error/10",
-        !@error && "bg-warning/10"
-      ]}
-      data-role="apply-card"
-    >
-      <div :if={!@error}>
-        <div class="flex items-center gap-2 font-mono text-[12px] font-semibold text-warning">
-          <span class="loading loading-spinner loading-xs"></span>
-          Applying {Enum.join(@regions, ", ")}
-        </div>
-        <div class="mt-1.5 font-mono text-[11.5px] capitalize text-base-content/70">
-          {phase_text(@phase)}<%= if @region do %> · {@region}<% end %>
-          <%= if is_number(@progress) do %>
-            · {round(@progress * 100)}%
-          <% end %>
-        </div>
-        <progress
-          :if={is_number(@progress)}
-          class="progress progress-warning mt-2 w-full"
-          value={round(@progress * 100)}
-          max="100"
-        >
-        </progress>
-      </div>
-
-      <div :if={@error}>
-        <div class="font-mono text-[12px] font-semibold text-error">
-          Region apply failed ({phase_text(@phase)})
-        </div>
-        <div class="mt-1.5 break-words font-mono text-[11.5px] text-base-content/70">
-          {@error}
-        </div>
-      </div>
-    </div>
-    """
-  end
-
-  defp phase_text(:downloading), do: "downloading"
-  defp phase_text(:merging), do: "merging"
-  defp phase_text(:converting), do: "converting for overpass"
-  defp phase_text(:staging), do: "staging transit inputs"
-  defp phase_text(:restarting), do: "restarting services"
-  defp phase_text(_), do: "working"
 
   attr :selection, :any, required: true
   attr :by_name, :map, required: true

@@ -1,2 +1,12 @@
-12:12:00.123 INFO (GrizzlyServer) Started listening on port 8080
-12:12:00.456 INFO (OTPMain) Server started successfully
+15:12:24.017 INFO [main]  (SerializedGraphObject.java:283) Graph written: graph.obj
+15:12:24.017 INFO [main]  (DefaultTransferRepository.java:54) Transfer repository indexing...
+15:12:24.017 INFO [main]  (DefaultTransferRepository.java:56) Transfer repository indexing complete.
+15:12:25.575 INFO [main]  (ConstructApplication.java:246) Creating transit layer for Raptor routing.
+15:12:28.137 INFO [updater-ready]  (GraphUpdaterManager.java:276) OTP UPDATERS INITIALIZED (0 updaters) - OTP 2.10.0-SNAPSHOT is ready for routing!
+15:12:30.031 INFO [main]  (GrizzlyServer.java:61) Starting OTP Grizzly server on port 8080 of interface 0.0.0.0
+15:12:30.031 INFO [main]  (GrizzlyServer.java:66) OTP server base directory is: [/var/opentripplanner]
+15:12:30.046 INFO [main]  (GrizzlyServer.java:163) Java reports that this machine has 18 available processors.
+15:12:30.046 INFO [main]  (GrizzlyServer.java:173) Maximum HTTP handler thread pool size will be 22 threads.
+15:12:30.831 INFO [main]  (NetworkListener.java:812) Started listener bound to [0.0.0.0:8080]
+15:12:30.832 INFO [main]  (HttpServer.java:254) [HttpServer] Started.
+15:12:30.832 INFO [main]  (GrizzlyServer.java:143) Grizzly server running.

@@ -14,7 +14,12 @@ defmodule Atlas.Control.Preflight do
   @key {__MODULE__, :results}
   @data_subdirs ~w(osm gtfs otp tiles)
 
-  @type result :: %{check: atom(), status: :ok | :error, detail: String.t() | nil, remedy: String.t() | nil}
+  @type result :: %{
+          check: atom(),
+          status: :ok | :error,
+          detail: String.t() | nil,
+          remedy: String.t() | nil
+        }
 
   @doc "Run all checks. Returns a list of result maps."
   def run(opts \\ []) do

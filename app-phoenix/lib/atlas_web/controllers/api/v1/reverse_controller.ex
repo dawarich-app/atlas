@@ -41,7 +41,10 @@ defmodule AtlasWeb.Api.V1.ReverseController do
     summary: "Reverse-geocode a batch of coordinates",
     request_body:
       {"Batch request", "application/json",
-       %OpenApiSpex.Schema{type: :object, properties: %{coords: %OpenApiSpex.Schema{type: :array}}}},
+       %OpenApiSpex.Schema{
+         type: :object,
+         properties: %{coords: %OpenApiSpex.Schema{type: :array}}
+       }},
     responses: %{
       200 => response("Batch reverse results", "application/json", Schemas.Response),
       400 => response("Missing coords", "application/json", Schemas.Error),

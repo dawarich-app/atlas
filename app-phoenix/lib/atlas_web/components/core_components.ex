@@ -64,7 +64,7 @@ defmodule AtlasWeb.CoreComponents do
   def flash_group(assigns) do
     ~H"""
     <div id={@id} aria-live="polite">
-      <.flash kind={:info} title={gettext("Success!")} flash={@flash} />
+      <.flash kind={:info} title={gettext("Notice")} flash={@flash} />
       <.flash kind={:error} title={gettext("Error!")} flash={@flash} />
 
       <.flash

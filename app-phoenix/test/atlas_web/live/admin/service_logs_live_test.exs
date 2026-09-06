@@ -48,4 +48,15 @@ defmodule AtlasWeb.Admin.ServiceLogsLiveTest do
 
     assert render(view) =~ "broadcasted"
   end
+
+  test "the log viewer offers a copy button wired to the log element", %{conn: conn} do
+    {:ok, _view, html} = live(conn, ~p"/admin/services/valhalla/logs")
+
+    # The hook copies `data-copy-target`'s textContent, so the id it names has
+    # to be the element that actually holds the lines — a stale id copies
+    # nothing and fails silently in the browser.
+    assert html =~ ~s(phx-hook="CopyLogs")
+    assert html =~ ~s(data-copy-target="log-viewer")
+    assert html =~ ~s(id="log-viewer")
+  end
 end

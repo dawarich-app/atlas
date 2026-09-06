@@ -85,7 +85,20 @@ defmodule AtlasWeb.Admin.ServiceLogsLive do
     ~H"""
     <div class="flex items-center justify-between mb-4">
       <h1 class="text-2xl font-bold">Logs: {@name}</h1>
-      <.link navigate={~p"/admin/services"} class="btn btn-ghost btn-sm">← back to Services</.link>
+      <div class="flex items-center gap-2">
+        <button
+          id="admin-log-copy"
+          type="button"
+          phx-hook="CopyLogs"
+          data-copy-target="log-viewer"
+          data-copy-label="copy logs"
+          class="btn btn-ghost btn-sm"
+          aria-label="Copy logs to clipboard"
+        >
+          copy logs
+        </button>
+        <.link navigate={~p"/admin/services"} class="btn btn-ghost btn-sm">← back to Services</.link>
+      </div>
     </div>
 
     <div :if={@tailer_failed} class="alert alert-warning mb-3 max-w-2xl" data-role="logs-stream-error">

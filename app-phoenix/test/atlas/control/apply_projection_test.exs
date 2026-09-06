@@ -87,7 +87,13 @@ defmodule Atlas.Control.ApplyProjectionTest do
         enabled: true
       })
 
-    sub = %RegionCatalog{name: "gf:germany/bayern", label: "Bayern", kind: "subregion", pbf_urls: ["x"]}
+    sub = %RegionCatalog{
+      name: "gf:germany/bayern",
+      label: "Bayern",
+      kind: "subregion",
+      pbf_urls: ["x"]
+    }
+
     city = %RegionCatalog{name: "bbbike:berlin", label: "Berlin", kind: "city", pbf_urls: ["x"]}
     country = %RegionCatalog{name: "gf:spain", label: "Spain", kind: "country", pbf_urls: ["x"]}
 

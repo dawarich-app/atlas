@@ -1,0 +1,285 @@
+15:08:21.689 INFO [main]  (ConfigFileLoader.java:100) Load JSON configuration file '/var/opentripplanner/build-config.json'
+15:08:21.698 INFO [main]  (ConfigFileLoader.java:101) Summarizing 'build-config.json': {
+  "osmDefaults" : {
+    "timeZone" : "Europe/Berlin"
+  }
+}
+15:08:21.739 INFO [main]  (ConfigFileLoader.java:104) File '/var/opentripplanner/router-config.json' is not present. Using default configuration.
+15:08:21.750 INFO [main]  (ConfigFileLoader.java:104) File '/var/opentripplanner/debug-ui-config.json' is not present. Using default configuration.
+15:08:21.751 INFO [main]  (OTPFeature.java:202) Features turned on: 
+	APIServerInfo
+	APIUpdaterStatus
+	ConsiderPatternsForDirectTransfers
+	CostlyAssertions
+	DebugUi
+	FloatingBike
+	GtfsGraphQlApi
+	OptimizeTransfers
+	TransferConstraints
+	TransmodelGraphQlApi
+	WaitForGraphUpdateInPollingUpdaters
+15:08:21.751 INFO [main]  (OTPFeature.java:203) Features turned off: 
+	AlertMetrics
+	ExtraTransferLegOnSameStop
+	IncludeStopsUsedRealTimeInTransfers
+	MinimumTransferTimeIsDefinitive
+	OnDemandRaptorTransfer
+	ParallelRouting
+	ActuatorAPI
+	HttpResponseTimeMetrics
+	AsyncGraphQLFetchers
+	CarPooling
+	Emission
+	EmpiricalDelay
+	DataOverlay
+	DebugRasterTiles
+	FaresV2
+	FlexRouting
+	GoogleCloudStorage
+	MultiCriteriaGroupMaxFilter
+	OjpApi
+	RealtimeResolver
+	ReportApi
+	SandboxAPIGeocoder
+	SandboxAPIMapboxVectorTilesApi
+	SandboxAPIParkAndRideApi
+	Sorlandsbanen
+	TransferAnalyzer
+	TriasApi
+15:08:21.752 WARN [main]  (OTPFeature.java:206) FEATURES THAT SHOULD BE TURNED OFF IN PRODUCTION: 
+	CostlyAssertions
+15:08:21.759 INFO [main]  (GraphBuilderDataSources.java:278) Data source location(s): HTTPS, /var/opentripplanner
+15:08:21.760 INFO [main]  (GraphBuilderDataSources.java:281) Existing files expected to be read or written:
+15:08:21.761 INFO [main]  (GraphBuilderDataSources.java:284) - ⚙️ build-config.json  /var/opentripplanner  2026-08-12 15:04:57  59 bytes
+15:08:21.761 INFO [main]  (GraphBuilderDataSources.java:284) - 🌍 region.osm.pbf  /var/opentripplanner  2026-08-12 15:04:57  98.9 MB
+15:08:21.762 INFO [main]  (GraphBuilderDataSources.java:284) - 🚌 vbb.gtfs.zip  /var/opentripplanner  2026-08-12 12:30:48  75.4 MB
+15:08:21.762 INFO [main]  (GraphBuilderDataSources.java:284) - 🌐 graph.obj  /var/opentripplanner  2026-08-12 15:05:52  319.4 MB
+15:08:21.789 INFO [main]  (SerializedGraphObject.java:140) Graph already exists and will be overwritten at the end of the build process. Graph: /var/opentripplanner/graph.obj
+15:08:21.789 INFO [main]  (ConstructApplication.java:143) Wiring up and configuring graph builder task.
+15:08:21.791 WARN [main]  (TimetableRepository.java:303) graph contains no agencies (yet); API request times will be interpreted as GMT.
+15:08:21.820 INFO [main]  (OsmModule.java:132) Gathering OSM from provider: DefaultOsmProvider{source: OSM /var/opentripplanner/region.osm.pbf, cacheDataInMem: false}
+15:08:21.821 INFO [main]  (OsmModule.java:133) Using OSM way configuration from OsmTagMapper.
+15:08:21.823 INFO [main]  (DefaultOsmProvider.java:93) Parse OSM Relations progress tracking started.
+WARNING: A terminally deprecated method in sun.misc.Unsafe has been called
+WARNING: sun.misc.Unsafe::arrayBaseOffset has been called by com.google.protobuf.UnsafeUtil (file:/app/libs/protobuf-java-4.34.1.jar)
+WARNING: Please consider reporting this to the maintainers of class com.google.protobuf.UnsafeUtil
+WARNING: sun.misc.Unsafe::arrayBaseOffset will be removed in a future release
+15:08:24.101 INFO [main]  (DefaultOsmProvider.java:93) Parse OSM Relations progress tracking complete. 98.9 MB done in 2s278ms (43.4 MB per second). 
+15:08:24.102 INFO [main]  (DefaultOsmProvider.java:93) Parse OSM Ways progress tracking started.
+15:08:27.583 INFO [main]  (DefaultOsmProvider.java:93) Parse OSM Ways progress tracking complete. 98.9 MB done in 3s480ms (28.4 MB per second). 
+15:08:27.891 INFO [main]  (DefaultOsmProvider.java:93) Parse OSM Nodes progress tracking started.
+15:08:32.133 INFO [main]  (DefaultOsmProvider.java:93) Parse OSM Nodes progress tracking complete. 98.9 MB done in 4s242ms (23.3 MB per second). 
+15:08:32.938 INFO [main]  (OsmDatabase.java:402) Intersecting unconnected areas...
+15:09:34.245 INFO [main]  (OsmDatabase.java:634) Created 395 virtual intersection nodes.
+15:09:34.246 INFO [main]  (OsmModule.java:141) Building street graph from OSM
+15:09:34.250 INFO [main]  (ParkingProcessor.java:70) Processing car P+R nodes.
+15:09:34.267 INFO [main]  (ParkingProcessor.java:109) Created 2 car P+R nodes.
+15:09:34.855 INFO [main]  (OsmModule.java:321) Build street graph progress tracking started.
+15:09:39.995 INFO [main]  (OsmModule.java:527) Build street graph progress: 105,000 of 539,130 (19%)
+15:09:45.151 INFO [main]  (OsmModule.java:527) Build street graph progress: 215,000 of 539,130 (39%)
+15:09:50.403 INFO [main]  (OsmModule.java:527) Build street graph progress: 330,000 of 539,130 (61%)
+15:09:55.555 INFO [main]  (OsmModule.java:527) Build street graph progress: 445,000 of 539,130 (82%)
+15:09:56.437 INFO [main]  (OsmModule.java:530) Build street graph progress tracking complete. 467,733 done in 21s581ms (21,672 per second). 
+15:09:56.437 INFO [main]  (OsmModule.java:264) Skipping visibility graph construction for walkable areas and using just area rings for edges.
+15:09:58.899 INFO [main]  (OsmModule.java:307) Done building rings for walkable areas.
+15:09:58.900 INFO [main]  (OsmModule.java:535) Building edges to pass through linear barriers
+15:09:59.044 INFO [main]  (OsmModule.java:553) Build edges through barriers progress tracking complete. 65,051 done in 144ms (448,628 per second). 
+15:09:59.044 INFO [main]  (OsmModule.java:554) Complete building edges through linear barriers
+15:09:59.128 INFO [main]  (OsmModule.java:208) Created 129 car P+R areas.
+15:10:01.133 INFO [main]  (GtfsModule.java:312) reading GTFS bundle at /var/opentripplanner/vbb.gtfs.zip (1)
+15:10:01.141 INFO [main]  (GtfsModule.java:328) Reading entity: org.onebusaway.gtfs.model.Agency
+15:10:01.178 INFO [main]  (GtfsModule.java:328) Reading entity: org.onebusaway.gtfs.model.Block
+15:10:01.180 INFO [main]  (GtfsModule.java:328) Reading entity: org.onebusaway.gtfs.model.ShapePoint
+15:10:07.138 INFO [main]  (GtfsModule.java:328) Reading entity: org.onebusaway.gtfs.model.Icon
+15:10:07.141 INFO [main]  (GtfsModule.java:325) Skipping entity: org.onebusaway.gtfs.model.Area
+15:10:07.141 INFO [main]  (GtfsModule.java:328) Reading entity: org.onebusaway.gtfs.model.BookingRule
+15:10:07.143 INFO [main]  (GtfsModule.java:328) Reading entity: org.onebusaway.gtfs.model.Route
+15:10:07.171 INFO [main]  (GtfsModule.java:325) Skipping entity: org.onebusaway.gtfs.model.RouteNetworkAssignment
+15:10:07.171 INFO [main]  (GtfsModule.java:328) Reading entity: org.onebusaway.gtfs.model.Level
+15:10:07.178 INFO [main]  (GtfsModule.java:328) Reading entity: org.onebusaway.gtfs.model.Stop
+15:10:07.478 INFO [main]  (GtfsModule.java:328) Reading entity: org.onebusaway.gtfs.model.Location
+15:10:07.478 INFO [main]  (GtfsModule.java:328) Reading entity: org.onebusaway.gtfs.model.LocationGroup
+15:10:07.479 INFO [main]  (GtfsModule.java:328) Reading entity: org.onebusaway.gtfs.model.LocationGroupElement
+15:10:07.481 INFO [main]  (GtfsModule.java:328) Reading entity: org.onebusaway.gtfs.model.Trip
+15:10:07.955 INFO [main]  (GtfsModule.java:325) Skipping entity: org.onebusaway.gtfs.model.StopAreaElement
+15:10:07.956 INFO [main]  (GtfsModule.java:328) Reading entity: org.onebusaway.gtfs.model.StopTime
+15:10:16.698 INFO [main]  (GtfsModule.java:328) Reading entity: org.onebusaway.gtfs.model.ServiceCalendar
+15:10:16.710 INFO [main]  (GtfsModule.java:328) Reading entity: org.onebusaway.gtfs.model.ServiceCalendarDate
+15:10:16.733 INFO [main]  (GtfsModule.java:325) Skipping entity: org.onebusaway.gtfs.model.RiderCategory
+15:10:16.733 INFO [main]  (GtfsModule.java:325) Skipping entity: org.onebusaway.gtfs.model.FareMedium
+15:10:16.733 INFO [main]  (GtfsModule.java:325) Skipping entity: org.onebusaway.gtfs.model.FareProduct
+15:10:16.733 INFO [main]  (GtfsModule.java:325) Skipping entity: org.onebusaway.gtfs.model.FareLegRule
+15:10:16.733 INFO [main]  (GtfsModule.java:328) Reading entity: org.onebusaway.gtfs.model.FareAttribute
+15:10:16.734 INFO [main]  (GtfsModule.java:328) Reading entity: org.onebusaway.gtfs.model.FareRule
+15:10:16.735 INFO [main]  (GtfsModule.java:325) Skipping entity: org.onebusaway.gtfs.model.FareTransferRule
+15:10:16.735 INFO [main]  (GtfsModule.java:328) Reading entity: org.onebusaway.gtfs.model.Frequency
+15:10:16.735 INFO [main]  (GtfsModule.java:328) Reading entity: org.onebusaway.gtfs.model.Pathway
+15:10:16.964 INFO [main]  (GtfsModule.java:328) Reading entity: org.onebusaway.gtfs.model.Transfer
+15:10:17.033 INFO [main]  (GtfsModule.java:328) Reading entity: org.onebusaway.gtfs.model.FeedInfo
+15:10:17.034 INFO [main]  (GtfsModule.java:328) Reading entity: org.onebusaway.gtfs.model.Ridership
+15:10:17.034 INFO [main]  (GtfsModule.java:328) Reading entity: org.onebusaway.gtfs.model.Translation
+15:10:17.035 INFO [main]  (GtfsModule.java:328) Reading entity: org.onebusaway.gtfs.model.Vehicle
+15:10:17.035 INFO [main]  (GtfsModule.java:328) Reading entity: org.onebusaway.gtfs.model.Facility
+15:10:17.035 INFO [main]  (GtfsModule.java:328) Reading entity: org.onebusaway.gtfs.model.FacilityPropertyDefinition
+15:10:17.035 INFO [main]  (GtfsModule.java:328) Reading entity: org.onebusaway.gtfs.model.FacilityProperty
+15:10:17.036 INFO [main]  (GtfsModule.java:328) Reading entity: org.onebusaway.gtfs.model.DirectionEntry
+15:10:17.036 INFO [main]  (GtfsModule.java:328) Reading entity: org.onebusaway.gtfs.model.Network
+15:10:17.036 INFO [main]  (GtfsModule.java:328) Reading entity: org.onebusaway.gtfs.model.Timeframe
+15:10:22.885 WARN [main]  (TransitDataImportBuilder.java:290) Limiting transit service days to time period: [2025-08-12, 2029-08-12]
+15:10:22.980 INFO [main]  (TransitDataImportBuilder.java:311) Limiting transit service days to time period complete.
+15:10:23.076 INFO [main]  (ValidateAndInterpolateStopTimesForEachTrip.java:55) Validate StopTimes progress tracking started.
+15:10:23.554 INFO [main]  (ValidateAndInterpolateStopTimesForEachTrip.java:81) Validate StopTimes progress tracking complete. 244,363 done in 478ms (510,152 per second). 
+15:10:23.612 INFO [main]  (GenerateTripPatternsOperation.java:79) build trip patterns progress tracking started.
+15:10:30.647 INFO [main]  (GenerateTripPatternsOperation.java:86) build trip patterns progress: 100,000 of 244,363 (40%)
+15:10:36.951 INFO [main]  (GenerateTripPatternsOperation.java:86) build trip patterns progress: 200,000 of 244,363 (81%)
+15:10:40.016 INFO [main]  (GenerateTripPatternsOperation.java:100) build trip patterns progress tracking complete. 244,363 done in 16s403ms (14,897 per second). 
+15:10:40.017 INFO [main]  (GenerateTripPatternsOperation.java:101) Added 0 frequency-based and 244363 single-trip timetable entries.
+15:10:40.023 INFO [main]  (SiteRepository.java:290) Index site repository...
+15:10:40.046 INFO [main]  (SiteRepository.java:292) Index site repository complete.
+15:10:40.069 INFO [main]  (SiteRepository.java:290) Index site repository...
+15:10:40.081 INFO [main]  (SiteRepository.java:292) Index site repository complete.
+15:10:41.337 INFO [main]  (InterlineProcessor.java:130) Finding interlining trips based on block IDs.
+15:10:41.395 ERROR [main]  (InterlineProcessor.java:201) Trip times within block 12589 are not increasing on after trip 1:301675966.
+15:10:41.395 ERROR [main]  (InterlineProcessor.java:201) Trip times within block 12589 are not increasing on after trip 1:301675977.
+15:10:41.395 ERROR [main]  (InterlineProcessor.java:201) Trip times within block 12589 are not increasing on after trip 1:301675973.
+15:10:41.434 INFO [main]  (InterlineProcessor.java:97) Found 15438 pairs of trips for which stay-seated (interlined) transfers were created
+15:10:41.489 INFO [main]  (TripPatternNamer.java:70) Generating unique names for stop patterns on each route.
+15:10:41.618 INFO [main]  (OsmBoardingLocationsModule.java:100) Improving boarding locations by checking OSM entities...
+15:10:41.618 INFO [main]  (Graph.java:276) Index street model...
+15:10:41.772 INFO [main]  (StreetIndex.java:132) Index street vertex progress tracking started.
+15:10:43.164 INFO [main]  (StreetIndex.java:149) Index street vertex progress tracking complete. 861,316 done in 1s391ms (618,761 per second). 
+15:10:43.164 INFO [main]  (Graph.java:278) Index street model complete.
+15:10:53.491 INFO [main]  (OsmBoardingLocationsModule.java:121) Found 97 OSM references which match a stop's id or code
+15:10:53.492 INFO [main]  (TimetableRepository.java:150) Index timetable repository...
+15:10:53.493 INFO [main]  (TimetableRepositoryIndex.java:63) Timetable repository index init...
+15:10:54.722 INFO [main]  (TimetableRepositoryIndex.java:117) Timetable repository index init complete.
+15:10:54.722 INFO [main]  (TimetableRepository.java:152) Index timetable repository complete.
+15:10:54.773 INFO [main]  (StreetLinkerModule.java:92) Linking transit stops to graph progress tracking started.
+15:11:00.639 INFO [main]  (StreetLinkerModule.java:128) Linking transit stops to graph progress: 25,000 of 27,992 (89%)
+15:11:00.698 INFO [main]  (StreetLinkerModule.java:130) Linking transit stops to graph progress tracking complete. 25,279 done in 5s924ms (4,266 per second). 
+15:11:00.698 INFO [main]  (StreetLinkerModule.java:247) Linking transit entrances to graph...
+15:11:05.782 INFO [main]  (StreetLinkerModule.java:295) Linking vehicle parks to graph...
+15:11:06.246 INFO [main]  (TurnRestrictionModule.java:220) Applying turn restrictions to graph progress tracking started.
+15:11:06.271 INFO [main]  (TurnRestrictionModule.java:230) Applying turn restrictions to graph progress tracking complete. 1,323 done in 25ms (50,885 per second).  Added 1254 vertices and 2831 edges.
+15:11:06.272 INFO [main]  (PruneIslands.java:70) Pruning islands and areas isolated by nothru edges in street network
+15:11:06.272 INFO [main]  (PruneIslands.java:71) Threshold with stops 2, without stops 10, adaptive coeff 50.0 and distance 250
+15:11:08.580 INFO [main]  (PruneIslands.java:169) Islands when BICYCLE noThruTraffic is considered: 10149
+15:11:10.270 INFO [main]  (PruneIslands.java:178) Islands when BICYCLE noThruTraffic is ignored: 6446
+15:11:13.888 INFO [main]  (PruneIslands.java:268) Detected 41708 isolated edges
+15:11:15.388 INFO [main]  (PruneIslands.java:194) BICYCLE noThruTraffic island count: 300
+15:11:15.388 INFO [main]  (PruneIslands.java:196) Total 10449 sub graphs found
+15:11:21.658 INFO [main]  (PruneIslands.java:270) Number of islands with stops: 2469
+15:11:21.660 WARN [main]  (PruneIslands.java:271) Modified connectivity of 2464 islands with stops
+15:11:21.660 INFO [main]  (PruneIslands.java:272) Removed 80 edges
+15:11:21.660 INFO [main]  (PruneIslands.java:273) Removed traversal mode from 2245 edges
+15:11:21.660 INFO [main]  (PruneIslands.java:274) Converted 24330 edges to noThruTraffic
+15:11:21.661 INFO [main]  (PruneIslands.java:199) Modified 10439 islands
+15:11:24.308 INFO [main]  (PruneIslands.java:169) Islands when WALK noThruTraffic is considered: 8425
+15:11:25.585 INFO [main]  (PruneIslands.java:178) Islands when WALK noThruTraffic is ignored: 6484
+15:11:28.594 INFO [main]  (PruneIslands.java:268) Detected 41827 isolated edges
+15:11:29.702 INFO [main]  (PruneIslands.java:194) WALK noThruTraffic island count: 275
+15:11:29.702 INFO [main]  (PruneIslands.java:196) Total 8700 sub graphs found
+15:11:34.145 INFO [main]  (PruneIslands.java:270) Number of islands with stops: 2433
+15:11:34.146 WARN [main]  (PruneIslands.java:271) Modified connectivity of 2430 islands with stops
+15:11:34.147 INFO [main]  (PruneIslands.java:272) Removed 40414 edges
+15:11:34.147 INFO [main]  (PruneIslands.java:273) Removed traversal mode from 1332 edges
+15:11:34.147 INFO [main]  (PruneIslands.java:274) Converted 13366 edges to noThruTraffic
+15:11:34.147 INFO [main]  (PruneIslands.java:199) Modified 8692 islands
+15:11:35.935 INFO [main]  (PruneIslands.java:169) Islands when CAR noThruTraffic is considered: 13074
+15:11:36.843 INFO [main]  (PruneIslands.java:178) Islands when CAR noThruTraffic is ignored: 9765
+15:11:41.066 INFO [main]  (PruneIslands.java:268) Detected 35959 isolated edges
+15:11:41.733 INFO [main]  (PruneIslands.java:194) CAR noThruTraffic island count: 281
+15:11:41.733 INFO [main]  (PruneIslands.java:196) Total 13355 sub graphs found
+15:11:47.310 INFO [main]  (PruneIslands.java:270) Number of islands with stops: 3267
+15:11:47.310 WARN [main]  (PruneIslands.java:271) Modified connectivity of 3249 islands with stops
+15:11:47.310 INFO [main]  (PruneIslands.java:272) Removed 966 edges
+15:11:47.310 INFO [main]  (PruneIslands.java:273) Removed traversal mode from 12177 edges
+15:11:47.310 INFO [main]  (PruneIslands.java:274) Converted 24351 edges to noThruTraffic
+15:11:47.310 INFO [main]  (PruneIslands.java:199) Modified 13336 islands
+15:11:47.310 INFO [main]  (PruneIslands.java:85) Reconnecting stops
+15:11:47.370 INFO [main]  (StreetLinkerModule.java:92) Linking transit stops to graph progress tracking started.
+15:11:49.120 INFO [main]  (StreetLinkerModule.java:130) Linking transit stops to graph progress tracking complete. 20,131 done in 1s749ms (11,503 per second). 
+15:11:50.211 INFO [main]  (PruneIslands.java:115) Removed 19456 edgeless street vertices
+15:11:50.213 INFO [main]  (DirectTransferGenerator.java:248) Creating direct transfer edges between stops using the street network from OSM...
+15:11:50.291 INFO [main]  (DirectTransferGenerator.java:111) Creating transfers based on requests:
+15:11:50.292 INFO [main]  (DirectTransferGenerator.java:112) RouteRequest{}
+15:11:50.294 INFO [main]  (DirectTransferGenerator.java:114) No mode-specific transfer configurations provided.
+15:11:55.536 INFO [ForkJoinPool.commonPool-worker-2]  (DirectTransferGenerator.java:207) Create transfer edges for stops progress: 7,000 of 27,992 (25%)
+15:12:00.803 INFO [ForkJoinPool.commonPool-worker-8]  (DirectTransferGenerator.java:207) Create transfer edges for stops progress: 16,000 of 27,992 (57%)
+15:12:06.609 INFO [ForkJoinPool.commonPool-worker-5]  (DirectTransferGenerator.java:207) Create transfer edges for stops progress: 25,000 of 27,992 (89%)
+15:12:08.764 INFO [main]  (DirectTransferGenerator.java:212) Create transfer edges for stops progress tracking complete. 27,992 done in 18s469ms (1,516 per second). 
+15:12:08.765 INFO [main]  (DirectTransferGenerator.java:213) Done connecting stops to one another. Created a total of 267553 transfers from 8339 stops.
+15:12:08.788 INFO [main]  (DirectTransferGenerator.java:223) Created 267553 transfers for mode WALK.
+15:12:08.788 INFO [main]  (GraphCoherencyCheckerModule.java:32) checking graph coherency...
+15:12:08.972 INFO [main]  (GraphCoherencyCheckerModule.java:51) edge lists and from/to members are coherent.
+15:12:09.023 INFO [main]  (StopConnectivityModule.java:44) Stop connectivity analysis progress tracking started.
+15:12:12.873 INFO [main]  (StopConnectivityModule.java:60) Stop connectivity analysis progress tracking complete. 27,992 done in 3s849ms (7,271 per second). 
+15:12:13.004 INFO [main]  (CalculateWorldEnvelopeModule.java:80) CalculateWorldEnvelope progress tracking complete. 892,495 done in 131ms (6,761,326 per second). 
+15:12:13.022 INFO [main]  (DataImportIssueSummary.java:67) Issue summary (number of each type):
+15:12:13.023 INFO [main]  (DataImportIssueSummary.java:73)   - AllWaysOfElevatorNodeOnSameLevel               19
+15:12:13.023 INFO [main]  (DataImportIssueSummary.java:73)   - BarrierIntersectingHighway                 23,655
+15:12:13.023 INFO [main]  (DataImportIssueSummary.java:73)   - CouldNotApplyMultiLevelInfoToElevatorWay        2
+15:12:13.024 INFO [main]  (DataImportIssueSummary.java:73)   - DifferentLevelsSharingBarrier                 140
+15:12:13.024 INFO [main]  (DataImportIssueSummary.java:73)   - FloorNumberUnknownAssumedGroundLevel          175
+15:12:13.024 INFO [main]  (DataImportIssueSummary.java:73)   - GraphConnectivity                               3
+15:12:13.024 INFO [main]  (DataImportIssueSummary.java:73)   - GraphIslandBICYCLE                          6,552
+15:12:13.024 INFO [main]  (DataImportIssueSummary.java:73)   - GraphIslandBICYCLENoThroughTraffic          3,887
+15:12:13.024 INFO [main]  (DataImportIssueSummary.java:73)   - GraphIslandCAR                              9,805
+15:12:13.024 INFO [main]  (DataImportIssueSummary.java:73)   - GraphIslandCARNoThroughTraffic              3,531
+15:12:13.024 INFO [main]  (DataImportIssueSummary.java:73)   - GraphIslandWALK                             6,519
+15:12:13.024 INFO [main]  (DataImportIssueSummary.java:73)   - GraphIslandWALKNoThroughTraffic             2,173
+15:12:13.024 INFO [main]  (DataImportIssueSummary.java:73)   - Graphwide                                       2
+15:12:13.024 INFO [main]  (DataImportIssueSummary.java:73)   - HopSpeedFast                                  649
+15:12:13.025 INFO [main]  (DataImportIssueSummary.java:73)   - HopSpeedSlow                                2,547
+15:12:13.025 INFO [main]  (DataImportIssueSummary.java:73)   - HopZeroDistance                             2,644
+15:12:13.025 INFO [main]  (DataImportIssueSummary.java:73)   - HopZeroTime                                     3
+15:12:13.025 INFO [main]  (DataImportIssueSummary.java:73)   - InterliningTeleport                           136
+15:12:13.025 INFO [main]  (DataImportIssueSummary.java:73)   - InvalidCarSpeedLimit                            8
+15:12:13.025 INFO [main]  (DataImportIssueSummary.java:73)   - InvalidGtfsTransfer                             1
+15:12:13.025 INFO [main]  (DataImportIssueSummary.java:73)   - IsolatedStop                               18,878
+15:12:13.025 INFO [main]  (DataImportIssueSummary.java:73)   - OnlyOneConnectionToElevatorNode                99
+15:12:13.025 INFO [main]  (DataImportIssueSummary.java:73)   - ParkAndRideUnlinked                            68
+15:12:13.025 INFO [main]  (DataImportIssueSummary.java:73)   - PrunedStopIsland                            2,430
+15:12:13.025 INFO [main]  (DataImportIssueSummary.java:73)   - ShapeGeometryTooFar                           149
+15:12:13.025 INFO [main]  (DataImportIssueSummary.java:73)   - StopNotLinkedForTransfers                  19,653
+15:12:13.026 INFO [main]  (DataImportIssueSummary.java:73)   - TurnRestrictionBad                            273
+15:12:13.026 INFO [main]  (DataImportIssueSummary.java:73)   - TurnRestrictionException                       65
+15:12:13.026 INFO [main]  (DataImportIssueSummary.java:73)   - TurnRestrictionUnknown                         48
+15:12:13.026 INFO [main]  (DataImportIssueSummary.java:73)   - VertexWithoutEdges                         23,327
+15:12:13.120 INFO [main]  (GraphBuilder.java:304) Graph building took 3m51s208ms.
+15:12:13.121 INFO [main]  (GraphBuilder.java:305) Graph built.   |V|=864,503 |E|=2,295,816
+15:12:13.121 INFO [main]  (GraphBuilder.java:306) Transit built. |Stops|=27,992 |Patterns|=15,339 |ConstrainedTransfers|=67,751
+15:12:13.122 INFO [main]  (GraphBuilder.java:313) Memory optimized Deduplicator{BitSet: 63(244363), int[]: 287191(733089), I18NString: 1429(67023), I18NString[]: 3191(92028), List<BookingInfo>: 63(488726)}
+15:12:13.747 INFO [main]  (SerializedGraphObject.java:276) Writing graph graph.obj  ...
+15:12:13.748 INFO [main]  (SerializedGraphObject.java:253) Save graph.obj progress tracking started.
+15:12:18.768 INFO [main]  (SerializedGraphObject.java:253) Save graph.obj progress: 125.0 MB done
+15:12:23.773 INFO [main]  (SerializedGraphObject.java:253) Save graph.obj progress: 305.0 MB done
+15:12:24.016 INFO [main]  (SerializedGraphObject.java:253) Save graph.obj progress tracking complete. 319.4 MB done in 10s267ms (31.1 MB per second). 
+15:12:24.017 INFO [main]  (SerializedGraphObject.java:283) Graph written: graph.obj
+15:12:24.017 INFO [main]  (DefaultTransferRepository.java:54) Transfer repository indexing...
+15:12:24.017 INFO [main]  (DefaultTransferRepository.java:56) Transfer repository indexing complete.
+15:12:24.017 INFO [main]  (Graph.java:276) Index street model...
+15:12:24.151 INFO [main]  (StreetIndex.java:132) Index street vertex progress tracking started.
+15:12:25.515 INFO [main]  (StreetIndex.java:149) Index street vertex progress tracking complete. 864,503 done in 1s364ms (633,336 per second). 
+15:12:25.516 INFO [main]  (Graph.java:278) Index street model complete.
+15:12:25.518 INFO [main]  (ConstructApplication.java:180) Wiring up and configuring server.
+15:12:25.575 INFO [main]  (ConstructApplication.java:246) Creating transit layer for Raptor routing.
+15:12:25.576 INFO [main]  (RaptorTransitDataMapper.java:77) Mapping raptorTransitData from TimetableRepository...
+15:12:28.122 INFO [main]  (RaptorTransitDataMapper.java:96) Mapping complete.
+15:12:28.136 INFO [main]  (GraphUpdaterManager.java:141) Stopping updater manager with 0 updaters.
+15:12:28.137 INFO [main]  (GraphUpdaterManager.java:180) Stopped updater manager
+15:12:28.137 INFO [updater-ready]  (GraphUpdaterManager.java:276) OTP UPDATERS INITIALIZED (0 updaters) - OTP 2.10.0-SNAPSHOT is ready for routing!
+15:12:28.138 INFO [main]  (DefaultTransferService.java:23) Initializing TransferService
+15:12:29.208 INFO [main]  (Graph.java:345) Computed ellipsoid/geoid offset at (52.490428, 13.4255375) as 39.84474377855041
+15:12:29.208 INFO [main]  (ConstructApplication.java:267) Creating initial raptor transfer cache progress tracking started.
+15:12:30.025 INFO [main]  (RaptorRequestTransferCache.java:38) Initializing cache with request: StreetRelevantOptions{transferMode: WALK, walk: WalkRequest{speed: 1.35}, turnReluctance: 1.0}
+15:12:30.028 INFO [main]  (ConstructApplication.java:276) Creating initial raptor transfer cache progress tracking complete. 1 done in 819ms (1 per second). 
+15:12:30.031 INFO [main]  (ApplicationShutdownSupport.java:27) Adding shutdown hook 'server-shutdown'.
+15:12:30.031 INFO [main]  (GrizzlyServer.java:61) Starting OTP Grizzly server on port 8080 of interface 0.0.0.0
+15:12:30.031 INFO [main]  (GrizzlyServer.java:66) OTP server base directory is: [/var/opentripplanner]
+15:12:30.046 INFO [main]  (GrizzlyServer.java:163) Java reports that this machine has 18 available processors.
+15:12:30.046 INFO [main]  (GrizzlyServer.java:173) Maximum HTTP handler thread pool size will be 22 threads.
+15:12:30.747 INFO [main]  (ApplicationShutdownSupport.java:27) Adding shutdown hook 'grizzly-shutdown'.
+15:12:30.831 INFO [main]  (NetworkListener.java:812) Started listener bound to [0.0.0.0:8080]
+15:12:30.832 INFO [main]  (HttpServer.java:254) [HttpServer] Started.
+15:12:30.832 INFO [main]  (GrizzlyServer.java:143) Grizzly server running.

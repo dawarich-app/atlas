@@ -3,14 +3,16 @@ defmodule AtlasWeb.Admin.ApplyLive do
 
   import Ecto.Query
 
-  alias Atlas.Control.{RegionApplier, RegionCatalog, RegionSelection, Safe}
+  alias Atlas.Control.{ApplyTimeline, RegionApplier, RegionCatalog, RegionSelection, Safe}
   alias Atlas.Repo
+  alias AtlasWeb.Components.ApplyTimelineComponent
   import AtlasWeb.AdminErrorComponents
 
   @impl true
   def mount(_params, _session, socket) do
     if connected?(socket) do
       Phoenix.PubSub.subscribe(Atlas.PubSub, RegionApplier.topic())
+      Safe.call(fn -> Phoenix.PubSub.subscribe(Atlas.PubSub, ApplyTimeline.topic()) end)
     end
 
     status = Safe.call(fn -> RegionApplier.status() end, nil)
@@ -21,6 +23,7 @@ defmodule AtlasWeb.Admin.ApplyLive do
        selected: load_selected(),
        projection: nil,
        missing_region: nil,
+       timeline: Safe.call(fn -> ApplyTimeline.current() end, nil),
        page_title: "Apply"
      )
      |> assign_status(status)}
@@ -36,6 +39,12 @@ defmodule AtlasWeb.Admin.ApplyLive do
 
   defp assign_status(socket, status) do
     assign(socket, apply_state: :applying, job: status, error: nil)
+  end
+
+  @impl true
+  def handle_event("dismiss_timeline", _params, socket) do
+    Safe.call(fn -> ApplyTimeline.dismiss() end)
+    {:noreply, assign(socket, timeline: nil)}
   end
 
   @impl true
@@ -117,6 +126,10 @@ defmodule AtlasWeb.Admin.ApplyLive do
     end
   end
 
+  def handle_info({:timeline, timeline}, socket) do
+    {:noreply, assign(socket, :timeline, timeline)}
+  end
+
   def handle_info(_other, socket), do: {:noreply, socket}
 
   defp start_apply(regions) do
@@ -147,6 +160,7 @@ defmodule AtlasWeb.Admin.ApplyLive do
   def render(assigns) do
     ~H"""
     <h1 class="text-2xl font-bold mb-4">Apply Regions</h1>
+    <ApplyTimelineComponent.timeline timeline={@timeline} />
     <%= if @selected == [] do %>
       <p>
         No regions selected.
@@ -230,21 +244,6 @@ defmodule AtlasWeb.Admin.ApplyLive do
         <h3 class="font-semibold flex items-center gap-2">
           <span class="loading loading-spinner loading-sm"></span> Applying…
         </h3>
-        <%= if @job do %>
-          <p class="text-sm font-mono">
-            {phase_label(@job[:phase])}<%= if @job[:region] do %> · {@job[:region]}<% end %>
-            <%= if is_number(@job[:progress]) do %>
-              · {round(@job[:progress] * 100)}%
-            <% end %>
-          </p>
-          <progress
-            :if={is_number(@job[:progress])}
-            class="progress progress-primary w-full"
-            value={round(@job[:progress] * 100)}
-            max="100"
-          >
-          </progress>
-        <% end %>
       </div>
     </div>
     """
@@ -277,13 +276,6 @@ defmodule AtlasWeb.Admin.ApplyLive do
     <% end %>
     """
   end
-
-  defp phase_label(:downloading), do: "downloading"
-  defp phase_label(:merging), do: "merging"
-  defp phase_label(:converting), do: "converting for overpass"
-  defp phase_label(:staging), do: "staging transit inputs"
-  defp phase_label(:restarting), do: "restarting services"
-  defp phase_label(_), do: "working"
 
   defp available_region_names do
     RegionCatalog.all() |> Enum.map(& &1.name)

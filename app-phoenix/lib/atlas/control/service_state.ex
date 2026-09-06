@@ -69,7 +69,9 @@ defmodule Atlas.Control.ServiceState do
   def reconcile(name), do: GenServer.cast(Registry.via(name), :reconcile)
   def begin_update(name), do: GenServer.call(Registry.via(name), :begin_update)
   def finish_update(name, opts), do: GenServer.cast(Registry.via(name), {:finish_update, opts})
-  def set_auto_update(name, enabled), do: GenServer.call(Registry.via(name), {:set_auto_update, enabled})
+
+  def set_auto_update(name, enabled),
+    do: GenServer.call(Registry.via(name), {:set_auto_update, enabled})
 
   ## Callbacks
 
@@ -294,12 +296,37 @@ defmodule Atlas.Control.ServiceState do
   # Derive the user-visible status from (enabled?, ready?, phase). Mirrors
   # the SettingsPanel + ServiceCard badge palette so the UI can switch on
   # `:status` alone.
+  @doc """
+  The status a service with this `enabled?`/`ready?`/`phase` reports.
+
+  Public because the phase is parser-derived and every parser emits a STRING
+  ("downloading", "building-graph", "error"). The old guards matched atoms, so
+  no string phase ever matched and every enabled non-ready service collapsed to
+  `:starting` — `:downloading`, `:building` and `:error` were unreachable, and a
+  crashed service read as one that was still starting up.
+  """
+  def status_for(enabled?, ready?, phase), do: derive_status(enabled?, ready?, phase)
+
   defp derive_status(false, _ready, _phase), do: :stopped
   defp derive_status(true, true, _phase), do: :ready
-  defp derive_status(true, _ready, phase) when phase in [:download, :downloading], do: :downloading
-  defp derive_status(true, _ready, phase) when phase in [:build, :building, :compile], do: :building
-  defp derive_status(true, _ready, phase) when phase in [:error, :unhealthy], do: phase
-  defp derive_status(true, _ready, _phase), do: :starting
+  defp derive_status(true, _ready, phase), do: phase_status(normalize_phase(phase))
+
+  defp normalize_phase(phase) when is_binary(phase), do: phase
+  defp normalize_phase(phase) when is_atom(phase) and not is_nil(phase), do: Atom.to_string(phase)
+  defp normalize_phase(_phase), do: ""
+
+  defp phase_status("error"), do: :error
+  defp phase_status("unhealthy"), do: :unhealthy
+
+  defp phase_status(phase) do
+    cond do
+      String.contains?(phase, "download") -> :downloading
+      String.contains?(phase, "build") -> :building
+      String.contains?(phase, "compil") -> :building
+      String.contains?(phase, "extract") -> :building
+      true -> :starting
+    end
+  end
 
   defp snapshot_struct(state) do
     state

@@ -50,7 +50,17 @@ defmodule AtlasWeb.Settings.LogsModal do
           <span class="font-mono text-[11px] uppercase tracking-[0.08em] text-[#9fd6ad]">
             {SF.status_label(@snapshot)}{if @installing, do: " · #{@pct}%"}
           </span>
-          <span class="ml-auto font-mono text-[11px] text-[#7c8378]">logs</span>
+          <button
+            id="settings-log-copy"
+            type="button"
+            phx-hook="CopyLogs"
+            data-copy-target="settings-log-viewer"
+            data-copy-label="copy"
+            class="ml-auto rounded-lg px-2 py-1 font-mono text-[11px] text-[#9aa093] transition hover:bg-white/10 hover:text-[#e9e6dc]"
+            aria-label="Copy logs to clipboard"
+          >
+            copy
+          </button>
           <button
             type="button"
             phx-click="close_logs"

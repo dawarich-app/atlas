@@ -51,7 +51,10 @@ defmodule Atlas.Maps.Upstream.ClientTest do
       Bypass.expect_once(bypass, "POST", "/api", fn conn ->
         conn
         |> Plug.Conn.put_resp_content_type("application/json")
-        |> Plug.Conn.resp(400, ~s({"error_code":154,"error":"Path distance exceeds the max distance limit"}))
+        |> Plug.Conn.resp(
+          400,
+          ~s({"error_code":154,"error":"Path distance exceeds the max distance limit"})
+        )
       end)
 
       req = Client.build(base_url)
@@ -62,7 +65,9 @@ defmodule Atlas.Maps.Upstream.ClientTest do
     end
 
     test "a non-JSON error body is still carried through", %{bypass: bypass, base_url: base_url} do
-      Bypass.expect_once(bypass, "GET", "/api", fn conn -> Plug.Conn.resp(conn, 502, "upstream died") end)
+      Bypass.expect_once(bypass, "GET", "/api", fn conn ->
+        Plug.Conn.resp(conn, 502, "upstream died")
+      end)
 
       req = Client.build(base_url)
 
@@ -92,10 +97,18 @@ defmodule Atlas.Maps.Upstream.ClientTest do
       on_exit(fn -> System.delete_env("ATLAS_TEST_ENV_INT") end)
 
       System.put_env("ATLAS_TEST_ENV_INT", "")
-      empty_log = ExUnit.CaptureLog.capture_log(fn -> assert Client.env_int("ATLAS_TEST_ENV_INT", 42) == 42 end)
+
+      empty_log =
+        ExUnit.CaptureLog.capture_log(fn ->
+          assert Client.env_int("ATLAS_TEST_ENV_INT", 42) == 42
+        end)
 
       System.put_env("ATLAS_TEST_ENV_INT", "nonsense")
-      bad_log = ExUnit.CaptureLog.capture_log(fn -> assert Client.env_int("ATLAS_TEST_ENV_INT", 42) == 42 end)
+
+      bad_log =
+        ExUnit.CaptureLog.capture_log(fn ->
+          assert Client.env_int("ATLAS_TEST_ENV_INT", 42) == 42
+        end)
 
       assert empty_log == ""
       assert bad_log =~ "ATLAS_TEST_ENV_INT"

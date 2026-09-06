@@ -390,3 +390,29 @@ body.apo-picking .maplibregl-canvas { cursor: crosshair !important; }
   text-decoration: none;
 }
 .maplibregl-ctrl-attrib a:hover { text-decoration: underline; }
+
+/* Search result pins. MapLibre owns the outer element's transform (it writes
+   `translate()` there to position the marker), so the hover animation lives on
+   an inner dot. Putting it on the marker itself replaces the translate and
+   throws the pin to the map origin. */
+.apo-poi-marker {
+  width: 20px;
+  height: 20px;
+  cursor: pointer;
+}
+
+.apo-poi-marker-dot {
+  display: block;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--color-accent);
+  border: 2px solid var(--color-base-100);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
+  transition: transform 120ms ease, box-shadow 120ms ease;
+}
+
+.apo-poi-marker:hover .apo-poi-marker-dot {
+  transform: scale(1.3);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.45);
+}

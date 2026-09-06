@@ -10,7 +10,9 @@ defmodule Atlas.Maps.Upstream.Overpass do
 
   def default do
     Client.build_from_env("OVERPASS", "http://localhost:8002",
-                          timeout: 25_000, open_timeout: 2_000)
+      timeout: 25_000,
+      open_timeout: 2_000
+    )
   end
 
   def around(req \\ default(), opts) do

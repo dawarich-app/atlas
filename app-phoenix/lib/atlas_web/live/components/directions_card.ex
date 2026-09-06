@@ -34,7 +34,7 @@ defmodule AtlasWeb.DirectionsCard do
       </header>
 
       <div class="flex flex-col gap-4 px-4 py-4 overflow-y-auto flex-1 min-h-0">
-        <form phx-submit="route" class="grid grid-cols-[1fr_auto] items-stretch gap-2">
+        <form phx-submit="route" phx-change="route_changed" class="grid grid-cols-[1fr_auto] items-stretch gap-2">
           <input type="hidden" name="mode" value={@mode} />
           <div class="flex flex-col gap-2">
             <div class="relative">
@@ -94,6 +94,14 @@ defmodule AtlasWeb.DirectionsCard do
             phx-click="swap_route"
           >
             {icon("arrow-up-down", class: "w-4 h-4")}
+          </button>
+
+          <button
+            type="submit"
+            class="col-span-2 mt-1 flex items-center justify-center gap-2 rounded-2xl bg-primary py-2.5 text-[14px] font-semibold text-primary-content transition hover:brightness-110"
+          >
+            {icon("route", class: "w-4 h-4")}
+            <span>Get directions</span>
           </button>
         </form>
 

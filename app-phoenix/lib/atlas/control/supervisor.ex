@@ -13,6 +13,7 @@ defmodule Atlas.Control.Supervisor do
   use Supervisor
 
   alias Atlas.Control.{
+    ApplyTimeline,
     DockerCompose,
     LogTailer,
     Osmium,
@@ -35,7 +36,8 @@ defmodule Atlas.Control.Supervisor do
       LogTailer.Supervisor,
       TilesDownloader,
       RegionApplier,
-      SnapshotPersister
+      SnapshotPersister,
+      ApplyTimeline
     ]
 
     Supervisor.init(children, strategy: :rest_for_one)

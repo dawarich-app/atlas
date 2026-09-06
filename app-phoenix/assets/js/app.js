@@ -4,12 +4,14 @@ import {LiveSocket} from "phoenix_live_view"
 import topbar from "../vendor/topbar"
 import MapHook from "./hooks/map"
 import LogStreamHook from "./hooks/log_stream"
+import CopyLogsHook from "./hooks/copy_logs"
+import SearchKeysHook from "./hooks/search_keys"
 
 const csrfToken = document.querySelector("meta[name='csrf-token']").getAttribute("content")
 const liveSocket = new LiveSocket("/live", Socket, {
   longPollFallbackMs: 2500,
   params: {_csrf_token: csrfToken},
-  hooks: {Map: MapHook, LogStream: LogStreamHook}
+  hooks: {Map: MapHook, LogStream: LogStreamHook, CopyLogs: CopyLogsHook, SearchKeys: SearchKeysHook}
 })
 
 topbar.config({barColors: {0: "#3b82f6"}, shadowColor: "rgba(0, 0, 0, .3)"})

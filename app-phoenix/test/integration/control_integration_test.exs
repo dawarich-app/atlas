@@ -19,7 +19,11 @@ defmodule ControlIntegrationTest do
   test "feed a Photon-ready line → SnapshotPersister flushes phase=ready to DB" do
     Phoenix.PubSub.subscribe(Atlas.PubSub, "control:service:photon")
 
-    ServiceState.feed("photon", "2026-05-14 21:42:32,738 - root - INFO - Photon ready after 5.0 seconds")
+    ServiceState.feed(
+      "photon",
+      "2026-05-14 21:42:32,738 - root - INFO - Photon ready after 5.0 seconds"
+    )
+
     assert_receive {:service_update, %{ready?: true, phase: "ready"}}, 2_000
 
     SnapshotPersister.flush_now()

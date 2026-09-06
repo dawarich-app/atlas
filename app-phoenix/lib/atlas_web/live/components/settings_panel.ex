@@ -37,7 +37,7 @@ defmodule AtlasWeb.SettingsPanel do
      |> assign(assigns)
      |> assign_new(:pending_services, fn -> %{} end)
      |> assign_new(:tiles_download, fn -> nil end)
-     |> assign_new(:apply_status, fn -> nil end)
+     |> assign_new(:timeline, fn -> nil end)
      |> assign_new(:basemap_confirm, fn -> nil end)
      |> assign_new(:region_query, fn -> "" end)
      |> assign_new(:expanded, fn -> MapSet.new() end)
@@ -203,7 +203,7 @@ defmodule AtlasWeb.SettingsPanel do
         <div id="settings-tab-region" class={[@settings_tab == "region" && "atlas-fade", panel_class(@settings_tab, "region")]}>
           <Settings.RegionTab.region_tab
             regions={@regions}
-            apply_status={@apply_status}
+            timeline={@timeline}
             tree_index={@tree_index}
             by_name={@by_name}
             selection={@region_selection}

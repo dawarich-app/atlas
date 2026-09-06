@@ -6,8 +6,7 @@ defmodule Atlas.Maps.Upstream.Photon do
   alias Atlas.Maps.Upstream.Client
 
   def default do
-    Client.build_from_env("PHOTON", "http://localhost:8001",
-                          timeout: 5_000, open_timeout: 2_000)
+    Client.build_from_env("PHOTON", "http://localhost:8001", timeout: 5_000, open_timeout: 2_000)
   end
 
   def search(req \\ default(), opts) do
@@ -32,7 +31,9 @@ defmodule Atlas.Maps.Upstream.Photon do
   end
 
   defp append_osm_tags(params, nil), do: params
-  defp append_osm_tags(params, tags) when is_list(tags), do: params ++ Enum.map(tags, &{"osm_tag", &1})
+
+  defp append_osm_tags(params, tags) when is_list(tags),
+    do: params ++ Enum.map(tags, &{"osm_tag", &1})
 
   defp maybe_add(params, _key, nil), do: params
   defp maybe_add(params, key, val), do: params ++ [{key, val}]

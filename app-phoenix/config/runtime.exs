@@ -39,7 +39,9 @@ if config_env() == :prod do
 
   database_config =
     case database_url do
-      url when is_binary(url) and (binary_part(url, 0, 8) == "postgres" or binary_part(url, 0, 10) == "postgresql") ->
+      url
+      when is_binary(url) and
+             (binary_part(url, 0, 8) == "postgres" or binary_part(url, 0, 10) == "postgresql") ->
         [url: url, pool_size: String.to_integer(System.get_env("POOL_SIZE") || "10")]
 
       _ ->

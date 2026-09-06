@@ -31,6 +31,9 @@ export default {
       zoom: initialZoom
     })
 
+    this.resizeObserver = new ResizeObserver(() => this.map.resize())
+    this.resizeObserver.observe(this.el)
+
     // Match Rails: controls bottom-right, scale bottom-left.
     this.map.addControl(new maplibregl.NavigationControl({
       showCompass: true,
@@ -40,30 +43,59 @@ export default {
       maxWidth: 120,
       unit: "metric"
     }), "bottom-left")
-    this.markers = {}
+    this.resultMarkers = []
+
+    this.clearResultMarkers = () => {
+      this.resultMarkers.forEach((m) => m.remove())
+      this.resultMarkers = []
+    }
+
+    // Report the viewport after every pan/zoom so the server can scope search
+    // to what is on screen. `moveend` (not `move`) keeps this to one message
+    // per gesture rather than one per frame.
+    // `eventData` passed to flyTo comes back on the resulting moveend, which is
+    // how a flight we started is told apart from a pan the user made. Both
+    // report their bounds; only a user pan re-runs the search.
+    this.reportViewport = (event) => {
+      const b = this.map.getBounds()
+      this.pushEvent("viewport_changed", {
+        bbox: [b.getWest(), b.getSouth(), b.getEast(), b.getNorth()],
+        programmatic: Boolean(event && event.atlasProgrammatic)
+      })
+    }
+    this.map.on("moveend", this.reportViewport)
+    // The first report is the map announcing where it opened, not a gesture.
+    // Sending it as a pan re-ran a shared ?q= link against the viewer's own
+    // default bounds and replaced the results the link was meant to show.
+    this.map.once("load", () => this.reportViewport({ atlasProgrammatic: true }))
 
     this.handleEvent("map:fly_to", ({ lat, lon, zoom }) => {
-      this.map.flyTo({ center: [lon, lat], zoom: zoom || 14 })
+      this.map.flyTo({ center: [lon, lat], zoom: zoom || 14 }, { atlasProgrammatic: true })
     })
 
-    this.handleEvent("map:add_marker", ({ id, lat, lon, label }) => {
-      const marker = new maplibregl.Marker()
-        .setLngLat([lon, lat])
-        .setPopup(new maplibregl.Popup().setHTML(`<strong>${label}</strong>`))
-        .addTo(this.map)
-      this.markers[id] = marker
+    // One event owns the whole result-marker set. Replacing wholesale (rather
+    // than clear + add) means a pan-triggered refresh cannot race a selection
+    // and leave the map bare.
+    this.handleEvent("map:set_results", ({ points }) => {
+      this.clearResultMarkers()
+
+      ;(points || []).forEach((p) => {
+        const marker = resultMarker(p).addTo(this.map)
+        this.resultMarkers.push(marker)
+      })
     })
 
-    this.handleEvent("map:clear_markers", () => {
-      Object.values(this.markers).forEach(m => m.remove())
-      this.markers = {}
-    })
 
     this.routeGeoJSON = null
 
     this.handleEvent("map:draw_route", ({ geojson }) => {
       this.routeGeoJSON = geojson
       this._renderRoute()
+      const coordinates = (geojson.features || []).flatMap((feature) => feature.geometry.coordinates)
+      if (coordinates.length > 0) {
+        const bounds = coordinates.reduce((bounds, point) => bounds.extend(point), new maplibregl.LngLatBounds())
+        this.map.fitBounds(bounds, { padding: 60, maxZoom: 16 }, { atlasProgrammatic: true })
+      }
     })
 
     // Pick-point flow: when the user clicks the pin button next to From/To,
@@ -101,29 +133,18 @@ export default {
       this._tilesUrl = url || null
       const nextStyle = url ? url : OSM_RASTER_FALLBACK
 
-      // Persist what we want to re-add on the new style.
-      const savedMarkers = Object.entries(this.markers || {}).map(([id, m]) => {
-        const lngLat = m.getLngLat()
-        const popup = m.getPopup()
-        return {
-          id,
-          lat: lngLat.lat,
-          lon: lngLat.lng,
-          html: popup ? popup.getElement()?.querySelector(".maplibregl-popup-content")?.innerHTML : null
-        }
-      })
+      // A style swap destroys marker DOM, so the set is rebuilt from the point
+      // payloads each marker carries. Reading the popup's DOM instead loses
+      // everything: getElement() is undefined until a popup has been opened, so
+      // most pins came back with no popup at all and opened ones degraded to a
+      // text blob without the OSM link.
+      const savedPoints = this.resultMarkers.map((m) => m._atlasPoint).filter(Boolean)
 
-      // Drop the live marker DOM; we re-create after styledata fires.
-      Object.values(this.markers || {}).forEach(m => m.remove())
-      this.markers = {}
+      this.clearResultMarkers()
 
       const onStyle = () => {
-        // Re-add markers.
-        savedMarkers.forEach(({ id, lat, lon, html }) => {
-          const marker = new maplibregl.Marker().setLngLat([lon, lat])
-          if (html) marker.setPopup(new maplibregl.Popup().setHTML(html))
-          marker.addTo(this.map)
-          this.markers[id] = marker
+        savedPoints.forEach((p) => {
+          this.resultMarkers.push(resultMarker(p).addTo(this.map))
         })
         // Re-add the route source/layer if we had one.
         if (this.routeGeoJSON) this._renderRoute()
@@ -161,6 +182,86 @@ export default {
   },
 
   destroyed() {
+    if (this.resizeObserver) this.resizeObserver.disconnect()
     if (this.map) this.map.remove()
   }
+}
+
+// A search pin, styled like the Rails POI marker: an accent dot that reacts to
+// the cursor. MapLibre's default marker has no hover affordance at all, so
+// nothing told you a pin could be clicked.
+// One builder for both paths, so a marker rebuilt after a style swap is
+// identical to the one first drawn — same pin, same popup, same OSM link.
+// `_atlasPoint` is what makes that rebuild possible without reading DOM.
+function resultMarker(p) {
+  const marker = new maplibregl.Marker({ element: resultPin(p.label) })
+    .setLngLat([p.lon, p.lat])
+    .setPopup(
+      new maplibregl.Popup({ offset: 14, maxWidth: "320px", className: "apo-poi-popup" })
+        .setHTML(resultPopupHTML(p))
+    )
+  marker._atlasPoint = p
+  return marker
+}
+
+function resultPin(label) {
+  // Two elements on purpose: MapLibre positions a marker by writing
+  // `transform: translate(...)` onto the element it is given, so any hover
+  // transform there would replace the translate and fling the pin to the map
+  // origin. The outer div stays MapLibre's; the inner dot is ours to animate.
+  const el = document.createElement("div")
+  el.className = "apo-poi-marker"
+  el.title = label || ""
+
+  const dot = document.createElement("span")
+  dot.className = "apo-poi-marker-dot"
+  el.appendChild(dot)
+
+  return el
+}
+
+function escapeAttr(value) {
+  return String(value == null ? "" : value).replace(/"/g, "&quot;").replace(/</g, "&lt;")
+}
+
+function escapeText(value) {
+  const div = document.createElement("div")
+  div.textContent = value == null ? "" : String(value)
+  return div.innerHTML
+}
+
+// A search result knows less than an Overpass POI: Photon returns no tag block,
+// so there are no opening hours, phone or website rows to show. The popup lists
+// what this result actually carries and omits the rest, rather than rendering a
+// scaffold of empty fields.
+function infoRow(value) {
+  return `<div class="apo-popup-row"><span class="apo-popup-row-value">${escapeText(value)}</span></div>`
+}
+
+function resultPopupHTML(p) {
+  const rows = []
+  if (p.address) rows.push(infoRow(p.address))
+  if (p.region) rows.push(infoRow(p.region))
+  rows.push(infoRow(`${p.lat.toFixed(5)}, ${p.lon.toFixed(5)}`))
+
+  const footer = p.osm_url
+    ? `<footer class="apo-popup-actions">
+         <a class="apo-popup-secondary" target="_blank" rel="noopener" href="${escapeAttr(p.osm_url)}">
+           <span>View on OpenStreetMap</span>
+         </a>
+       </footer>`
+    : ""
+
+  return `
+    <div class="apo-popup">
+      <header class="apo-popup-header">
+        <div class="apo-popup-name">${escapeText(p.label)}</div>
+        <div class="apo-popup-meta">
+          <span class="apo-popup-category">${escapeText(p.category)}</span>
+        </div>
+      </header>
+      <div class="apo-popup-rows">${rows.join("")}</div>
+      ${footer}
+    </div>
+  `
 }

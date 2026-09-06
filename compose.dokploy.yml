@@ -137,6 +137,10 @@ services:
       - atlas_osm:/work/data/osm
       - atlas_gtfs:/work/data/gtfs
       - atlas_otp:/work/data/otp
+      # Valhalla scans its own /custom_files for the PBF, so the applier stages
+      # one here. Without the mount it lands in the container's ephemeral layer
+      # and Valhalla crash-loops with "No local PBF files... Nothing to do".
+      - atlas_valhalla:/work/data/valhalla
       - atlas_tiles:/work/data/tiles
     restart: unless-stopped
     networks:

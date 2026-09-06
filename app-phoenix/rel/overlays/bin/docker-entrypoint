@@ -31,9 +31,20 @@ SECRET_DIR="$(dirname "${SECRET_KEY_BASE_PATH:-/data/.secret_key_base}")"
 # broken with a degraded-control-plane banner.
 WORK_DATA_DIR="${ATLAS_WORK_DATA_DIR:-/work/data}"
 
+DOCKER_SOCKET="${DOCKER_SOCKET:-/var/run/docker.sock}"
+
+# The docker CLI reads $DOCKER_CONFIG, falling back to $HOME/.docker. HOME is
+# /root in the image and stays that way across the privilege drop, so the CLI
+# tries to read a path the dropped uid cannot open. An UNREADABLE config path
+# is worse than a missing one: the CLI aborts plugin discovery entirely, which
+# makes `docker compose` stop existing as a subcommand — the control plane then
+# reports "docker compose unavailable" with a stray "unknown flag: --short".
+export DOCKER_CONFIG="${DOCKER_CONFIG:-$DATA_DIR/.docker}"
+
 usable_dirs() {
   for d in "$DATA_DIR" "$DB_DIR" "$SECRET_DIR" "$WORK_DATA_DIR/osm" \
-           "$WORK_DATA_DIR/gtfs" "$WORK_DATA_DIR/otp" "$WORK_DATA_DIR/tiles"; do
+           "$WORK_DATA_DIR/gtfs" "$WORK_DATA_DIR/otp" "$WORK_DATA_DIR/tiles" \
+           "$WORK_DATA_DIR/valhalla"; do
     [ -d "$d" ] && echo "$d"
   done | awk '!seen[$0]++'
 }
@@ -79,19 +90,51 @@ if [ "$(id -u)" = "0" ]; then
     exit 1
   fi
 
-  # Carry the docker socket group across the drop, but not root's own gid 0 —
-  # keeping that would leave the "dropped" process with root group access for
-  # its whole lifetime. DOCKER_GID is re-added explicitly afterwards, because
-  # on macOS (OrbStack / Docker Desktop) the socket really is gid 0 and the
-  # README tells operators to set DOCKER_GID=0.
+  # Which group owns the socket decides whether the control plane works at all,
+  # so read it FROM THE SOCKET. DOCKER_GID cannot be trusted as the answer:
+  # compose.yml exports `DOCKER_GID: ${DOCKER_GID:-999}` into the container, so
+  # it is *always* set — to 999 for anyone who did not override it — while the
+  # socket on macOS (OrbStack / Docker Desktop) is gid 0. Preferring the
+  # variable therefore grants a group the daemon does not answer on, which is
+  # the "Docker socket unreachable" banner this exists to prevent.
+  #
+  # DOCKER_GID is still honoured, as an ADDITIONAL group rather than a
+  # replacement: it is the only lever an operator has when the socket is not
+  # visible from here (a proxied or TCP daemon), and granting both costs
+  # nothing when they agree.
+  socket_gid=""
+
+  if [ -e "$DOCKER_SOCKET" ]; then
+    socket_gid="$(stat -c %g "$DOCKER_SOCKET" 2>/dev/null || echo "")"
+  fi
+
+  # DOCKER_GID first, socket gid last: the loop below PREPENDS, so this leaves
+  # the socket's own group at the head of --groups where it is easiest to read
+  # in a failure report.
+  extra_gids=""
+
+  if [ -n "${DOCKER_GID:-}" ] && [ "${DOCKER_GID}" != "$socket_gid" ]; then
+    extra_gids="${DOCKER_GID}"
+  fi
+
+  if [ -n "$socket_gid" ]; then
+    extra_gids="$(printf '%s\n%s' "$extra_gids" "$socket_gid" | grep -v '^$' | paste -sd, -)"
+  fi
+
+  # Carry that group across the drop, but not root's own gid 0 otherwise —
+  # keeping it wholesale would leave the "dropped" process with root group
+  # access for its whole lifetime.
   groups="$(id -G | tr ' ' '\n' | grep -vx 0 | grep -vx "$PGID" | paste -sd, -)"
 
-  if [ -n "${DOCKER_GID:-}" ] && [ "$DOCKER_GID" != "$PGID" ]; then
+  for gid in $(printf '%s' "$extra_gids" | tr ',' ' '); do
+    [ -n "$gid" ] || continue
+    [ "$gid" = "$PGID" ] && continue
+
     case ",$groups," in
-      *",$DOCKER_GID,"*) ;;
-      *) groups="$(printf '%s,%s' "$DOCKER_GID" "$groups" | sed 's/,$//')" ;;
+      *",$gid,"*) ;;
+      *) groups="$(printf '%s,%s' "$gid" "$groups" | sed 's/,$//')" ;;
     esac
-  fi
+  done
 
   if [ -n "$groups" ]; then
     group_args="--groups=$groups"

@@ -15,7 +15,8 @@ defmodule Atlas.Control.DockerCompose do
 
   require Logger
 
-  @type runner :: (String.t(), [String.t()] -> {Collectable.t(), exit_status :: non_neg_integer()})
+  @type runner :: (String.t(), [String.t()] ->
+                     {Collectable.t(), exit_status :: non_neg_integer()})
   @type result :: {:ok, String.t()} | {:error, non_neg_integer(), String.t()}
 
   def start_link(opts \\ []) do
@@ -142,7 +143,7 @@ defmodule Atlas.Control.DockerCompose do
   defp env_file_args(_state), do: []
 
   defp readable_file?(path) do
-    File.regular?(path) and match?({:ok, _}, File.open(path, [:read], &(&1)))
+    File.regular?(path) and match?({:ok, _}, File.open(path, [:read], & &1))
   end
 
   defp host_project_dir do

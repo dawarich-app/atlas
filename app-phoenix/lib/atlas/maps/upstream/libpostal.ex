@@ -10,7 +10,9 @@ defmodule Atlas.Maps.Upstream.Libpostal do
 
   def default do
     Client.build_from_env("LIBPOSTAL", "http://localhost:8080",
-                          timeout: 5_000, open_timeout: 2_000)
+      timeout: 5_000,
+      open_timeout: 2_000
+    )
   end
 
   def normalize(req \\ default(), address) when is_binary(address) do

@@ -34,19 +34,23 @@ defmodule Atlas.Geometry.Coord do
   def format(value) when is_binary(value), do: value
 
   @doc """
-  Convert a list of Valhalla `legs` (each with an encoded `shape` polyline)
-  into a GeoJSON FeatureCollection of `LineString` features.
+  Convert a list of route `legs` (each with an encoded `shape` polyline) into a
+  GeoJSON FeatureCollection of `LineString` features.
+
+  Handles both Valhalla legs (string keys, `valhalla_encoded_polyline6`) and
+  transit legs from OTP (atom keys, `google_polyline5`); the polyline precision
+  is taken from each leg's `shape_format`, defaulting to 6.
 
   Empty/missing shapes are dropped.
   """
   def legs_to_geojson(legs) when is_list(legs) do
     features =
       Enum.flat_map(legs, fn leg ->
-        case leg["shape"] do
+        case leg_field(leg, :shape) do
           shape when is_binary(shape) and shape != "" ->
             coords =
               shape
-              |> Polyline.decode(6)
+              |> Polyline.decode(precision_for(leg_field(leg, :shape_format)))
               |> Enum.map(fn {lat, lon} -> [lon, lat] end)
 
             [
@@ -66,4 +70,16 @@ defmodule Atlas.Geometry.Coord do
   end
 
   def legs_to_geojson(_), do: %{type: "FeatureCollection", features: []}
+
+  # Legs come from two sources with different key styles: Valhalla legs are
+  # string-keyed, OTP transit legs are atom-keyed. Read either.
+  defp leg_field(leg, key) when is_map(leg) do
+    Map.get(leg, key) || Map.get(leg, Atom.to_string(key))
+  end
+
+  defp leg_field(_, _), do: nil
+
+  defp precision_for("google_polyline5"), do: 5
+  defp precision_for("valhalla_encoded_polyline6"), do: 6
+  defp precision_for(_), do: 6
 end

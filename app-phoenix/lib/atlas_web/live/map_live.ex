@@ -4,8 +4,10 @@ defmodule AtlasWeb.MapLive do
   alias Atlas.Geometry.Coord
   alias Atlas.Maps
   alias Atlas.Settings
+  alias AtlasWeb.SearchMarkers
 
   alias Atlas.Control.{
+    ApplyTimeline,
     RegionApplier,
     RegionSelection,
     Safe,
@@ -21,6 +23,7 @@ defmodule AtlasWeb.MapLive do
       Phoenix.PubSub.subscribe(Atlas.PubSub, "control:status")
       Safe.call(fn -> Phoenix.PubSub.subscribe(Atlas.PubSub, RegionApplier.topic()) end)
       Safe.call(fn -> Phoenix.PubSub.subscribe(Atlas.PubSub, TilesDownloader.topic()) end)
+      Safe.call(fn -> Phoenix.PubSub.subscribe(Atlas.PubSub, ApplyTimeline.topic()) end)
     end
 
     {:ok,
@@ -46,8 +49,14 @@ defmodule AtlasWeb.MapLive do
        tiles_download: Safe.call(fn -> TilesDownloader.status() end, nil),
        basemap_confirm: nil,
        apply_status: Safe.call(fn -> RegionApplier.status() end, nil),
+       timeline: Safe.call(fn -> ApplyTimeline.current() end, nil),
        service_logs: nil,
-       upstream_status: "ok"
+       upstream_status: "ok",
+       search_status: "ok",
+       search_active: -1,
+       search_searched: false,
+       url_params: %{},
+       viewport: nil
      )}
   end
 
@@ -57,63 +66,79 @@ defmodule AtlasWeb.MapLive do
     {:noreply, assign(socket, active_tab: tab)}
   end
 
+  # The URL is the single source of truth for the query: the event patches it,
+  # `handle_params/3` runs the search. One path serves typing, a shared link and
+  # the back button alike, instead of three that can disagree.
   @impl true
   def handle_event("search", %{"q" => q}, socket) do
-    trimmed = String.trim(q)
+    {:noreply, push_patch(socket, to: search_path(socket, q), replace: true)}
+  end
 
-    if trimmed == "" do
-      {:noreply, assign(socket, search_query: q, search_results: [])}
+  # The map reports its viewport after every pan/zoom. Re-running the active
+  # query against the new bounds is what makes a brand search ("McDonald's")
+  # answer "which ones can I see" instead of "the global top N".
+  #
+  # A move we caused ourselves is exempt. Picking a result flies the map, and
+  # treating that flight as a pan re-ran the query still sitting in the box,
+  # restoring the list and every marker a second after the selection dismissed
+  # them. The bounds are still recorded, so the next typed search is scoped to
+  # where the map now is.
+  def handle_event("viewport_changed", %{"bbox" => [_w, _s, _e, _n] = bbox} = params, socket) do
+    socket = assign(socket, viewport: bbox)
+
+    # `search_results != []` is the dismissal test. Both `select_feature` and
+    # `search_dismiss` leave the query in the box deliberately, so re-querying
+    # on the query alone resurrected a list the user had just dismissed — the
+    # fly-to defect one gesture later. A list on screen still refreshes.
+    if params["programmatic"] != true and socket.assigns.search_results != [] and
+         searchable?(socket.assigns.search_query) do
+      {:noreply, run_search(socket, socket.assigns.search_query)}
     else
-      case Maps.Search.autocomplete(%{
-             query: trimmed,
-             limit: 8,
-             lang: nil,
-             lat: nil,
-             lon: nil,
-             bbox: nil
-           }) do
-        {:ok, result} ->
-          {:noreply,
-           socket
-           |> assign(
-             search_query: q,
-             search_results: result.features,
-             upstream_status: result.upstream_status
-           )
-           |> push_event("map:clear_markers", %{})}
-
-        {:error, _e} ->
-          {:noreply,
-           socket
-           |> assign(
-             search_query: q,
-             search_results: [],
-             upstream_status: "unavailable"
-           )
-           |> push_event("map:clear_markers", %{})}
-      end
+      {:noreply, socket}
     end
+  end
+
+  def handle_event("search_move", %{"dir" => dir}, socket) when dir in [1, -1] do
+    count = length(socket.assigns.search_results)
+
+    {:noreply,
+     assign(socket, search_active: move_active(socket.assigns.search_active, dir, count))}
+  end
+
+  def handle_event("search_commit", _params, socket) do
+    # The index guard is load-bearing: `Enum.at(list, -1)` returns the LAST
+    # element, so without it Enter with nothing highlighted would fly to the
+    # bottom result instead of doing nothing.
+    with true <- socket.assigns.search_active >= 0,
+         feature when not is_nil(feature) <-
+           Enum.at(socket.assigns.search_results, socket.assigns.search_active) do
+      {:noreply, select_feature(socket, feature)}
+    else
+      _ -> {:noreply, socket}
+    end
+  end
+
+  # Dismiss means dismiss: the pins go with the list, and `search_searched`
+  # resets so the panel does not answer a successful search with "No results".
+  def handle_event("search_dismiss", _params, socket) do
+    {:noreply,
+     socket
+     |> assign(search_results: [], search_active: -1, search_searched: false)
+     |> push_results([])}
   end
 
   @impl true
   def handle_event("select_result", %{"id" => id}, socket) do
     case Enum.find(socket.assigns.search_results, &(&1.id == id)) do
-      nil ->
-        {:noreply, socket}
-
-      feature ->
-        coords = feature.coords
-
-        {:noreply,
-         socket
-         |> push_event("map:fly_to", %{lat: coords.lat, lon: coords.lon, zoom: 14})
-         |> push_event("map:add_marker", %{
-           id: feature.id,
-           lat: coords.lat,
-           lon: coords.lon,
-           label: feature.label
-         })}
+      nil -> {:noreply, socket}
+      feature -> {:noreply, select_feature(socket, feature)}
     end
+  end
+
+  @impl true
+  def handle_event("dismiss_timeline", _params, socket) do
+    Safe.call(fn -> ApplyTimeline.dismiss() end)
+    {:noreply, assign(socket, timeline: nil)}
   end
 
   @impl true
@@ -122,32 +147,59 @@ defmodule AtlasWeb.MapLive do
   end
 
   @impl true
+  def handle_event("route_changed", %{"from" => from, "to" => to}, socket) do
+    {:noreply, assign(socket, route_from: from, route_to: to)}
+  end
+
   def handle_event("route", %{"from" => from, "to" => to} = params, socket) do
     mode = Map.get(params, "mode", socket.assigns.mode)
-    socket = assign(socket, route_from: from, route_to: to)
+    socket = socket |> clear_flash() |> assign(route_from: from, route_to: to, mode: mode)
 
     with {:ok, from_coords} <- Coord.parse_latlon(from),
          {:ok, to_coords} <- Coord.parse_latlon(to),
-         {:ok, result} <- Maps.Route.plan(from: from_coords, to: to_coords, mode: mode) do
-      case result.features do
-        %{legs: legs} when is_list(legs) and legs != [] ->
+         {:ok, result} <- plan_route(mode, from_coords, to_coords, socket.assigns.route_options) do
+      socket = assign(socket, upstream_status: result.upstream_status)
+
+      case route_legs(result.features) do
+        [_ | _] = legs ->
           {:noreply,
            socket
-           |> assign(directions: result.features, upstream_status: result.upstream_status)
+           |> assign(directions: result.features)
            |> push_event("map:draw_route", %{geojson: Coord.legs_to_geojson(legs)})}
 
-        _ ->
+        [] ->
+          # Clear any stale line and tell the user nothing was found.
           {:noreply,
-           assign(socket, directions: result.features, upstream_status: result.upstream_status)}
+           socket
+           |> assign(directions: nil)
+           |> push_event("map:draw_route", %{geojson: Coord.legs_to_geojson([])})
+           |> put_flash(:info, "No route found for this trip.")}
       end
     else
       :error ->
-        {:noreply, put_flash(socket, :error, "Could not parse from/to as lat,lon")}
+        {:noreply,
+         socket |> clear_route() |> put_flash(:error, "Could not parse from/to as lat,lon")}
+
+      {:error, :invalid_mode} ->
+        {:noreply,
+         socket |> clear_route() |> put_flash(:error, "Choose Drive, Bike, Walk or Transit.")}
+
+      {:error, %Maps.Upstream.Client.BadResponse{status: status}}
+      when status in [400, 404, 422] ->
+        {:noreply,
+         socket
+         |> clear_route()
+         |> assign(upstream_status: "ok")
+         |> put_flash(
+           :info,
+           "No route found. Check that both points are inside the loaded region."
+         )}
 
       {:error, _e} ->
         {:noreply,
          socket
-         |> assign(directions: %{trip: nil}, upstream_status: "unavailable")
+         |> clear_route()
+         |> assign(upstream_status: "unavailable")
          |> put_flash(:error, "Routing service unavailable")}
     end
   end
@@ -409,6 +461,21 @@ defmodule AtlasWeb.MapLive do
   end
 
   @impl true
+  def handle_params(params, _uri, socket) do
+    socket = assign(socket, url_params: Map.drop(params, ["q"]))
+    q = Map.get(params, "q", "")
+
+    # The dead render is a throwaway that the connected mount immediately
+    # replaces, so searching there bought nothing and cost a second Photon
+    # round trip for every visit to a shared ?q= link.
+    if q == socket.assigns.search_query or not connected?(socket) do
+      {:noreply, assign(socket, search_query: q)}
+    else
+      {:noreply, run_search(socket, q)}
+    end
+  end
+
+  @impl true
   def handle_info(:status_changed, socket) do
     {:noreply, assign(socket, service_status: refresh_service_status())}
   end
@@ -436,16 +503,6 @@ defmodule AtlasWeb.MapLive do
      assign(socket,
        apply_status: %{job_id: job_id, regions: regions, phase: :downloading, progress: nil}
      )}
-  end
-
-  def handle_info({:apply_progress, progress}, socket) do
-    case socket.assigns.apply_status do
-      %{job_id: job_id} = status when job_id == progress.job_id ->
-        {:noreply, assign(socket, apply_status: Map.merge(status, progress))}
-
-      _ ->
-        {:noreply, socket}
-    end
   end
 
   def handle_info({:apply_done, %{job_id: job_id, regions: regions}}, socket) do
@@ -504,7 +561,159 @@ defmodule AtlasWeb.MapLive do
      |> put_flash(:error, "Tile pack download failed: #{reason}")}
   end
 
+  def handle_info({:timeline, timeline}, socket) do
+    {:noreply, assign(socket, :timeline, timeline)}
+  end
+
   def handle_info(_other, socket), do: {:noreply, socket}
+
+  # Rails used the same two-character floor: one letter matches most of the
+  # planet, so it costs a Photon round trip per keystroke to return noise.
+  @min_query_length 2
+
+  # 40, not 8: the list is scoped to the viewport, so a brand search wants every
+  # visible branch rather than the global top handful.
+  @search_limit 40
+
+  # Keeps whatever else is in the URL (a `tab`, say) and drops `q` entirely when
+  # the box is empty, so a cleared search leaves `/` rather than `/?q=`.
+  defp search_path(socket, q) do
+    params =
+      socket.assigns
+      |> Map.get(:url_params, %{})
+      |> then(fn p -> if String.trim(q) == "", do: p, else: Map.put(p, "q", q) end)
+
+    if params == %{}, do: ~p"/", else: ~p"/?#{params}"
+  end
+
+  defp searchable?(q) when is_binary(q), do: String.length(String.trim(q)) >= @min_query_length
+  defp searchable?(_), do: false
+
+  defp run_search(socket, q) do
+    if searchable?(q) do
+      dispatch_search(socket, q)
+    else
+      # The markers go with the list. Escape cleared them; backspacing did not,
+      # so emptying the box left every pin stranded on the map.
+      socket
+      |> assign(
+        search_query: q,
+        search_results: [],
+        search_active: -1,
+        search_searched: false
+      )
+      |> push_results([])
+    end
+  end
+
+  defp dispatch_search(socket, q) do
+    params = %{
+      query: String.trim(q),
+      limit: @search_limit,
+      lang: nil,
+      lat: nil,
+      lon: nil,
+      bbox: socket.assigns.viewport
+    }
+
+    case Maps.Search.autocomplete(params) do
+      {:ok, result} ->
+        socket
+        |> assign(
+          search_query: q,
+          search_results: result.features,
+          search_status: result.upstream_status,
+          upstream_status: result.upstream_status,
+          search_active: -1,
+          search_searched: true
+        )
+        |> push_results(result.features)
+
+      {:error, _e} ->
+        socket
+        |> assign(
+          search_query: q,
+          search_results: [],
+          search_status: "unavailable",
+          upstream_status: "unavailable",
+          search_active: -1,
+          search_searched: true
+        )
+        |> push_results([])
+    end
+  end
+
+  # One event replaces the whole marker set, mirroring the Rails map: every
+  # result is a pin, so you can see where the matches are before choosing one.
+  # Replacing wholesale also removes the clear-then-add ordering that let a
+  # pan-triggered refresh wipe the pin a user had just dropped.
+  defp push_results(socket, features) do
+    push_event(socket, "map:set_results", %{points: SearchMarkers.points(features)})
+  end
+
+  defp select_feature(socket, feature) do
+    coords = feature.coords
+
+    socket
+    |> assign(
+      search_query: feature.label || "",
+      search_results: [],
+      search_active: -1,
+      # Not `searched: true` with an empty list: the list is dismissed, not
+      # empty, and the panel must not answer a chosen result with "No results".
+      search_searched: false
+    )
+    |> push_event("map:fly_to", %{lat: coords.lat, lon: coords.lon, zoom: 14})
+    |> push_results([feature])
+    |> then(&push_patch(&1, to: search_path(&1, feature.label || ""), replace: true))
+  end
+
+  # Wraps at both ends, matching the Rails list. `-1` means "nothing highlighted"
+  # and needs its own clauses rather than arithmetic: `Integer.mod(-1 + -1, 3)`
+  # is 1, but ArrowUp from nothing must land on the last row.
+  defp move_active(_current, _dir, 0), do: -1
+  defp move_active(-1, 1, _count), do: 0
+  defp move_active(-1, -1, count), do: count - 1
+  defp move_active(current, dir, count), do: Integer.mod(current + dir, count)
+
+  # Transit goes to OTP; everything else (auto/bicycle/pedestrian) to Valhalla.
+  # Valhalla.route/2 raises on an unknown costing, so transit must never reach it.
+  defp plan_route("transit", from, to, _options) do
+    Maps.Transit.plan(from: from, to: to)
+  end
+
+  defp plan_route(mode, from, to, options) when mode in ~w(auto bicycle pedestrian) do
+    Maps.Route.plan(from: from, to: to, mode: mode, options: costing_options(options))
+  end
+
+  defp plan_route(_mode, _from, _to, _options), do: {:error, :invalid_mode}
+
+  defp clear_route(socket) do
+    socket
+    |> assign(directions: nil)
+    |> push_event("map:draw_route", %{geojson: Coord.legs_to_geojson([])})
+  end
+
+  # The route-option toggles are stored string-keyed; Valhalla's costing options
+  # want atoms. Whitelist the three known keys rather than String.to_atom/1.
+  defp costing_options(options) when is_map(options) do
+    %{
+      avoid_tolls: Map.get(options, "avoid_tolls", false),
+      avoid_highways: Map.get(options, "avoid_highways", false),
+      avoid_ferries: Map.get(options, "avoid_ferries", false)
+    }
+  end
+
+  defp costing_options(_), do: %{}
+
+  # Valhalla results carry a flat `legs` list; OTP transit results carry
+  # `itineraries`, each with its own `legs`. Draw the first itinerary.
+  defp route_legs(%{legs: legs}) when is_list(legs), do: legs
+
+  defp route_legs(%{itineraries: [itinerary | _]}) when is_map(itinerary),
+    do: Map.get(itinerary, :legs, [])
+
+  defp route_legs(_), do: []
 
   defp refresh_service_status do
     Seeder.known_services()
@@ -548,11 +757,14 @@ defmodule AtlasWeb.MapLive do
       />
     <% end %>
 
-    <div class="fixed inset-0 p-2 sm:p-3 bg-base-200 flex gap-2 sm:gap-3">
+    <div class="fixed inset-0 p-2 sm:p-3 bg-base-200 flex flex-col md:flex-row gap-2 sm:gap-3">
       <AtlasWeb.SidePanel.side_panel
         active_tab={@active_tab}
         search_query={@search_query}
         search_results={@search_results}
+        search_status={@search_status}
+        search_active={@search_active}
+        search_searched={@search_searched}
         directions={@directions}
         mode={@mode}
         route_from={@route_from}
@@ -565,10 +777,10 @@ defmodule AtlasWeb.MapLive do
         pending_services={@pending_services}
         tiles_download={@tiles_download}
         basemap_confirm={@basemap_confirm}
-        apply_status={@apply_status}
+        timeline={@timeline}
       />
 
-      <div class="relative flex-1 min-w-0 rounded-2xl border border-base-300 bg-base-100 overflow-hidden">
+      <div class="relative flex-1 min-w-0 min-h-0 rounded-2xl border border-base-300 bg-base-100 overflow-hidden">
         <div
           id="map"
           phx-hook="Map"

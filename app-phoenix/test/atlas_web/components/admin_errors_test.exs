@@ -32,7 +32,8 @@ defmodule AtlasWeb.AdminErrorComponentsTest do
   end
 
   test "region_not_found/1 renders the missing region name" do
-    html = render_component(&region_not_found/1, %{name: "atlantis", available: ["berlin", "germany"]})
+    html =
+      render_component(&region_not_found/1, %{name: "atlantis", available: ["berlin", "germany"]})
 
     assert html =~ "atlantis"
     assert html =~ "berlin"

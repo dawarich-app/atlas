@@ -112,7 +112,10 @@ defmodule Atlas.Maps.Poi do
     base = %{}
     base = if p["name"], do: Map.put(base, "name", p["name"]), else: base
     base = if p["street"], do: Map.put(base, "addr:street", p["street"]), else: base
-    base = if p["housenumber"], do: Map.put(base, "addr:housenumber", p["housenumber"]), else: base
+
+    base =
+      if p["housenumber"], do: Map.put(base, "addr:housenumber", p["housenumber"]), else: base
+
     base = if p["postcode"], do: Map.put(base, "addr:postcode", p["postcode"]), else: base
     base = if p["city"], do: Map.put(base, "addr:city", p["city"]), else: base
     base = if p["country"], do: Map.put(base, "addr:country", p["country"]), else: base

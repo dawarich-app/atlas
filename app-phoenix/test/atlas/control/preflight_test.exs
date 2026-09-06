@@ -52,8 +52,11 @@ defmodule Atlas.Control.PreflightTest do
 
   test "socket permission failure points at DOCKER_GID", %{tmp: tmp} do
     runner = fn
-      "docker", ["compose" | _] -> {"v5.1.4\n", 0}
-      "docker", ["ps" | _] -> {"permission denied while trying to connect to the Docker daemon socket", 1}
+      "docker", ["compose" | _] ->
+        {"v5.1.4\n", 0}
+
+      "docker", ["ps" | _] ->
+        {"permission denied while trying to connect to the Docker daemon socket", 1}
     end
 
     results =

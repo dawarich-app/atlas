@@ -12,12 +12,20 @@ defmodule Atlas.Maps.Upstream.ValhallaTest do
       {:ok, body, conn} = Plug.Conn.read_body(conn)
       json = Jason.decode!(body)
       assert json["costing"] == "auto"
-      assert [%{"lat" => 52.5, "lon" => 13.4}, %{"lat" => 52.6, "lon" => 13.5}] = json["locations"]
+
+      assert [%{"lat" => 52.5, "lon" => 13.4}, %{"lat" => 52.6, "lon" => 13.5}] =
+               json["locations"]
+
       assert get_in(json, ["directions_options", "units"]) == "kilometers"
       Plug.Conn.resp(conn, 200, ~s({"trip":{"summary":{"length":12.3}}}))
     end)
 
-    assert {:ok, %{"trip" => _}} = Valhalla.route(req, from: %{lat: 52.5, lon: 13.4}, to: %{lat: 52.6, lon: 13.5}, mode: "auto")
+    assert {:ok, %{"trip" => _}} =
+             Valhalla.route(req,
+               from: %{lat: 52.5, lon: 13.4},
+               to: %{lat: 52.6, lon: 13.5},
+               mode: "auto"
+             )
   end
 
   test "route/2 includes costing_options for auto with avoid flags", %{bypass: bypass, req: req} do
@@ -29,7 +37,12 @@ defmodule Atlas.Maps.Upstream.ValhallaTest do
       Plug.Conn.resp(conn, 200, "{}")
     end)
 
-    Valhalla.route(req, from: %{lat: 52.5, lon: 13.4}, to: %{lat: 52.6, lon: 13.5}, mode: "auto", options: %{avoid_tolls: true, avoid_highways: true})
+    Valhalla.route(req,
+      from: %{lat: 52.5, lon: 13.4},
+      to: %{lat: 52.6, lon: 13.5},
+      mode: "auto",
+      options: %{avoid_tolls: true, avoid_highways: true}
+    )
   end
 
   test "route/2 raises on invalid mode", %{req: req} do
@@ -111,7 +124,10 @@ defmodule Atlas.Maps.Upstream.ValhallaTest do
         Plug.Conn.resp(conn, 200, "{}")
       end)
 
-      Valhalla.trace_route(req, shape: [%{lat: 52.5, lon: 13.4}, %{lat: 52.6, lon: 13.5}], mode: "auto")
+      Valhalla.trace_route(req,
+        shape: [%{lat: 52.5, lon: 13.4}, %{lat: 52.6, lon: 13.5}],
+        mode: "auto"
+      )
     end
 
     test "honours an explicit shape_match", %{bypass: bypass, req: req} do

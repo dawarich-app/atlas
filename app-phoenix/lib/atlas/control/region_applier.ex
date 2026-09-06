@@ -18,10 +18,17 @@ defmodule Atlas.Control.RegionApplier do
   host-path translation. Every stage broadcasts on the stable topic
   `"control:apply"`:
 
-      {:apply_start,    %{job_id, regions}}
-      {:apply_progress, %{job_id, phase, region, progress}}
-      {:apply_error,    %{job_id, phase, reason}}
-      {:apply_done,     %{job_id, regions}}
+      {:apply_start,      %{job_id, regions}}
+      {:apply_progress,   %{job_id, phase, region, progress, item}}
+      {:apply_restarting, [service_name]}
+      {:apply_error,      %{job_id, phase, reason}}
+      {:apply_done,       %{job_id, regions}}
+
+  `:item` is present only on `:downloading` and names one file
+  (`%{label, source, current, total}`). `{:apply_restarting, names}` carries
+  exactly the ingest services this run hands its fresh data to — a failed
+  Overpass conversion omits `"overpass"` — so the timeline can say which
+  sidecar was left behind, and why.
 
   `status/0` returns the running job, the last failed job (so a page refresh
   can still show what broke), or `nil`.
@@ -34,6 +41,8 @@ defmodule Atlas.Control.RegionApplier do
 
   require Logger
 
+  alias Atlas.Control.OtpBuildConfig
+
   @topic "control:apply"
   @ingest_services ~w(valhalla overpass otp)
 
@@ -42,6 +51,7 @@ defmodule Atlas.Control.RegionApplier do
     :osmium_merge,
     :osmium_convert,
     :restart,
+    :enabled?,
     :catalog_find,
     :data_dir,
     current: nil,
@@ -88,6 +98,7 @@ defmodule Atlas.Control.RegionApplier do
       osmium_convert:
         Keyword.get(opts, :osmium_convert, &Atlas.Control.Osmium.convert_to_osm_bz2/3),
       restart: Keyword.get(opts, :restart, &default_restart/1),
+      enabled?: Keyword.get(opts, :enabled?, &default_enabled?/1),
       catalog_find: Keyword.get(opts, :catalog_find, &Atlas.Control.RegionCatalog.find/1),
       data_dir: Keyword.get(opts, :data_dir, "/work/data")
     }
@@ -172,7 +183,8 @@ defmodule Atlas.Control.RegionApplier do
     with {:ok, sources} <- download_pbfs(state, job_id, entries, sources_dir),
          :ok <- download_gtfs(state, job_id, entries, gtfs_dir),
          :ok <- materialize_current(state, job_id, osm_dir, sources_dir, sources),
-         :ok <- stage_otp(state, job_id, osm_dir, gtfs_dir) do
+         :ok <- stage_valhalla(state, job_id, osm_dir),
+         :ok <- stage_otp(state, job_id, osm_dir, gtfs_dir, entries) do
       # Convert last: it only feeds overpass, and it is the one stage that can
       # take hours. Everything valhalla and OTP need is already on disk, so a
       # failed conversion still fails the apply (loudly — see #28) but does not
@@ -182,7 +194,7 @@ defmodule Atlas.Control.RegionApplier do
           restart_services(state, job_id, @ingest_services)
 
         {:error, _phase, _reason} = error ->
-          restart_services(state, job_id, @ingest_services -- ["overpass"])
+          restart_after_failed_convert(state, job_id)
           error
       end
     end
@@ -203,12 +215,25 @@ defmodule Atlas.Control.RegionApplier do
     file = Path.basename(url)
     dest = Path.join(sources_dir, file)
 
-    progress_fun = fn bytes, total ->
-      fraction = if total && total > 0, do: bytes / total, else: nil
-      progress(state, job_id, :downloading, %{region: entry.name, progress: fraction})
+    item = fn current, total ->
+      %{label: file, source: url, current: current, total: total}
     end
 
-    progress(state, job_id, :downloading, %{region: entry.name, progress: nil})
+    progress_fun = fn bytes, total ->
+      fraction = if total && total > 0, do: bytes / total, else: nil
+
+      progress(state, job_id, :downloading, %{
+        region: entry.name,
+        progress: fraction,
+        item: item.(bytes, total)
+      })
+    end
+
+    progress(state, job_id, :downloading, %{
+      region: entry.name,
+      progress: nil,
+      item: item.(0, nil)
+    })
 
     case state.downloader.(url, dest, progress_fun) do
       {:ok, _} -> {:ok, file}
@@ -313,8 +338,33 @@ defmodule Atlas.Control.RegionApplier do
     end
   end
 
-  defp stage_otp(state, job_id, osm_dir, gtfs_dir) do
+  # Valhalla's image scans its OWN mount (/custom_files) for `*.osm.pbf` and
+  # exits with "No local PBF files ... Nothing to do" when it finds none, then
+  # restart-loops. The region PBF lives in the osm dir, which is mounted at
+  # /osm — somewhere the image never looks — so routing never had tiles to
+  # build from. Stage a copy the same way OTP gets one.
+  defp stage_valhalla(state, job_id, osm_dir) do
     progress(state, job_id, :staging, %{region: nil, progress: nil})
+    valhalla_dir = Path.join(state.data_dir, "valhalla")
+    File.mkdir_p!(valhalla_dir)
+
+    current = Path.join(osm_dir, "current.osm.pbf")
+    dst = Path.join(valhalla_dir, "region.osm.pbf")
+    File.rm(dst)
+
+    case File.cp(current, dst) do
+      :ok -> :ok
+      {:error, reason} -> {:error, :staging, {:copy, reason}}
+    end
+  end
+
+  defp stage_otp(state, job_id, osm_dir, gtfs_dir, entries) do
+    progress(state, job_id, :staging, %{
+      region: nil,
+      progress: nil,
+      detail: time_zone_detail(entries)
+    })
+
     otp_dir = Path.join(state.data_dir, "otp")
     File.mkdir_p!(otp_dir)
 
@@ -326,10 +376,40 @@ defmodule Atlas.Control.RegionApplier do
       :ok ->
         stage_otp_gtfs(gtfs_dir, otp_dir)
         File.rm(Path.join(otp_dir, "graph.obj"))
-        :ok
+        stage_otp_build_config(otp_dir, entries)
 
       {:error, reason} ->
         {:error, :staging, {:copy, reason}}
+    end
+  end
+
+  # Whether OTP got a time zone is otherwise invisible: an ambiguous set writes
+  # no config and the restriction loss is silent. Say which way it went on the
+  # staging row, where the rest of that stage's work is already reported.
+  defp time_zone_detail(entries) do
+    case OtpBuildConfig.resolve(entries) do
+      {:ok, zone} -> "time zone #{zone}"
+      :ambiguous -> "no time zone — the selected regions span more than one"
+    end
+  end
+
+  # OTP resolves OSM opening hours against one time zone for the whole extract,
+  # and skips every time-restricted entity when it has none. Pin it when the
+  # selected regions agree; when they do not, delete rather than keep, or the
+  # zone from a previous single-country apply silently outlives its extract.
+  defp stage_otp_build_config(otp_dir, entries) do
+    path = Path.join(otp_dir, "build-config.json")
+
+    case OtpBuildConfig.resolve(entries) do
+      {:ok, zone} ->
+        case File.write(path, OtpBuildConfig.render(zone)) do
+          :ok -> :ok
+          {:error, reason} -> {:error, :staging, {:build_config, reason}}
+        end
+
+      :ambiguous ->
+        File.rm(path)
+        :ok
     end
   end
 
@@ -343,23 +423,63 @@ defmodule Atlas.Control.RegionApplier do
     end)
   end
 
+  # Filter BEFORE announcing. The timeline builds its sidecar rows from this
+  # broadcast, so naming a service that is switched off hands it a row that can
+  # never start — which the timeline then has to guess about, and guessed wrong
+  # for an enabled service that simply had not logged yet.
+  # The convert failure is what fails the apply, but a restart that also failed
+  # must not vanish with it: unrecorded, the valhalla and otp rows go green off
+  # the old container's log ticks.
+  defp restart_after_failed_convert(state, job_id) do
+    case restart_services(state, job_id, @ingest_services -- ["overpass"]) do
+      :ok -> :ok
+      {:error, phase, reason} -> broadcast_error(job_id, phase, reason)
+    end
+  end
+
+  defp broadcast_error(job_id, phase, reason) do
+    broadcast({:apply_error, %{job_id: job_id, phase: phase, reason: format_reason(reason)}})
+  end
+
   defp restart_services(state, job_id, services) do
     progress(state, job_id, :restarting, %{region: nil, progress: nil})
 
-    case state.restart.(services) do
+    enabled = Enum.filter(services, state.enabled?)
+    broadcast({:apply_restarting, enabled})
+
+    case state.restart.(enabled) do
       :ok -> :ok
       {:error, reason} -> {:error, :restarting, reason}
     end
   end
 
+  defp default_enabled?(name),
+    do: match?(%{enabled?: true}, Atlas.Control.Safe.snapshot(name))
+
+  # DockerCompose documents that callers must not discard failures. Swallowing
+  # them reported a successful apply for a restart that never happened, leaving
+  # the sidecar rows to settle as "no progress reported".
+  #
+  # Every service is attempted even when an earlier one fails: they are
+  # independent, and stopping early would leave the rest on stale data with
+  # nothing said about it.
   defp default_restart(names) do
     names
-    |> Enum.filter(fn name ->
-      match?(%{enabled?: true}, Atlas.Control.Safe.snapshot(name))
-    end)
-    |> Enum.each(&Atlas.Control.DockerCompose.restart/1)
+    |> Enum.map(fn name -> {name, Atlas.Control.DockerCompose.restart(name)} end)
+    |> summarize_restarts()
+  end
 
-    :ok
+  @doc """
+  Fold `{name, DockerCompose.restart/1 result}` pairs into `:ok` or a single
+  error naming every service that failed. Public so the reporting is testable
+  without a docker daemon.
+  """
+  def summarize_restarts(results) do
+    failures =
+      for {name, {:error, code, output}} <- results,
+          do: "#{name}: exit #{code}: #{String.trim(to_string(output))}"
+
+    if failures == [], do: :ok, else: {:error, Enum.join(failures, "; ")}
   end
 
   defp progress(state, job_id, phase, extra) do

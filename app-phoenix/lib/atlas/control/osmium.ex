@@ -24,7 +24,12 @@ defmodule Atlas.Control.Osmium do
   Returns `{:ok, output}` or `{:error, exit_code, output}`.
   """
   def merge(data_dir, sources, out) when is_list(sources) do
-    args = ["merge"] ++ sources ++ ["-O", "-o", out]
+    # `-f pbf` is not redundant: osmium infers the format from the output
+    # extension, and the applier merges to `current.osm.pbf.partial` so an
+    # interrupted run leaves a file sweep_partials/1 can recognise and clear.
+    # Without an explicit format osmium rejects that name outright and every
+    # multi-region apply dies at the merge step.
+    args = ["merge"] ++ sources ++ ["-O", "-f", "pbf", "-o", out]
     GenServer.call(__MODULE__, {:osmium, data_dir, args}, call_timeout())
   end
 

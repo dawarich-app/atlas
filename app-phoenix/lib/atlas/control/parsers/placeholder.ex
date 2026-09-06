@@ -12,6 +12,7 @@ defmodule Atlas.Control.Parsers.Placeholder do
   @optimize_re ~r/optimize\.\.\./
   @listening_re ~r/\[placeholder\].*listening on/
   @request_re ~r/\[placeholder\].*GET \//
+  @download_re ~r/\[placeholder\] (downloading database|downloaded \d+ MiB)/
 
   @impl true
   def init,
@@ -25,6 +26,9 @@ defmodule Atlas.Control.Parsers.Placeholder do
       cond do
         Regex.match?(@listening_re, line) or Regex.match?(@request_re, line) ->
           %{acc | phase: "ready", ready: true, progress: 1.0}
+
+        Regex.match?(@download_re, line) ->
+          %{acc | phase: "downloading", ready: false, progress: nil}
 
         Regex.match?(@optimize_re, line) ->
           %{acc | phase: "optimizing", progress: 0.9}

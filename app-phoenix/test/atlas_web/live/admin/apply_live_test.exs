@@ -198,4 +198,77 @@ defmodule AtlasWeb.Admin.ApplyLiveTest do
     refute html =~ "Confirm Apply"
     assert html =~ "Project"
   end
+
+  defp ingesting_timeline(services, snapshots) do
+    now = DateTime.utc_now()
+
+    base =
+      ["Germany"]
+      |> Atlas.Control.ApplyTimeline.start(services, now)
+      |> Atlas.Control.ApplyTimeline.apply_event({:apply_progress, %{phase: :restarting}}, now)
+      |> Atlas.Control.ApplyTimeline.apply_event({:apply_restarting, services}, now)
+
+    Enum.reduce(snapshots, base, fn {name, phase, progress}, acc ->
+      Atlas.Control.ApplyTimeline.apply_event(
+        acc,
+        {:service_update,
+         %{
+           name: name,
+           status: :running,
+           phase: phase,
+           progress: progress,
+           ready?: false,
+           last_error: nil
+         }},
+        now
+      )
+    end)
+  end
+
+  defp timeline_html(view, timeline) do
+    send(view.pid, {:timeline, timeline})
+
+    view
+    |> element(~s([data-role="apply-timeline"]))
+    |> render()
+  end
+
+  test "the admin apply page renders the same timeline detail", %{conn: conn} do
+    {:ok, view, _html} = live(conn, ~p"/admin/apply")
+
+    html =
+      timeline_html(
+        view,
+        ingesting_timeline(["otp"], [{"otp", "building-graph", 0.34}])
+      )
+
+    # building-graph, not building-tiles: OTP's log carries a real "(N%)", so a
+    # percentage here is measured. Valhalla's building-tiles number is
+    # fabricated by the parser and is deliberately never rendered.
+    assert html =~ "building-graph"
+    assert html =~ "34%"
+    assert html =~ "step 5 of 5"
+  end
+
+  test "a stage whose percentage was invented renders the phase and no number", %{conn: conn} do
+    {:ok, view, _html} = live(conn, ~p"/admin/apply")
+
+    # Parsers.Overpass hardcodes 0.6 for every "ingesting" line — a phase
+    # marker, not a measurement. The row must show the phase text alone.
+    html =
+      timeline_html(
+        view,
+        ingesting_timeline(["overpass", "otp"], [
+          {"overpass", "ingesting", 0.6},
+          {"otp", "building-graph", 0.12}
+        ])
+      )
+
+    assert html =~ "ingesting"
+    refute html =~ "60%"
+
+    # …while OTP's building-graph number IS read out of its log, so it renders.
+    assert html =~ "building-graph"
+    assert html =~ "12%"
+  end
 end

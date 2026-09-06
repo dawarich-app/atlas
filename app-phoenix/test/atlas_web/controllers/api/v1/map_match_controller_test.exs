@@ -211,6 +211,7 @@ defmodule AtlasWeb.Api.V1.MapMatchControllerTest do
     test "still accepts numeric strings and integers", %{conn: conn, bypass: bypass} do
       Bypass.expect_once(bypass, "POST", "/trace_route", fn c ->
         {:ok, body, c} = Plug.Conn.read_body(c)
+
         assert [%{"lat" => 52.5, "lon" => 13.4}, %{"lat" => 53.0, "lon" => 14.0}] =
                  Jason.decode!(body)["shape"]
 

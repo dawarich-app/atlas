@@ -10,6 +10,7 @@ defmodule Atlas.Control.RegionApplierTest do
       "berlin" => %RegionCatalog{
         name: "berlin",
         label: "Berlin",
+        country_code: "de",
         pbf_urls: ["http://example.test/berlin-latest.osm.pbf"],
         gtfs_url: "http://example.test/vbb.zip",
         gtfs_name: "vbb.gtfs.zip"
@@ -17,7 +18,20 @@ defmodule Atlas.Control.RegionApplierTest do
       "bayern" => %RegionCatalog{
         name: "bayern",
         label: "Bayern",
+        country_code: "de",
         pbf_urls: ["http://example.test/bayern-latest.osm.pbf"]
+      },
+      "kent" => %RegionCatalog{
+        name: "kent",
+        label: "Kent",
+        country_code: "gb",
+        pbf_urls: ["http://example.test/kent-latest.osm.pbf"]
+      },
+      "europe" => %RegionCatalog{
+        name: "europe",
+        label: "Europe",
+        country_code: "europe",
+        pbf_urls: ["http://example.test/europe-latest.osm.pbf"]
       }
     }
   end
@@ -60,6 +74,7 @@ defmodule Atlas.Control.RegionApplierTest do
        osmium_merge: osmium_merge,
        osmium_convert: osmium_convert,
        restart: restart,
+       enabled?: Keyword.get(opts, :enabled?, fn _name -> true end),
        catalog_find: fn name -> Map.get(catalog(), name) end}
     )
 
@@ -136,6 +151,9 @@ defmodule Atlas.Control.RegionApplierTest do
       assert File.exists?(Path.join(tmp, "otp/region.osm.pbf")),
              "a broken overpass source must not withhold the fresh PBF from OTP"
 
+      assert_received {:apply_restarting, ["valhalla", "otp"]},
+                      "the timeline must be told exactly which services are being restarted"
+
       assert_received {:restart, services},
                       "valhalla/otp got new data and must still be restarted"
 
@@ -206,13 +224,145 @@ defmodule Atlas.Control.RegionApplierTest do
     assert File.read!(Path.join(tmp, "otp/region.osm.pbf")) ==
              "data:http://example.test/berlin-latest.osm.pbf"
 
+    # Valhalla's image scans its own /custom_files for *.osm.pbf and refuses to
+    # start without one ("No local PBF files... Nothing to do"). Mounting the
+    # osm dir elsewhere does not help — the file has to land here.
+    assert File.read!(Path.join(tmp, "valhalla/region.osm.pbf")) ==
+             "data:http://example.test/berlin-latest.osm.pbf"
+
     assert File.exists?(Path.join(tmp, "gtfs/vbb.gtfs.zip"))
     assert File.exists?(Path.join(tmp, "otp/vbb.gtfs.zip"))
     refute File.exists?(Path.join(tmp, "otp/graph.obj"))
 
+    assert_received {:apply_restarting, ["valhalla", "overpass", "otp"]}
     assert_received {:restart, ["valhalla", "overpass", "otp"]}
 
     assert RegionApplier.status() == nil
+  end
+
+  test "only services that will actually restart are announced", %{tmp: tmp} do
+    # The timeline builds its sidecar rows from this broadcast. Naming a service
+    # that is switched off gives it a row that can never start, which the
+    # timeline then has to guess about.
+    start_applier(tmp, enabled?: fn name -> name != "overpass" end)
+
+    assert {:ok, job_id} = RegionApplier.start(["berlin"])
+    assert_receive {:apply_done, %{job_id: ^job_id}}, 2_000
+
+    assert_received {:apply_restarting, ["valhalla", "otp"]}
+    assert_received {:restart, ["valhalla", "otp"]}
+  end
+
+  test "staging pins OTP's time zone when the regions agree on one", %{tmp: tmp} do
+    start_applier(tmp)
+
+    assert {:ok, job_id} = RegionApplier.start(["berlin", "bayern"])
+    assert_receive {:apply_done, %{job_id: ^job_id}}, 2_000
+
+    assert %{"osmDefaults" => %{"timeZone" => "Europe/Berlin"}} =
+             tmp |> Path.join("otp/build-config.json") |> File.read!() |> Jason.decode!()
+  end
+
+  test "a restart failure is recorded even when the convert already failed", %{tmp: tmp} do
+    # The convert-failure path restarts valhalla/otp and returned the convert
+    # error, discarding the restart result — so a restart that never happened
+    # went unrecorded and those rows still went green off the old container.
+    start_applier(tmp,
+      osmium_convert: fn _dir, _in, _out -> {:error, 1, "osmium: killed"} end,
+      restart: fn _names -> {:error, "docker daemon gone"} end
+    )
+
+    assert {:ok, job_id} = RegionApplier.start(["berlin"])
+    assert_receive {:apply_error, %{job_id: ^job_id, phase: :converting}}, 2_000
+
+    assert_received {:apply_error, %{phase: :restarting, reason: restart_reason}}
+    assert restart_reason =~ "docker daemon gone"
+  end
+
+  test "a failed restart fails the apply instead of reporting success", %{tmp: tmp} do
+    start_applier(tmp, restart: fn _names -> {:error, "docker daemon gone"} end)
+
+    assert {:ok, job_id} = RegionApplier.start(["berlin"])
+
+    assert_receive {:apply_error, %{job_id: ^job_id, phase: :restarting, reason: reason}}, 2_000
+    assert reason =~ "docker daemon gone"
+  end
+
+  test "staging reports which time zone it pinned", %{tmp: tmp} do
+    start_applier(tmp)
+
+    assert {:ok, job_id} = RegionApplier.start(["berlin"])
+    assert_receive {:apply_done, %{job_id: ^job_id}}, 2_000
+
+    assert_received {:apply_progress, %{phase: :staging, detail: "time zone Europe/Berlin"}}
+  end
+
+  test "staging says so when no time zone could be pinned", %{tmp: tmp} do
+    start_applier(tmp)
+
+    assert {:ok, job_id} = RegionApplier.start(["berlin", "kent"])
+    assert_receive {:apply_done, %{job_id: ^job_id}}, 2_000
+
+    assert_received {:apply_progress, %{phase: :staging, detail: detail}}
+    assert detail =~ "no time zone"
+  end
+
+  test "staging writes no build config when the regions disagree", %{tmp: tmp} do
+    start_applier(tmp)
+
+    assert {:ok, job_id} = RegionApplier.start(["berlin", "kent"])
+    assert_receive {:apply_done, %{job_id: ^job_id}}, 2_000
+
+    refute File.exists?(Path.join(tmp, "otp/build-config.json")),
+           "CET and GMT cannot both be right; OTP's warning beats a wrong answer"
+  end
+
+  test "staging clears a stale build config rather than leaving it", %{tmp: tmp} do
+    # A previous Germany-only apply pinned Europe/Berlin. Applying a region that
+    # resolves to nothing must not inherit it — OTP would shift every opening
+    # hour in the new extract by whole hours, silently.
+    File.mkdir_p!(Path.join(tmp, "otp"))
+
+    File.write!(
+      Path.join(tmp, "otp/build-config.json"),
+      ~s({"osmDefaults":{"timeZone":"Europe/Berlin"}})
+    )
+
+    start_applier(tmp)
+
+    assert {:ok, job_id} = RegionApplier.start(["europe"])
+    assert_receive {:apply_done, %{job_id: ^job_id}}, 2_000
+
+    refute File.exists?(Path.join(tmp, "otp/build-config.json"))
+  end
+
+  test "download progress names the file, its source URL and byte counts", %{tmp: tmp} do
+    downloader = fn _url, dest, progress_fun ->
+      File.mkdir_p!(Path.dirname(dest))
+      File.write!(dest, "pbf")
+      progress_fun.(512, 2048)
+      {:ok, dest}
+    end
+
+    start_applier(tmp, downloader: downloader)
+    assert {:ok, job_id} = RegionApplier.start(["berlin"])
+
+    assert_receive {:apply_progress,
+                    %{
+                      phase: :downloading,
+                      item: %{
+                        label: "berlin-latest.osm.pbf",
+                        source: "http://example.test/berlin-latest.osm.pbf",
+                        current: 512,
+                        total: 2048
+                      }
+                    }},
+                   2_000
+
+    # Wait for the pipeline to finish so the background Task isn't still
+    # writing into `tmp` when `on_exit` tries to remove it (see the other
+    # tests in this file, all of which wait out the full run).
+    assert_receive {:apply_done, %{job_id: ^job_id}}, 2_000
   end
 
   test "two regions merge instead of symlink", %{tmp: tmp} do
@@ -295,7 +445,10 @@ defmodule Atlas.Control.RegionApplierTest do
 
     log =
       capture_log(fn ->
-        start_applier(tmp, downloader: fn _url, _dest, _progress -> {:error, {:http_status, 500}} end)
+        start_applier(tmp,
+          downloader: fn _url, _dest, _progress -> {:error, {:http_status, 500}} end
+        )
+
         {:ok, _job_id} = RegionApplier.start(["bayern"])
         assert_receive {:apply_error, _}, 2_000
         Process.sleep(50)
@@ -331,5 +484,27 @@ defmodule Atlas.Control.RegionApplierTest do
 
     send(dl_pid, :proceed)
     assert_receive {:apply_done, _}, 2_000
+  end
+
+  describe "summarize_restarts/1" do
+    test "reports every failure, not just the first" do
+      # reduce_while halted on the first bad compose call, leaving the rest of
+      # the sidecars unrestarted with no record of which.
+      results = [
+        {"valhalla", {:error, 1, "no such service\n"}},
+        {"overpass", {:ok, ""}},
+        {"otp", {:error, 137, "OOMKilled\n"}}
+      ]
+
+      assert {:error, message} = RegionApplier.summarize_restarts(results)
+      assert message =~ "valhalla"
+      assert message =~ "otp"
+      refute message =~ "overpass"
+    end
+
+    test "all good is plain :ok" do
+      assert RegionApplier.summarize_restarts([{"valhalla", {:ok, ""}}]) == :ok
+      assert RegionApplier.summarize_restarts([]) == :ok
+    end
   end
 end

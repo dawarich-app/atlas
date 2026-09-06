@@ -330,4 +330,61 @@ defmodule AtlasWeb.SettingsPanelTest do
     # Expanding must not also select the continent.
     refute Repo.get_by(RegionSelection, region_name: "gf:asia", active: true)
   end
+
+  test "the apply card names the file, its source and the step", %{conn: conn} do
+    {:ok, view, _html} = live(conn, ~p"/")
+
+    timeline =
+      ["Germany"]
+      |> Atlas.Control.ApplyTimeline.start([], DateTime.utc_now())
+      |> Atlas.Control.ApplyTimeline.apply_event(
+        {:apply_progress,
+         %{
+           phase: :downloading,
+           region: "germany",
+           item: %{
+             label: "germany-latest.osm.pbf",
+             source: "https://download.geofabrik.de/europe/germany-latest.osm.pbf",
+             current: 1024,
+             total: 4096
+           }
+         }},
+        DateTime.utc_now()
+      )
+
+    send(view.pid, {:timeline, timeline})
+
+    html = render(view)
+
+    assert html =~ "germany-latest.osm.pbf"
+    assert html =~ "download.geofabrik.de"
+    assert html =~ "step 1 of 4"
+  end
+
+  test "an indeterminate measure renders bytes, never a percentage", %{conn: conn} do
+    {:ok, view, _html} = live(conn, ~p"/")
+
+    timeline =
+      ["Germany"]
+      |> Atlas.Control.ApplyTimeline.start([], DateTime.utc_now())
+      |> Atlas.Control.ApplyTimeline.apply_event(
+        {:apply_progress,
+         %{
+           phase: :downloading,
+           region: "germany",
+           item: %{label: "a.pbf", source: "http://x/a.pbf", current: 2048, total: nil}
+         }},
+        DateTime.utc_now()
+      )
+
+    send(view.pid, {:timeline, timeline})
+
+    timeline_html =
+      view
+      |> element(~s([data-role="apply-timeline"]))
+      |> render()
+
+    assert timeline_html =~ "2.0 KB"
+    refute timeline_html =~ "%"
+  end
 end

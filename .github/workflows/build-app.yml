@@ -1,26 +1,28 @@
 name: Build app image
 
-# Images are cut from releases, not from main. Pushing to main no longer
-# publishes anything to GHCR — for a build on every main commit, see the
-# OneDev pipeline in .onedev-buildspec.yml, which pushes to onedev.dwri.xyz.
-#
-# Two ways in:
-#   * a release published by hand in the GitHub UI, and
-#   * workflow_dispatch, which is how release-on-changelog.yml kicks off the
-#     build for the releases it creates automatically. That indirection is
-#     required: a release created with GITHUB_TOKEN does not emit a `release`
-#     event, so this workflow would never see it.
+# Branch/PR builds verify both native architectures without publishing images.
+# Only a published release or an explicitly requested tag build updates GHCR.
 on:
+  push:
+    branches: ['release/**']
+  pull_request:
+    paths: ['app-phoenix/**', 'script/**', '.github/workflows/build-app.yml']
   release:
     types: [published]
-  # Pick the tag to build with `gh workflow run build-app.yml --ref vX.Y.Z`.
-  # Deliberately no `ref` input: the ref the run is against is what gets
-  # checked out AND what `github.sha` reports, so a separate input could bake
-  # the wrong APP_REVISION into the image.
   workflow_dispatch:
+    inputs:
+      publish:
+        description: Publish images (run against a release tag)
+        type: boolean
+        default: false
+  workflow_call:
+    inputs:
+      publish:
+        type: boolean
+        default: false
 
 concurrency:
-  group: build-app-${{ github.ref }}
+  group: build-app-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: false
 
 env:
@@ -28,57 +30,124 @@ env:
   IMAGE_NAME: dawarich-app/atlas/app
 
 jobs:
+  test-phoenix:
+    uses: ./.github/workflows/test-phoenix.yml
+  test-config:
+    uses: ./.github/workflows/test-config.yml
   build:
-    name: Build & push
-    runs-on: ubuntu-latest
+    needs: [test-phoenix, test-config]
+    name: Build and smoke test (${{ matrix.arch }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: amd64
+            runner: ubuntu-24.04
+          - arch: arm64
+            runner: ubuntu-24.04-arm
+    runs-on: ${{ matrix.runner }}
     timeout-minutes: 30
     permissions:
       contents: read
       packages: write
+    env:
+      PUBLISH: ${{ github.event_name == 'release' || inputs.publish == true }}
     steps:
       - uses: actions/checkout@v4
-
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@v3
-
-      - name: Set up Buildx
-        uses: docker/setup-buildx-action@v3
-
+      - name: Validate publication ref
+        if: env.PUBLISH == 'true'
+        env:
+          REF: ${{ github.ref }}
+        run: |
+          version=$(sed -n 's/.*version: "\([^"]*\)".*/\1/p' app-phoenix/mix.exs | head -1)
+          test "$REF" = "refs/tags/v$version"
+      - uses: docker/setup-buildx-action@v3
+      - name: Build native image
+        uses: docker/build-push-action@v6
+        with:
+          context: ./app-phoenix
+          platforms: linux/${{ matrix.arch }}
+          load: true
+          tags: atlas-smoke:ci
+          build-args: APP_REVISION=${{ github.sha }}
+          cache-from: type=gha,scope=atlas-app-${{ matrix.arch }}
+          cache-to: type=gha,mode=max,scope=atlas-app-${{ matrix.arch }}
+      - name: Test the actual release image
+        run: bash script/image-smoke.sh atlas-smoke:ci '${{ github.sha }}'
       - name: Log in to GHCR
+        if: env.PUBLISH == 'true'
         uses: docker/login-action@v3
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
+      # Publish by digest after the native runtime test. Stable tags are only
+      # assigned once both architectures pass.
+      - name: Push tested image by digest
+        if: env.PUBLISH == 'true'
+        id: push
+        uses: docker/build-push-action@v6
+        with:
+          context: ./app-phoenix
+          platforms: linux/${{ matrix.arch }}
+          build-args: APP_REVISION=${{ github.sha }}
+          outputs: type=image,name=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }},push-by-digest=true,name-canonical=true,push=true
+          cache-from: type=gha,scope=atlas-app-${{ matrix.arch }}
+      - name: Export image digest
+        if: env.PUBLISH == 'true'
+        env:
+          DIGEST: ${{ steps.push.outputs.digest }}
+        run: |
+          mkdir -p /tmp/digests
+          touch "/tmp/digests/${DIGEST#sha256:}"
+      - uses: actions/upload-artifact@v4
+        if: env.PUBLISH == 'true'
+        with:
+          name: digests-${{ matrix.arch }}
+          path: /tmp/digests/*
+          retention-days: 1
+          if-no-files-found: error
 
+  publish:
+    name: Publish multi-architecture tags
+    if: github.event_name == 'release' || inputs.publish == true
+    needs: build
+    runs-on: ubuntu-24.04
+    permissions:
+      packages: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: /tmp/digests
+          pattern: digests-*
+          merge-multiple: true
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
       - name: Image metadata
         id: meta
         uses: docker/metadata-action@v5
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
-          # `latest` used to mean "tip of main". It now means "newest stable
-          # release". latest=auto moves it only when the ref is a semver tag
-          # with no prerelease part, and it works the same whether we arrived
-          # here via `release` or via workflow_dispatch on a tag.
-          #
-          # ⚠️ It keys off the TAG, not the GitHub prerelease checkbox: tag a
-          # prerelease `v1.2.3-rc.1`, not `v1.2.3`, or `latest` will move to it.
           flavor: latest=auto
           tags: |
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
             type=sha,format=long
-
-      - name: Build & push
-        uses: docker/build-push-action@v6
-        with:
-          context: ./app-phoenix
-          file: ./app-phoenix/Dockerfile
-          platforms: linux/amd64,linux/arm64
-          push: true
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
-          build-args: |
-            APP_REVISION=${{ github.sha }}
-          cache-from: type=gha,scope=atlas-app
-          cache-to: type=gha,mode=max,scope=atlas-app
+      - name: Create and verify manifest
+        working-directory: /tmp/digests
+        env:
+          TAGS: ${{ steps.meta.outputs.tags }}
+        run: |
+          set -euo pipefail
+          args=()
+          while IFS= read -r tag; do args+=(--tag "$tag"); done <<< "$TAGS"
+          sources=()
+          for digest in *; do sources+=("$REGISTRY/$IMAGE_NAME@sha256:$digest"); done
+          test "${#sources[@]}" -eq 2
+          docker buildx imagetools create "${args[@]}" "${sources[@]}"
+          tag=$(head -1 <<< "$TAGS")
+          docker buildx imagetools inspect "$tag" --raw | jq -e '[.manifests[].platform | select(.os == "linux") | .architecture] | sort == ["amd64", "arm64"]'

@@ -1,7 +1,12 @@
 defmodule Atlas.Control.Parsers.OTP do
   @moduledoc """
-  Parses OpenTripPlanner logs across OSM/GTFS load → street-graph build →
+  Parses OpenTripPlanner logs across OSM load → street-graph build → GTFS load →
   trip-patterns → graph save → ready (with error detection).
+
+  That order is OTP's, not the intuitive one: it finishes the street graph
+  before it reads a single GTFS entity. `priv/parser_fixtures/otp-full-build.log`
+  is an unedited capture of one container start, and the phase-order test in
+  `otp_test.exs` asserts the sequence against it.
 
   Ported from `atlas/atlas-control/internal/parsers/otp.go`.
   """
@@ -13,7 +18,13 @@ defmodule Atlas.Control.Parsers.OTP do
   @street_graph_re ~r/Build street graph progress: ([\d,]+) of ([\d,]+) \((\d+)%\)/
   @trip_patterns_re ~r/build trip patterns|GenerateTripPatternsOperation/
   @graph_re ~r/Graph built|Graph saved|HierarchyBuilder/
-  @ready_re ~r/Started listening|Grizzly server started|Started application|Started.+in.+seconds/
+  # Captured from the pinned image, not paraphrased: OTP says "Started listener
+  # bound to", never "Started listening", and "Grizzly server running", never
+  # "Grizzly server started". The earlier patterns matched no line OTP has ever
+  # emitted, so the service sat at saving-graph 90% until someone happened to
+  # call the API and @serve_re rescued it. priv/parser_fixtures/otp-ready.log is
+  # real output — recapture it there if a version bump changes the wording.
+  @ready_re ~r/is ready for routing|Grizzly server running|Started listener bound to/
   @serve_re ~r{GET /otp/}
   @error_re ~r/Parameter error|java\.lang\.OutOfMemoryError|Exception in thread/
 

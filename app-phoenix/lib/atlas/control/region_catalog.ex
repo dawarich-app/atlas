@@ -67,7 +67,12 @@ defmodule Atlas.Control.RegionCatalog do
     enriched = Enum.map(curated, &enrich_from_baked(&1, baked_by_url))
 
     curated_names = MapSet.new(curated, & &1.name)
-    url_to_curated = curated |> Enum.map(&{primary_url(&1), &1.name}) |> Enum.reject(&(elem(&1, 0) == nil)) |> Map.new()
+
+    url_to_curated =
+      curated
+      |> Enum.map(&{primary_url(&1), &1.name})
+      |> Enum.reject(&(elem(&1, 0) == nil))
+      |> Map.new()
 
     # Baked entries superseded by a curated preset of a different name → rename
     # their references so children don't orphan when the baked entry is dropped.
@@ -88,7 +93,33 @@ defmodule Atlas.Control.RegionCatalog do
 
     (enriched ++ baked_kept)
     |> Enum.map(&reparent(&1, rename))
+    |> inherit_country_codes()
     |> Enum.sort_by(& &1.name)
+  end
+
+  # Geofabrik publishes no country code below country level, so every subregion
+  # and city arrives as nil even though its country is not in doubt — it is the
+  # one its parent chain names. Anything consuming `country_code` (OTP's build
+  # config picks a time zone from it) would otherwise see two thirds of the
+  # catalog as unknown.
+  defp inherit_country_codes(entries) do
+    by_name = Map.new(entries, &{&1.name, &1})
+    Enum.map(entries, &%{&1 | country_code: resolve_country_code(&1, by_name, MapSet.new())})
+  end
+
+  defp resolve_country_code(%__MODULE__{country_code: cc}, _by_name, _seen)
+       when is_binary(cc) and cc != "",
+       do: cc
+
+  defp resolve_country_code(%__MODULE__{name: name, parent: parent}, by_name, seen) do
+    # `seen` guards a malformed catalog whose parents form a cycle; without it
+    # this recursion would never return.
+    with false <- MapSet.member?(seen, name),
+         %__MODULE__{} = up <- Map.get(by_name, parent) do
+      resolve_country_code(up, by_name, MapSet.put(seen, name))
+    else
+      _ -> nil
+    end
   end
 
   defp reparent(%__MODULE__{parent: p} = e, rename) when is_binary(p) do
@@ -229,10 +260,19 @@ defmodule Atlas.Control.RegionCatalog do
   defp kind_size("city"), do: "~15 GB"
   defp kind_size(_), do: nil
 
-  defp format_bytes(b) when b >= 1_000_000_000_000, do: "#{round1(b / 1_000_000_000_000)} TB"
-  defp format_bytes(b) when b >= 1_000_000_000, do: "#{round1(b / 1_000_000_000)} GB"
-  defp format_bytes(b) when b >= 1_000_000, do: "#{round1(b / 1_000_000)} MB"
-  defp format_bytes(b), do: "#{round1(b / 1_000)} KB"
+  @doc """
+  Decimal (base-1000) byte formatter — TB/GB/MB/KB. This is the shared
+  convention for byte counts sourced from Geofabrik downloads (region PBF
+  sizes here, download progress in `AtlasWeb.Settings.RegionTab`): Geofabrik
+  itself advertises file sizes in decimal GB, so a binary/1024-based
+  formatter would render a different, incorrect number under the same "GB"
+  label. Public so other modules format bytes the same way rather than
+  growing their own (in)compatible copy.
+  """
+  def format_bytes(b) when b >= 1_000_000_000_000, do: "#{round1(b / 1_000_000_000_000)} TB"
+  def format_bytes(b) when b >= 1_000_000_000, do: "#{round1(b / 1_000_000_000)} GB"
+  def format_bytes(b) when b >= 1_000_000, do: "#{round1(b / 1_000_000)} MB"
+  def format_bytes(b), do: "#{round1(b / 1_000)} KB"
 
   defp round1(f), do: :erlang.float_to_binary(Float.round(f * 1.0, 1), decimals: 1)
 

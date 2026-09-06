@@ -74,6 +74,15 @@ setup_sandbox() {
   mkdir -p "$WORK_DATA/osm" "$WORK_DATA/gtfs" "$WORK_DATA/otp" "$WORK_DATA/tiles"
   : > "$LOG"
 
+  # Stand-in for the bind-mounted docker socket. $SOCKET_GID is what `stat`
+  # reports for it; empty means "no socket mounted".
+  SOCKET="$SANDBOX/docker.sock"
+  : > "$SOCKET"
+  # Reset explicitly: `VAR=x some_function` PERSISTS in POSIX sh (it only
+  # scopes to the call for external commands), so without this a test that
+  # sets SOCKET_GID silently changes every test after it.
+  SOCKET_GID=""
+
   cat > "$BIN/id" <<EOF
 #!/bin/sh
 case "\$1" in
@@ -98,7 +107,15 @@ while [ "\$1" != "--" ] && [ \$# -gt 0 ]; do shift; done
 exec "\$@"
 EOF
 
-  chmod +x "$BIN/id" "$BIN/chown" "$BIN/setpriv"
+  cat > "$BIN/stat" <<EOF
+#!/bin/sh
+# Only the -c %g form is used. Empty by default so tests that say nothing
+# about the socket behave as if none were mounted; tests that care set
+# SOCKET_GID explicitly.
+echo "\${SOCKET_GID:-}"
+EOF
+
+  chmod +x "$BIN/id" "$BIN/chown" "$BIN/setpriv" "$BIN/stat"
 }
 
 teardown_sandbox() { rm -rf "$SANDBOX"; }
@@ -106,11 +123,19 @@ teardown_sandbox() { rm -rf "$SANDBOX"; }
 # Run the entrypoint in the sandbox. Echoes stdout+stderr; sets RUN_STATUS.
 run_entrypoint() {
   set +e
-  RUN_OUTPUT="$(PATH="$BIN:$PATH" ATLAS_DATA_DIR="$DATA" ATLAS_WORK_DATA_DIR="$WORK_DATA" "$@" \
+  RUN_OUTPUT="$(PATH="$BIN:$PATH" ATLAS_DATA_DIR="$DATA" ATLAS_WORK_DATA_DIR="$WORK_DATA" \
+    DOCKER_SOCKET="$SOCKET" SOCKET_GID="${SOCKET_GID:-}" "$@" \
     "$ENTRYPOINT" /bin/echo "app-started" 2>&1)"
   RUN_STATUS=$?
   set -e
   RUN_CALLS="$(cat "$LOG")"
+  # The environment the wrapped command is exec'd with, for assertions about
+  # what the entrypoint exports.
+  set +e
+  RUN_ENV="$(PATH="$BIN:$PATH" ATLAS_DATA_DIR="$DATA" ATLAS_WORK_DATA_DIR="$WORK_DATA" \
+    DOCKER_SOCKET="$SOCKET" SOCKET_GID="${SOCKET_GID:-}" "$@" \
+    "$ENTRYPOINT" /usr/bin/env 2>&1)"
+  set -e
 }
 
 printf '\n== running as root ==\n'
@@ -149,6 +174,57 @@ setup_sandbox 0 "0"
 run_entrypoint env DOCKER_GID=0
 assert_contains "keeps the socket group the operator asked for" "$RUN_CALLS" "--groups=0"
 assert_not_contains "does not discard it as root's own gid" "$RUN_CALLS" "--clear-groups"
+teardown_sandbox
+
+printf '\n== the socket group survives WITHOUT DOCKER_GID in the environment ==\n'
+# The deployment shape that actually ships. compose's `group_add:` puts the
+# gid in the container's supplementary groups and NOWHERE else — DOCKER_GID is
+# a compose-level substitution and is never exported into the container. So the
+# entrypoint cannot read it, and on macOS (socket gid 0) the gid-0 strip
+# removed the only group that reaches the daemon. The group has to come from
+# the socket itself.
+setup_sandbox 0 "0"
+SOCKET_GID=0
+run_entrypoint env
+assert_contains "keeps the socket's own group" "$RUN_CALLS" "--groups=0"
+assert_not_contains "does not drop every group" "$RUN_CALLS" "--clear-groups"
+teardown_sandbox
+
+printf '\n== a wrong DOCKER_GID does not mask the real socket group ==\n'
+# compose.yml exports `DOCKER_GID: ${DOCKER_GID:-999}` into the app container,
+# so the variable IS set for every self-hoster who did not override it. If that
+# value wins, the default 999 is granted on a macOS host whose socket is gid 0
+# and the control plane stays degraded — the exact bug this is meant to fix.
+setup_sandbox 0 "0"
+SOCKET_GID=0
+run_entrypoint env DOCKER_GID=999
+assert_contains "grants the real socket group, not the DOCKER_GID default" "$RUN_CALLS" "--groups=0"
+teardown_sandbox
+
+printf '\n== a non-zero socket group (Linux) is preserved too ==\n'
+setup_sandbox 0 "0 999"
+SOCKET_GID=999
+run_entrypoint env
+assert_contains "keeps the docker group" "$RUN_CALLS" "999"
+assert_not_contains "still does not carry root's gid 0" "$RUN_CALLS" "--groups=0,"
+teardown_sandbox
+
+printf '\n== no socket mounted: nothing extra is granted ==\n'
+setup_sandbox 0 "0"
+rm -f "$SOCKET"
+run_entrypoint env
+assert_contains "drops to no supplementary groups" "$RUN_CALLS" "--clear-groups"
+teardown_sandbox
+
+printf '\n== the docker CLI can load its plugins as the dropped user ==\n'
+# HOME stays /root after the drop, and an UNREADABLE config path (as opposed to
+# a merely absent one) makes the docker CLI abort plugin loading entirely:
+# `docker compose` stops being a known subcommand and the control plane reports
+# "docker compose unavailable".
+setup_sandbox 0 "0"
+run_entrypoint env
+assert_not_contains "does not leave DOCKER_CONFIG under root's home" "$RUN_ENV" "/root/.docker"
+assert_contains "exports a reachable DOCKER_CONFIG" "$RUN_ENV" "DOCKER_CONFIG="
 teardown_sandbox
 
 printf '\n== remediation advice names the app data dir, not the whole ./data tree ==\n'

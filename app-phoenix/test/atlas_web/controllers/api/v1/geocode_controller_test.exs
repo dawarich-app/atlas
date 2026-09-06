@@ -6,20 +6,34 @@ defmodule AtlasWeb.Api.V1.GeocodeControllerTest do
     System.put_env("PHOTON_URL", "http://localhost:#{bypass.port}")
     System.put_env("PLACEHOLDER_URL", "http://localhost:#{bypass.port}")
     System.put_env("LIBPOSTAL_URL", "http://localhost:#{bypass.port}")
+
     on_exit(fn ->
       System.delete_env("PHOTON_URL")
       System.delete_env("PLACEHOLDER_URL")
       System.delete_env("LIBPOSTAL_URL")
     end)
+
     {:ok, bypass: bypass}
   end
 
-  test "GET /api/v1/geocode?q=... returns forward array + mode=forward meta", %{conn: conn, bypass: bypass} do
+  test "GET /api/v1/geocode?q=... returns forward array + mode=forward meta", %{
+    conn: conn,
+    bypass: bypass
+  } do
     Bypass.expect(bypass, fn c ->
       case c.request_path do
-        "/parser" -> Plug.Conn.resp(c, 200, ~s([{"label":"x","value":"berlin"}]))
-        "/api" -> Plug.Conn.resp(c, 200, ~s({"features":[{"geometry":{"coordinates":[13.4,52.5]},"properties":{"name":"Berlin"}}]}))
-        "/parser/search" -> Plug.Conn.resp(c, 200, "[]")
+        "/parser" ->
+          Plug.Conn.resp(c, 200, ~s([{"label":"x","value":"berlin"}]))
+
+        "/api" ->
+          Plug.Conn.resp(
+            c,
+            200,
+            ~s({"features":[{"geometry":{"coordinates":[13.4,52.5]},"properties":{"name":"Berlin"}}]})
+          )
+
+        "/parser/search" ->
+          Plug.Conn.resp(c, 200, "[]")
       end
     end)
 
@@ -31,11 +45,21 @@ defmodule AtlasWeb.Api.V1.GeocodeControllerTest do
     assert resp["meta"]["upstream"] == "ok"
   end
 
-  test "GET /api/v1/geocode?lat=&lon=... returns reverse {here, admin} + mode=reverse meta", %{conn: conn, bypass: bypass} do
+  test "GET /api/v1/geocode?lat=&lon=... returns reverse {here, admin} + mode=reverse meta", %{
+    conn: conn,
+    bypass: bypass
+  } do
     Bypass.expect(bypass, fn c ->
       case c.request_path do
-        "/reverse" -> Plug.Conn.resp(c, 200, ~s({"features":[{"geometry":{"coordinates":[13.4,52.5]},"properties":{"name":"BG"}}]}))
-        "/parser/search" -> Plug.Conn.resp(c, 200, "[]")
+        "/reverse" ->
+          Plug.Conn.resp(
+            c,
+            200,
+            ~s({"features":[{"geometry":{"coordinates":[13.4,52.5]},"properties":{"name":"BG"}}]})
+          )
+
+        "/parser/search" ->
+          Plug.Conn.resp(c, 200, "[]")
       end
     end)
 

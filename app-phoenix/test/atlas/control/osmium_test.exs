@@ -35,11 +35,25 @@ defmodule Atlas.Control.OsmiumTest do
     start_osmium({"ok", 0})
 
     assert {:ok, "ok"} =
-             Osmium.merge("/work/data/osm/sources", ["a.osm.pbf", "b.osm.pbf"], "../merged.osm.pbf")
+             Osmium.merge(
+               "/work/data/osm/sources",
+               ["a.osm.pbf", "b.osm.pbf"],
+               "../merged.osm.pbf"
+             )
 
     assert_received {:stub, "osmium", args, opts}
 
-    assert args == ["merge", "a.osm.pbf", "b.osm.pbf", "-O", "-o", "../merged.osm.pbf"]
+    assert args == [
+             "merge",
+             "a.osm.pbf",
+             "b.osm.pbf",
+             "-O",
+             "-f",
+             "pbf",
+             "-o",
+             "../merged.osm.pbf"
+           ]
+
     assert opts[:cd] == "/work/data/osm/sources"
     assert opts[:stderr_to_stdout] == true
   end
@@ -53,6 +67,23 @@ defmodule Atlas.Control.OsmiumTest do
 
     assert args == ["cat", "in.osm.pbf", "-o", "out.osm.bz2", "-O", "-f", "osm.bz2"]
     assert opts[:cd] == "/work/data/osm"
+  end
+
+  test "merge/3 names the output format, so a .partial destination still works" do
+    # osmium infers the format from the output extension and refuses anything
+    # it does not recognise ("Could not detect file format for filename
+    # '../current.osm.pbf.partial'"). The applier writes to a .partial and
+    # renames on success — that suffix is what sweep_partials/1 uses to clear
+    # orphans from an interrupted run — so the format has to be explicit.
+    # convert_to_osm_bz2/3 already does this; merge/3 did not, which meant
+    # multi-region applies failed at the merge step every time.
+    start_osmium({"ok", 0})
+
+    assert {:ok, "ok"} =
+             Osmium.merge("/work/data/osm/sources", ["a.osm.pbf"], "../current.osm.pbf.partial")
+
+    assert_received {:stub, "osmium", args, _opts}
+    assert ["-f", "pbf"] == Enum.slice(args, Enum.find_index(args, &(&1 == "-f")), 2)
   end
 
   test "non-zero exit returns error with code and output" do

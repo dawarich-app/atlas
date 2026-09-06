@@ -21,7 +21,9 @@ defmodule Atlas.Control.TilesDownloaderTest do
     start_downloader(downloader: downloader)
     Phoenix.PubSub.subscribe(Atlas.PubSub, TilesDownloader.topic())
 
-    assert {:ok, job_id, dest} = TilesDownloader.download("https://example.com/path/tiles.pmtiles")
+    assert {:ok, job_id, dest} =
+             TilesDownloader.download("https://example.com/path/tiles.pmtiles")
+
     assert String.ends_with?(dest, "tiles.pmtiles")
 
     assert_receive {:start, ^job_id, "https://example.com/path/tiles.pmtiles", ^dest}, 1_000

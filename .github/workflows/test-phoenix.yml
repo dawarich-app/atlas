@@ -1,5 +1,6 @@
 name: test-phoenix
 on:
+  workflow_call:
   push:
     paths:
       - "app-phoenix/**"
@@ -31,9 +32,11 @@ jobs:
       - run: mix deps.get
       - run: mix compile --warnings-as-errors
       - run: mix credo --strict
+      - run: mix format --check-formatted
+      - run: sh test/scripts/catalog_generation_test.sh
       # --include parity activates the byte-diff gate against the committed
       # Rails goldens, enforcing API parity with the legacy Rails app.
-      - run: mix test --include parity
+      - run: mix test --include parity --include catalog_artifact
       # The release entrypoint is shell, so it is covered by a shell test that
       # stubs id/chown/setpriv rather than by ExUnit.
       - run: sh test/scripts/docker_entrypoint_test.sh
