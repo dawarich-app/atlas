@@ -71,6 +71,8 @@ export default class SearchClusters {
           ? this.clusterMarker(p, [lon, lat])
           : this.makePointMarker(p)
         marker.setLngLat([lon, lat]).addTo(this.map)
+        // addTo() installs MapLibre's generic label, so name the cluster afterward.
+        if (p.cluster) marker.getElement().setAttribute("aria-label", `Zoom into ${p.point_count} matches`)
         this.markers.set(key, marker)
       } else {
         this.markers.get(key).setLngLat([lon, lat])
@@ -91,7 +93,6 @@ export default class SearchClusters {
     button.className = "atlas-search-cluster"
     button.dataset.count = properties.point_count
     button.textContent = Number(properties.point_count).toLocaleString()
-    button.setAttribute("aria-label", `Zoom into ${properties.point_count} matches`)
     button.addEventListener("click", async (event) => {
       event.stopPropagation()
       try {
@@ -103,10 +104,7 @@ export default class SearchClusters {
         // A new query or style may have replaced the source while awaiting it.
       }
     })
-    const marker = new this.maplibre.Marker({ element: button }).setLngLat(coordinates)
-    // MapLibre installs its generic marker label in the constructor.
-    button.setAttribute("aria-label", `Zoom into ${properties.point_count} matches`)
-    return marker
+    return new this.maplibre.Marker({ element: button }).setLngLat(coordinates)
   }
 
   fitBounds() {
