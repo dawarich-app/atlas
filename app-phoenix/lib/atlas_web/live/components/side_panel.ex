@@ -31,7 +31,7 @@ defmodule AtlasWeb.SidePanel do
 
   def side_panel(assigns) do
     ~H"""
-    <aside class="flex flex-col flex-none">
+    <aside class="flex flex-col flex-none min-h-0 h-1/2 w-full md:h-auto md:w-auto">
       <div class="apo-brand px-2.5 py-3 flex items-center gap-2.5 flex-shrink-0">
         <span class="w-2.5 h-2.5 rounded-full bg-primary shadow-sm flex-shrink-0"></span>
         <span class="apo-brand-text font-display font-semibold text-[15px] leading-none tracking-tight whitespace-nowrap text-base-content">
@@ -57,7 +57,7 @@ defmodule AtlasWeb.SidePanel do
           </button>
         </nav>
 
-        <div class="w-[min(85vw,380px)] flex flex-col overflow-hidden">
+        <div class="flex-1 min-w-0 md:flex-none md:w-[380px] flex flex-col overflow-y-auto">
           <div class={tab_visible_class(@active_tab, "search")}>
             <AtlasWeb.SearchCard.search_card
               id="search-card"

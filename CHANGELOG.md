@@ -4,10 +4,11 @@ All notable changes to Dawarich Atlas are documented here.
 
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.4.0] - 2026-09-06
 
 ### Fixed
 - Directions now has a **Get directions** button, including for endpoints selected on the map. Transit dispatches to OpenTripPlanner and decodes its polyline5 geometry; empty or failed routes clear the old line instead of displaying a misleading "Route ready" message (#45, #47).
+- Directions preserves typed endpoints when changing travel mode and fits the map to the resulting route. Trips outside the loaded region show a coverage hint. On mobile screens the controls and map share the viewport, keeping the map and point picker accessible.
 - Placeholder installs its official prebuilt database automatically on first start. Its data directory honours `PUID`/`PGID`; downloads stream to a temporary file, are checked against the pinned service's schema, and only then replace the database. Invalid previous databases are backed up; valid databases are reused offline. This removes the manual WhosOnFirst import from normal Search setup (#26).
 - The catalog generator runs without starting the database or control plane, fixing the monthly refresh on a clean CI checkout.
 - **The docker socket group was read from the wrong place.** `compose.yml` exports `DOCKER_GID` into the app container, defaulting to 999, while the socket on macOS is gid 0 — so preferring that variable granted a group the daemon does not answer on and left the control plane degraded anyway. The socket's own gid now decides; `DOCKER_GID` is honoured as an additional group, which is the only lever available when the socket is not visible from inside the container.
@@ -48,7 +49,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 - **Map matching** — `POST /api/v1/map-match` snaps a recorded GPS trace onto the road network via Valhalla's Meili matcher, the inverse of `/api/v1/route`: routing invents a path between two points, matching takes a path you already walked and decides which edges you were on. Post a `shape` of `{lat, lon}` points (optionally with `time` and `accuracy`); `mode`, `shape_match` and Valhalla's `search_radius` / `gps_accuracy` / `breakage_distance` are accepted. `format=polyline6` (default) returns Valhalla's legs verbatim, matching what `/api/v1/route` already returns; `format=geojson` stitches them into one decoded `LineString`, so callers need no polyline decoder of their own. A trace Valhalla rejects is reported as invalid input rather than as an upstream failure, relaying Valhalla's own reason and `error_code` — whether the trace fell outside the loaded region, was too sparse or noisy, or exceeded a service limit such as the 200 km `max_distance`. Trace length is capped by `MAP_MATCH_MAX_POINTS` (default 10000), and matching gets its own `VALHALLA_MATCH_TIMEOUT` (default 60000 ms) separate from the routing timeout, since it is superlinear in point count and holds a Valhalla worker for the whole request. Both knobs are read from `.env`.
 
 ### Changed
-- Release publication and image builds now run Phoenix and deployment tests first. Release notes must match the application version; `Unreleased` cannot accidentally select an older release, and an interrupted publication can be resumed on the same commit.
+- Release publication and image builds now run Phoenix and deployment tests first, then build and boot the actual image on native amd64 and arm64 runners. Stable image tags are published only after both architectures pass. Release notes must match the application version; `Unreleased` cannot accidentally select an older release, and an interrupted publication can be resumed on the same commit.
 - **`ghcr.io/dawarich-app/atlas/app:latest` now means "newest stable release", not "tip of `main`".** Images are cut from published GitHub releases; pushing to `main` no longer publishes one. Pin a version tag if you were relying on `latest` tracking every merge — and note that a fresh `docker compose pull` will now hold at the last release rather than moving with development.
 - Releases are tagged and published automatically from this file: when the top heading is a version with a date (rather than `Unreleased`), CI tags it, creates the GitHub release, and builds the image. Per-commit builds continue on the OneDev registry for testing.
 - `mix credo --strict` is clean and enforced in CI, with the project's ruleset checked in at `app-phoenix/.credo.exs`. It previously failed on `main` and ran ahead of the test step, so the test suite had never actually executed for a pull request.
@@ -120,5 +121,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 - Caddy reverse proxy fronting the stack on port 8484 and serving offline basemap tiles when present.
 - Multi-arch GitHub Actions CI publishing `ghcr.io/dawarich-app/atlas/app` and `ghcr.io/dawarich-app/atlas/atlas-control` on every push to `main`.
 
+[0.4.0]: https://github.com/dawarich-app/atlas/compare/v0.3.0...v0.4.0
+[0.3.0]: https://github.com/dawarich-app/atlas/compare/v0.2.0...v0.3.0
+[0.2.0]: https://github.com/dawarich-app/atlas/compare/v0.1.1...v0.2.0
 [0.1.1]: https://github.com/dawarich-app/atlas/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/dawarich-app/atlas/releases/tag/v0.1.0

@@ -184,6 +184,17 @@ defmodule AtlasWeb.MapLive do
         {:noreply,
          socket |> clear_route() |> put_flash(:error, "Choose Drive, Bike, Walk or Transit.")}
 
+      {:error, %Maps.Upstream.Client.BadResponse{status: status}}
+      when status in [400, 404, 422] ->
+        {:noreply,
+         socket
+         |> clear_route()
+         |> assign(upstream_status: "ok")
+         |> put_flash(
+           :info,
+           "No route found. Check that both points are inside the loaded region."
+         )}
+
       {:error, _e} ->
         {:noreply,
          socket
@@ -746,7 +757,7 @@ defmodule AtlasWeb.MapLive do
       />
     <% end %>
 
-    <div class="fixed inset-0 p-2 sm:p-3 bg-base-200 flex gap-2 sm:gap-3">
+    <div class="fixed inset-0 p-2 sm:p-3 bg-base-200 flex flex-col md:flex-row gap-2 sm:gap-3">
       <AtlasWeb.SidePanel.side_panel
         active_tab={@active_tab}
         search_query={@search_query}
@@ -769,7 +780,7 @@ defmodule AtlasWeb.MapLive do
         timeline={@timeline}
       />
 
-      <div class="relative flex-1 min-w-0 rounded-2xl border border-base-300 bg-base-100 overflow-hidden">
+      <div class="relative flex-1 min-w-0 min-h-0 rounded-2xl border border-base-300 bg-base-100 overflow-hidden">
         <div
           id="map"
           phx-hook="Map"

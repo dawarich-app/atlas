@@ -31,6 +31,9 @@ export default {
       zoom: initialZoom
     })
 
+    this.resizeObserver = new ResizeObserver(() => this.map.resize())
+    this.resizeObserver.observe(this.el)
+
     // Match Rails: controls bottom-right, scale bottom-left.
     this.map.addControl(new maplibregl.NavigationControl({
       showCompass: true,
@@ -179,6 +182,7 @@ export default {
   },
 
   destroyed() {
+    if (this.resizeObserver) this.resizeObserver.disconnect()
     if (this.map) this.map.remove()
   }
 }

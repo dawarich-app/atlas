@@ -83,6 +83,25 @@ defmodule AtlasWeb.MapLiveTest do
     })
   end
 
+  test "uncovered route does not report a working service as unavailable", %{
+    conn: conn,
+    bypass: bypass
+  } do
+    Bypass.expect_once(bypass, "POST", "/route", fn c ->
+      Plug.Conn.resp(c, 400, ~s({"error":"No suitable edges near location","error_code":171}))
+    end)
+
+    {:ok, view, _html} = live(conn, ~p"/")
+    html = render_hook(view, "route", %{"from" => "0,0", "to" => "0.1,0.1"})
+    assert html =~ "Check that both points are inside the loaded region."
+    refute html =~ "Routing service unavailable"
+    refute html =~ "Route ready."
+
+    assert_push_event(view, "map:draw_route", %{
+      geojson: %{type: "FeatureCollection", features: []}
+    })
+  end
+
   test "empty transit results clear the previous route", %{conn: conn, bypass: bypass} do
     Bypass.expect_once(bypass, "POST", "/otp/gtfs/v1", fn c ->
       Plug.Conn.resp(c, 200, ~s({"data":{"planConnection":{"edges":[]}}}))
