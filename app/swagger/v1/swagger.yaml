@@ -3,7 +3,7 @@ openapi: 3.0.3
 info:
   title: Dawarich Atlas API
   version: v1
-  description: Local-first geocoding, routing, and POI lookup. All endpoints aggregate
+  description: Local-first geocoding, routing, transit, and POI lookup. All endpoints aggregate
     one or more upstream OSM-derived services (Photon, Placeholder, libpostal, Valhalla,
     Overpass).
 servers:
@@ -70,6 +70,9 @@ paths:
             application/json:
               schema:
                 "$ref": "#/components/schemas/GeocodeResponse"
+              examples:
+                complete_forward_result:
+                  $ref: "#/components/examples/GeocodeResponse"
         '400':
           description: neither q nor lat/lon supplied
           content:
@@ -98,6 +101,9 @@ paths:
             application/json:
               schema:
                 "$ref": "#/components/schemas/BatchReverseResponse"
+              examples:
+                complete_batch_result:
+                  $ref: "#/components/examples/BatchReverseResponse"
         '400':
           description: missing or invalid coords array
           content:
@@ -115,6 +121,9 @@ paths:
           application/json:
             schema:
               "$ref": "#/components/schemas/BatchReverseRequest"
+            examples:
+              complete_request:
+                $ref: "#/components/examples/BatchReverseRequest"
   "/api/v1/reverse":
     get:
       summary: Reverse geocoding (point → labeled feature + admin chain)
@@ -152,6 +161,9 @@ paths:
             application/json:
               schema:
                 "$ref": "#/components/schemas/ReverseResponse"
+              examples:
+                complete_result:
+                  $ref: "#/components/examples/ReverseResponse"
         '400':
           description: missing coordinates
           content:
@@ -199,6 +211,9 @@ paths:
             application/json:
               schema:
                 "$ref": "#/components/schemas/RouteResponse"
+              examples:
+                complete_result:
+                  $ref: "#/components/examples/RouteResponse"
         '503':
           description: Valhalla unreachable
           content:
@@ -258,6 +273,9 @@ paths:
             application/json:
               schema:
                 "$ref": "#/components/schemas/SearchResponse"
+              examples:
+                complete_result:
+                  $ref: "#/components/examples/SearchResponse"
         '400':
           description: missing q parameter
           content:
@@ -307,12 +325,296 @@ paths:
             application/json:
               schema:
                 "$ref": "#/components/schemas/WhatsHereResponse"
+              examples:
+                complete_result:
+                  $ref: "#/components/examples/WhatsHereResponse"
         '400':
           description: missing coordinates
           content:
             application/json:
               schema:
                 "$ref": "#/components/schemas/ErrorEnvelope"
+  "/api/v1/map-match":
+    post:
+      summary: Snap a recorded GPS trace onto the road network
+      tags:
+      - Routing
+      description: >-
+        Supply every optional trace field when it is available: timestamps and
+        accuracy improve matching, while trace options tune Valhalla's matcher.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              "$ref": "#/components/schemas/MapMatchRequest"
+            examples:
+              complete_request:
+                $ref: "#/components/examples/MapMatchRequest"
+      responses:
+        '200':
+          description: matched trace
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/MapMatchResponse"
+              examples:
+                polyline_legs:
+                  $ref: "#/components/examples/MapMatchPolylineResponse"
+                decoded_geojson:
+                  $ref: "#/components/examples/MapMatchGeoJsonResponse"
+        '400':
+          description: missing shape
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/ErrorEnvelope"
+        '422':
+          description: invalid or unmatchable trace
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/ErrorEnvelope"
+  "/api/v1/transit":
+    get:
+      summary: Plan a public-transport journey
+      tags:
+      - Transit
+      description: Uses the selected transit engine (MOTIS by default, or OpenTripPlanner).
+        The normalized Atlas response has the same shape for both engines.
+      parameters:
+      - name: from
+        in: query
+        required: true
+        description: Origin as lat,lon
+        schema:
+          type: string
+        example: 52.4884,13.4703
+      - name: to
+        in: query
+        required: true
+        description: Destination as lat,lon
+        schema:
+          type: string
+        example: 52.5073,13.3324
+      - name: time
+        in: query
+        required: false
+        description: ISO 8601 departure or arrival time
+        schema:
+          type: string
+          format: date-time
+        example: '2026-09-07T08:00:00Z'
+      - name: modes
+        in: query
+        required: false
+        schema:
+          type: string
+        example: TRANSIT,WALK
+      - name: num
+        in: query
+        required: false
+        schema:
+          type: integer
+          minimum: 1
+          maximum: 6
+        example: 3
+      - name: arrive_by
+        in: query
+        required: false
+        schema:
+          type: boolean
+        example: false
+      responses:
+        '200':
+          description: transit plan
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/TransitResponse"
+              examples:
+                complete_result:
+                  $ref: "#/components/examples/TransitResponse"
+        '400':
+          description: missing from or to
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/ErrorEnvelope"
+        '422':
+          description: invalid endpoint
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/ErrorEnvelope"
+  "/api/v1/pois":
+    get:
+      summary: List points of interest in a bounding box
+      tags:
+      - POIs
+      parameters:
+      - name: bbox
+        in: query
+        required: true
+        description: south,west,north,east
+        schema:
+          type: string
+        example: 52.50,13.36,52.54,13.42
+      - name: types
+        in: query
+        required: false
+        schema:
+          type: string
+        example: cafe,restaurant
+      - name: q
+        in: query
+        required: false
+        schema:
+          type: string
+        example: breakfast
+      - name: limit
+        in: query
+        required: false
+        schema:
+          type: integer
+          minimum: 1
+          maximum: 1000
+        example: 100
+      - name: lang
+        in: query
+        required: false
+        schema:
+          type: string
+        example: en
+      responses:
+        '200':
+          description: matching POIs
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/PoisResponse"
+              examples:
+                complete_result:
+                  $ref: "#/components/examples/PoisResponse"
+        '400':
+          description: missing bbox
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/ErrorEnvelope"
+        '422':
+          description: invalid bbox or categories
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/ErrorEnvelope"
+  "/api/v1/pois/categories":
+    get:
+      summary: List the POI category catalog
+      tags:
+      - POIs
+      responses:
+        '200':
+          description: category sections and items
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/PoiCategoriesResponse"
+              examples:
+                complete_result:
+                  $ref: "#/components/examples/PoiCategoriesResponse"
+  "/api/v1/version":
+    get:
+      summary: Return the running Atlas version and revision
+      tags:
+      - System
+      responses:
+        '200':
+          description: version information
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/VersionResponse"
+              examples:
+                complete_result:
+                  $ref: "#/components/examples/VersionResponse"
+  "/api/v1/health":
+    get:
+      summary: Return health for each public capability
+      tags:
+      - System
+      responses:
+        '200':
+          description: capability health
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/HealthResponse"
+              examples:
+                complete_result:
+                  $ref: "#/components/examples/HealthResponse"
+  "/api/v1/photon/api":
+    get:
+      summary: Raw Photon forward-geocoding passthrough
+      tags:
+      - Photon passthrough
+      description: Compatibility endpoint. Query parameters are forwarded to Photon unchanged.
+      responses:
+        '200':
+          description: Photon GeoJSON FeatureCollection
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/PhotonFeatureCollection"
+              examples:
+                complete_result:
+                  $ref: "#/components/examples/PhotonFeatureCollection"
+  "/api/v1/photon/reverse":
+    get:
+      summary: Raw Photon reverse-geocoding passthrough
+      tags:
+      - Photon passthrough
+      responses:
+        '200':
+          description: Photon GeoJSON FeatureCollection
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/PhotonFeatureCollection"
+              examples:
+                complete_result:
+                  $ref: "#/components/examples/PhotonFeatureCollection"
+  "/api/v1/photon/lookup":
+    get:
+      summary: Raw Photon lookup-by-OSM-id passthrough
+      tags:
+      - Photon passthrough
+      responses:
+        '200':
+          description: Photon GeoJSON FeatureCollection
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/PhotonFeatureCollection"
+              examples:
+                complete_result:
+                  $ref: "#/components/examples/PhotonFeatureCollection"
+  "/api/v1/photon/status":
+    get:
+      summary: Raw Photon status passthrough
+      tags:
+      - Photon passthrough
+      responses:
+        '200':
+          description: Photon status
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+              examples:
+                complete_result:
+                  $ref: "#/components/examples/PhotonStatusResponse"
 components:
   schemas:
     ErrorEnvelope:
@@ -332,9 +634,14 @@ components:
             message:
               type: string
             details:
-              type: array
-              items:
-                type: object
+              type: object
+              additionalProperties: true
+      example:
+        error:
+          code: VALIDATION_ERROR
+          message: bbox must be 's,w,n,e'
+          details:
+            param: bbox
     Coords:
       type: object
       required:
@@ -395,12 +702,30 @@ components:
           "$ref": "#/components/schemas/Coords"
         admin:
           "$ref": "#/components/schemas/AdminHierarchy"
+        address:
+          type: object
+          properties:
+            house_number: {type: string, nullable: true}
+            street: {type: string, nullable: true}
+            city: {type: string, nullable: true}
+            county: {type: string, nullable: true}
+            state: {type: string, nullable: true}
+            postcode: {type: string, nullable: true}
+            country: {type: string, nullable: true}
+            countrycode: {type: string, nullable: true}
+        match_type:
+          type: string
+          enum: [rooftop, street, locality, region, country, unknown]
+        confidence:
+          type: number
+          nullable: true
     ResponseMeta:
       type: object
       properties:
         timestamp:
           type: string
           format: date-time
+          example: '2026-09-06T20:53:10Z'
         upstream:
           type: string
           example: ok
@@ -508,12 +833,14 @@ components:
           type: object
           properties:
             here:
-              type: object
+              "$ref": "#/components/schemas/GeocodeFeature"
               nullable: true
+            admin:
+              "$ref": "#/components/schemas/AdminHierarchy"
             nearby:
               type: array
               items:
-                type: object
+                "$ref": "#/components/schemas/PoiFeature"
         meta:
           "$ref": "#/components/schemas/ResponseMeta"
     RouteResponse:
@@ -540,9 +867,412 @@ components:
       properties:
         data:
           oneOf:
-          - "$ref": "#/components/schemas/GeocodeFeature"
           - type: array
             items:
               "$ref": "#/components/schemas/GeocodeFeature"
+          - type: object
+            properties:
+              here:
+                "$ref": "#/components/schemas/GeocodeFeature"
+                nullable: true
+              admin:
+                "$ref": "#/components/schemas/AdminHierarchy"
         meta:
           "$ref": "#/components/schemas/ResponseMeta"
+    MapMatchRequest:
+      type: object
+      required: [shape]
+      properties:
+        shape:
+          type: array
+          minItems: 2
+          items:
+            type: object
+            required: [lat, lon]
+            properties:
+              lat: {type: number, format: double}
+              lon: {type: number, format: double}
+              time: {type: integer, description: Epoch seconds}
+              accuracy: {type: number, description: Accuracy in metres}
+        mode: {type: string, enum: [auto, bicycle, pedestrian]}
+        shape_match: {type: string, enum: [map_snap, walk_or_snap, edge_walk]}
+        format: {type: string, enum: [polyline6, geojson]}
+        search_radius: {type: number}
+        gps_accuracy: {type: number}
+        breakage_distance: {type: number}
+    MapMatchResponse:
+      type: object
+      properties:
+        data:
+          oneOf:
+          - type: object
+            properties:
+              summary: {type: object}
+              legs: {type: array, items: {type: object}}
+              shape_format: {type: string, enum: [valhalla_encoded_polyline6]}
+          - type: object
+            properties:
+              summary: {type: object}
+              geometry:
+                type: object
+                properties:
+                  type: {type: string, enum: [LineString]}
+                  coordinates: {type: array, items: {type: array, items: {type: number}}}
+              shape_format: {type: string, enum: [geojson]}
+        meta:
+          type: object
+          properties:
+            timestamp: {type: string, format: date-time}
+            mode: {type: string}
+            shape_match: {type: string}
+            format: {type: string}
+            points: {type: integer}
+            max_points: {type: integer}
+    TransitResponse:
+      type: object
+      properties:
+        data:
+          type: object
+          properties:
+            from: {$ref: "#/components/schemas/TransitPlace", nullable: true}
+            to: {$ref: "#/components/schemas/TransitPlace", nullable: true}
+            itineraries:
+              type: array
+              items:
+                type: object
+                properties:
+                  start_time: {type: string, format: date-time, nullable: true}
+                  end_time: {type: string, format: date-time, nullable: true}
+                  duration: {type: integer, nullable: true}
+                  walk_distance: {type: number, nullable: true}
+                  transfers: {type: integer, nullable: true}
+                  legs:
+                    type: array
+                    items: {$ref: "#/components/schemas/TransitLeg"}
+        meta:
+          type: object
+          properties:
+            timestamp: {type: string, format: date-time}
+            time: {type: string, format: date-time}
+            modes: {type: string}
+    TransitPlace:
+      type: object
+      properties:
+        name: {type: string, nullable: true}
+        lat: {type: number, format: double, nullable: true}
+        lon: {type: number, format: double, nullable: true}
+    TransitLeg:
+      type: object
+      properties:
+        mode: {type: string, nullable: true}
+        route_name: {type: string, nullable: true}
+        headsign: {type: string, nullable: true}
+        agency_name: {type: string, nullable: true}
+        start_time: {type: string, format: date-time, nullable: true}
+        end_time: {type: string, format: date-time, nullable: true}
+        duration: {type: integer, nullable: true}
+        distance: {type: number, nullable: true}
+        from: {$ref: "#/components/schemas/TransitPlace"}
+        to: {$ref: "#/components/schemas/TransitPlace"}
+        shape: {type: string, nullable: true}
+        shape_format: {type: string, enum: [google_polyline5, google_polyline6]}
+    PoisResponse:
+      type: object
+      properties:
+        data:
+          type: object
+          properties:
+            features:
+              type: array
+              items: {$ref: "#/components/schemas/PoiFeature"}
+        meta:
+          type: object
+          properties:
+            timestamp: {type: string, format: date-time}
+            types: {type: array, items: {type: string}}
+            bbox: {type: array, items: {type: number}}
+            q: {type: string, nullable: true}
+    PoiFeature:
+      type: object
+      properties:
+        id: {type: string}
+        coords: {$ref: "#/components/schemas/Coords"}
+        name: {type: string, nullable: true}
+        category: {type: string}
+        tags: {type: object, additionalProperties: {type: string}}
+    PoiCategoriesResponse:
+      type: object
+      properties:
+        data:
+          type: object
+          properties:
+            sections:
+              type: array
+              items:
+                type: object
+                properties:
+                  id: {type: string}
+                  label: {type: string}
+                  icon: {type: string}
+                  icon_svg: {type: string}
+                  items:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id: {type: string}
+                        label: {type: string}
+                        icon: {type: string}
+                        icon_svg: {type: string}
+                        pinned: {type: boolean}
+    VersionResponse:
+      type: object
+      properties:
+        data:
+          type: object
+          properties:
+            version: {type: string}
+            revision: {type: string, nullable: true}
+    HealthResponse:
+      type: object
+      properties:
+        data:
+          type: object
+          properties:
+            status: {type: string, enum: [up, degraded, down]}
+            capabilities:
+              type: object
+              properties:
+                geocoding: {type: string, enum: [up, starting, down]}
+                routing: {type: string, enum: [up, starting, down]}
+                pois: {type: string, enum: [up, starting, down]}
+                transit: {type: string, enum: [up, starting, down]}
+        meta:
+          type: object
+          properties:
+            timestamp: {type: string, format: date-time}
+    PhotonFeatureCollection:
+      type: object
+      properties:
+        type: {type: string, enum: [FeatureCollection]}
+        features:
+          type: array
+          items:
+            type: object
+            properties:
+              type: {type: string, enum: [Feature]}
+              properties: {type: object, additionalProperties: true}
+              geometry:
+                type: object
+                properties:
+                  type: {type: string, enum: [Point]}
+                  coordinates: {type: array, items: {type: number}}
+  examples:
+    SearchResponse:
+      value:
+        data:
+        - id: node:240109189
+          name: Brandenburg Gate
+          label: Brandenburg Gate, Berlin, Germany
+          type: attraction
+          coords: {lat: 52.5163, lon: 13.3777}
+          admin: {country: Germany, state: Berlin, county: Berlin, city: Berlin, postcode: '10117'}
+          address: {house_number: '1', street: Pariser Platz, city: Berlin, county: Berlin, state: Berlin, postcode: '10117', country: Germany, countrycode: de}
+          match_type: rooftop
+          confidence: null
+        meta: {timestamp: '2026-09-06T20:53:10Z', upstream: ok, count: 1}
+    ReverseResponse:
+      value:
+        data:
+          here:
+            id: node:240109189
+            name: Brandenburg Gate
+            label: Brandenburg Gate, Berlin, Germany
+            type: attraction
+            coords: {lat: 52.5163, lon: 13.3777}
+            admin: {country: Germany, state: Berlin, county: Berlin, city: Berlin, postcode: '10117'}
+            address: {house_number: '1', street: Pariser Platz, city: Berlin, county: Berlin, state: Berlin, postcode: '10117', country: Germany, countrycode: de}
+            match_type: rooftop
+            confidence: null
+          admin: {country: Germany, state: Berlin, county: Berlin, city: Berlin, postcode: '10117'}
+        meta: {timestamp: '2026-09-06T20:53:10Z', upstream: ok}
+    WhatsHereResponse:
+      value:
+        data:
+          here:
+            id: node:240109189
+            name: Brandenburg Gate
+            label: Brandenburg Gate, Berlin, Germany
+            type: attraction
+            coords: {lat: 52.5163, lon: 13.3777}
+            admin: {country: Germany, state: Berlin, county: Berlin, city: Berlin, postcode: '10117'}
+            address: {house_number: '1', street: Pariser Platz, city: Berlin, county: Berlin, state: Berlin, postcode: '10117', country: Germany, countrycode: de}
+            match_type: rooftop
+            confidence: null
+          admin: {country: Germany, state: Berlin, county: Berlin, city: Berlin, postcode: '10117'}
+          nearby:
+          - id: node/123
+            coords: {lat: 52.5164, lon: 13.3779}
+            tags: {amenity: cafe, name: Gate Café}
+        meta: {timestamp: '2026-09-06T20:53:10Z', radius: 200, upstream: ok}
+    GeocodeResponse:
+      value:
+        data:
+        - id: node:240109189
+          name: Brandenburg Gate
+          label: Brandenburg Gate, Berlin, Germany
+          type: attraction
+          coords: {lat: 52.5163, lon: 13.3777}
+          admin: {country: Germany, state: Berlin, county: Berlin, city: Berlin, postcode: '10117'}
+          address: {house_number: '1', street: Pariser Platz, city: Berlin, county: Berlin, state: Berlin, postcode: '10117', country: Germany, countrycode: de}
+          match_type: rooftop
+          confidence: null
+        meta: {timestamp: '2026-09-06T20:53:10Z', mode: forward, upstream: ok, count: 1}
+    BatchReverseRequest:
+      value:
+        coords:
+        - {id: trip-point-42, lat: 52.5163, lon: 13.3777}
+        - {id: bad-point, lat: not-a-number, lon: 13.4000}
+        lang: de
+    BatchReverseResponse:
+      value:
+        data:
+        - id: trip-point-42
+          coord: {lat: 52.5163, lon: 13.3777}
+          here:
+            id: node:240109189
+            name: Brandenburg Gate
+            label: Brandenburg Gate, Berlin, Germany
+            type: attraction
+            coords: {lat: 52.5163, lon: 13.3777}
+            admin: {country: Germany, state: Berlin, county: Berlin, city: Berlin, postcode: '10117'}
+            address: {house_number: '1', street: Pariser Platz, city: Berlin, county: Berlin, state: Berlin, postcode: '10117', country: Germany, countrycode: de}
+            match_type: rooftop
+            confidence: null
+          admin: {country: Germany, state: Berlin, county: Berlin, city: Berlin, postcode: '10117'}
+        - id: bad-point
+          coord: {raw_lat: not-a-number, raw_lon: 13.4000}
+          error: lat must be numeric
+        meta: {timestamp: '2026-09-06T20:53:10Z', count: 2, cache_hits: 1, cache_misses: 1, upstream_errors: 1, grid_precision: 4, max_coords: 500}
+    RouteResponse:
+      value:
+        data:
+          summary: {length: 2.4, time: 312}
+          legs:
+          - shape: _ajccB_{zpX_pR_pR
+            summary: {length: 2.4, time: 312}
+            maneuvers:
+            - {type: 1, instruction: Drive east, length: 2.4, time: 312, begin_shape_index: 0, end_shape_index: 1}
+          shape_format: valhalla_encoded_polyline6
+        meta:
+          timestamp: '2026-09-06T20:53:10Z'
+          mode: auto
+          options: {avoid_tolls: true, avoid_highways: true, avoid_ferries: false}
+    MapMatchRequest:
+      value:
+        shape:
+        - {lat: 52.5000, lon: 13.4000, time: 1714032000, accuracy: 8}
+        - {lat: 52.5100, lon: 13.4100, time: 1714032030, accuracy: 6}
+        mode: auto
+        shape_match: map_snap
+        format: polyline6
+        search_radius: 35
+        gps_accuracy: 5
+        breakage_distance: 2000
+    MapMatchPolylineResponse:
+      value:
+        data:
+          summary: {length: 2.5, time: 300}
+          legs:
+          - shape: _ajccB_{zpX_pR_pR
+            summary: {length: 2.5, time: 300}
+            maneuvers:
+            - {type: 1, instruction: Drive east, length: 2.5, time: 300, begin_shape_index: 0, end_shape_index: 1}
+          shape_format: valhalla_encoded_polyline6
+        meta: {timestamp: '2026-09-06T20:53:10Z', mode: auto, shape_match: map_snap, format: polyline6, points: 2, max_points: 10000}
+    MapMatchGeoJsonResponse:
+      value:
+        data:
+          summary: {length: 2.5, time: 300}
+          geometry: {type: LineString, coordinates: [[13.4000, 52.5000], [13.4100, 52.5100]]}
+          shape_format: geojson
+        meta: {timestamp: '2026-09-06T20:53:10Z', mode: auto, shape_match: map_snap, format: geojson, points: 2, max_points: 10000}
+    TransitResponse:
+      value:
+        data:
+          from: {name: Treptower Park, lat: 52.4884, lon: 13.4703}
+          to: {name: Zoologischer Garten, lat: 52.5073, lon: 13.3324}
+          itineraries:
+          - start_time: '2026-09-07T08:02:00Z'
+            end_time: '2026-09-07T08:45:00Z'
+            duration: 2580
+            walk_distance: 1042
+            transfers: 1
+            legs:
+            - mode: WALK
+              route_name: null
+              headsign: null
+              agency_name: null
+              start_time: '2026-09-07T08:02:00Z'
+              end_time: '2026-09-07T08:16:00Z'
+              duration: 840
+              distance: 949
+              from: {name: Treptower Park, lat: 52.4884, lon: 13.4703}
+              to: {name: S Treptower Park, lat: 52.4936, lon: 13.4618}
+              shape: '}psbcBakduXcH|H'
+              shape_format: google_polyline6
+            - mode: SUBURBAN
+              route_name: S85
+              headsign: S Frohnau
+              agency_name: S-Bahn Berlin GmbH
+              start_time: '2026-09-07T08:16:00Z'
+              end_time: '2026-09-07T08:18:00Z'
+              duration: 120
+              distance: 1860
+              from: {name: S Treptower Park, lat: 52.4936, lon: 13.4618}
+              to: {name: S Ostkreuz, lat: 52.5033, lon: 13.4696}
+              shape: yr}bcBktstX`L~a@
+              shape_format: google_polyline6
+        meta: {timestamp: '2026-09-06T20:53:10Z', time: '2026-09-07T08:00:00Z', modes: TRANSIT,WALK}
+    PoisResponse:
+      value:
+        data:
+          features:
+          - id: node/123
+            coords: {lat: 52.5200, lon: 13.4050}
+            name: Café Berlin
+            category: cafe
+            tags: {name: Café Berlin, amenity: cafe, 'addr:street': Karl-Liebknecht-Straße, 'addr:housenumber': '8', 'addr:postcode': '10178', 'addr:city': Berlin, 'addr:country': Germany}
+        meta: {timestamp: '2026-09-06T20:53:10Z', types: [cafe, restaurant], bbox: [52.5000, 13.3600, 52.5400, 13.4200], q: breakfast}
+    PoiCategoriesResponse:
+      value:
+        data:
+          sections:
+          - id: food
+            label: Food & drink
+            icon: utensils
+            icon_svg: '<svg viewBox="0 0 24 24">…</svg>'
+            items:
+            - id: cafe
+              label: Café
+              icon: coffee
+              icon_svg: '<svg viewBox="0 0 24 24">…</svg>'
+              pinned: true
+    VersionResponse:
+      value:
+        data: {version: 0.5.0, revision: eb22b1a}
+    HealthResponse:
+      value:
+        data:
+          status: degraded
+          capabilities: {geocoding: up, routing: up, pois: starting, transit: down}
+        meta: {timestamp: '2026-09-06T20:53:10Z'}
+    PhotonFeatureCollection:
+      value:
+        type: FeatureCollection
+        features:
+        - type: Feature
+          properties: {osm_type: N, osm_id: '240109189', osm_key: tourism, osm_value: attraction, name: Brandenburg Gate, city: Berlin, state: Berlin, country: Germany, countrycode: de, postcode: '10117'}
+          geometry: {type: Point, coordinates: [13.3777, 52.5163]}
+    PhotonStatusResponse:
+      value: {status: ok}
