@@ -64,14 +64,20 @@ defmodule Atlas.Control.ApplyTimelineTest do
       start_timeline()
       |> ApplyTimeline.apply_event(
         {:apply_progress,
-         %{phase: :downloading, region: "germany",
-           item: %{label: "a.pbf", source: "http://x/a.pbf", current: 10, total: 10}}},
+         %{
+           phase: :downloading,
+           region: "germany",
+           item: %{label: "a.pbf", source: "http://x/a.pbf", current: 10, total: 10}
+         }},
         @now
       )
       |> ApplyTimeline.apply_event(
         {:apply_progress,
-         %{phase: :downloading, region: "austria",
-           item: %{label: "b.pbf", source: "http://x/b.pbf", current: 5, total: 20}}},
+         %{
+           phase: :downloading,
+           region: "austria",
+           item: %{label: "b.pbf", source: "http://x/b.pbf", current: 5, total: 20}
+         }},
         @now
       )
 
@@ -87,8 +93,11 @@ defmodule Atlas.Control.ApplyTimelineTest do
       start_timeline()
       |> ApplyTimeline.apply_event(
         {:apply_progress,
-         %{phase: :downloading, region: "germany",
-           item: %{label: "a.pbf", source: "http://x/a.pbf", current: 999, total: nil}}},
+         %{
+           phase: :downloading,
+           region: "germany",
+           item: %{label: "a.pbf", source: "http://x/a.pbf", current: 999, total: nil}
+         }},
         @now
       )
 
@@ -100,7 +109,10 @@ defmodule Atlas.Control.ApplyTimelineTest do
   test "advancing to a later phase completes the earlier stages" do
     timeline =
       start_timeline()
-      |> ApplyTimeline.apply_event({:apply_progress, %{phase: :downloading, region: "germany"}}, @now)
+      |> ApplyTimeline.apply_event(
+        {:apply_progress, %{phase: :downloading, region: "germany"}},
+        @now
+      )
       |> ApplyTimeline.apply_event({:apply_progress, %{phase: :converting, region: nil}}, @now)
 
     assert stage(timeline, :download).state == :done
@@ -113,7 +125,10 @@ defmodule Atlas.Control.ApplyTimelineTest do
   test "apply_done completes every remaining applier stage" do
     timeline =
       start_timeline()
-      |> ApplyTimeline.apply_event({:apply_progress, %{phase: :downloading, region: "germany"}}, @now)
+      |> ApplyTimeline.apply_event(
+        {:apply_progress, %{phase: :downloading, region: "germany"}},
+        @now
+      )
       |> ApplyTimeline.apply_event({:apply_done, %{}}, @now)
 
     assert timeline.status == :done
@@ -139,7 +154,10 @@ defmodule Atlas.Control.ApplyTimelineTest do
   test "apply_error on an early phase skips the untouched later stages" do
     timeline =
       start_timeline()
-      |> ApplyTimeline.apply_event({:apply_progress, %{phase: :downloading, region: "germany"}}, @now)
+      |> ApplyTimeline.apply_event(
+        {:apply_progress, %{phase: :downloading, region: "germany"}},
+        @now
+      )
       |> ApplyTimeline.apply_event(
         {:apply_error, %{phase: :downloading, reason: "network unreachable"}},
         @now
@@ -283,9 +301,13 @@ defmodule Atlas.Control.ApplyTimelineTest do
       # Every announced sidecar has to report: the journey ends when the data
       # is usable, and all three ingest services serve it.
       timeline =
-        Enum.reduce(@all_sidecars, event(ingesting_timeline(), {:apply_done, %{}}, @later), fn name, acc ->
-          event(acc, {:service_update, snapshot(name, %{phase: "ready", ready?: true})}, @later)
-        end)
+        Enum.reduce(
+          @all_sidecars,
+          event(ingesting_timeline(), {:apply_done, %{}}, @later),
+          fn name, acc ->
+            event(acc, {:service_update, snapshot(name, %{phase: "ready", ready?: true})}, @later)
+          end
+        )
 
       assert timeline.status == :done
       assert timeline.finished_at == @later
@@ -617,7 +639,9 @@ defmodule Atlas.Control.ApplyTimelineTest do
         start_timeline(["valhalla"])
         |> event({:apply_progress, %{phase: :restarting}})
         |> restarting(["valhalla"])
-        |> event({:service_update, snapshot("valhalla", %{phase: "building-tiles", progress: 0.5})})
+        |> event(
+          {:service_update, snapshot("valhalla", %{phase: "building-tiles", progress: 0.5})}
+        )
 
       valhalla = stage(timeline, :valhalla)
 
@@ -670,7 +694,10 @@ defmodule Atlas.Control.ApplyTimelineTest do
       assert stage(timeline, :valhalla).state == :done
 
       later =
-        event(timeline, {:service_update, snapshot("valhalla", %{status: :error, phase: "error"})})
+        event(
+          timeline,
+          {:service_update, snapshot("valhalla", %{status: :error, phase: "error"})}
+        )
 
       assert stage(later, :valhalla).state == :done
     end
@@ -834,5 +861,4 @@ defmodule Atlas.Control.ApplyTimelineTest do
       assert ApplyTimeline.current() == nil
     end
   end
-
 end

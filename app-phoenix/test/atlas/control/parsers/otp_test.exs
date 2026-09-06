@@ -74,7 +74,8 @@ defmodule Atlas.Control.Parsers.OTPTest do
         |> Enum.dedup()
         |> Enum.reject(&is_nil/1)
 
-      assert phases == ~w(loading-osm building-graph loading-gtfs trip-patterns saving-graph ready)
+      assert phases ==
+               ~w(loading-osm building-graph loading-gtfs trip-patterns saving-graph ready)
     end
 
     test "never reports an error phase on a healthy build", %{lines: lines} do

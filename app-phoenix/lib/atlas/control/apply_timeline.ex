@@ -242,6 +242,7 @@ defmodule Atlas.Control.ApplyTimeline do
   # leaves current > total, which rendered as "127%".
   def percentage(%Measure{current: current, total: total}),
     do: (current / total * 100) |> round() |> min(100) |> max(0)
+
   def percentage(nil), do: nil
 
   @doc "Fold one event into the timeline."

@@ -5,7 +5,9 @@ defmodule Atlas.Control.Jobs.UpdateServiceTest do
   alias Atlas.Control.{DockerCompose, Jobs.UpdateService, Service}
 
   setup do
-    start_supervised!({Oban, Application.fetch_env!(:atlas, Oban) |> Keyword.put(:testing, :manual)})
+    start_supervised!(
+      {Oban, Application.fetch_env!(:atlas, Oban) |> Keyword.put(:testing, :manual)}
+    )
 
     {:ok, _} =
       Repo.insert(%Service{

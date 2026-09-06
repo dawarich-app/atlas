@@ -364,6 +364,7 @@ defmodule Atlas.Control.RegionApplier do
       progress: nil,
       detail: time_zone_detail(entries)
     })
+
     otp_dir = Path.join(state.data_dir, "otp")
     File.mkdir_p!(otp_dir)
 

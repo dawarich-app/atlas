@@ -116,13 +116,20 @@ services:
     image: pelias/placeholder:v5.5.0
     container_name: apo-placeholder
     profiles: [geocoding, all]
+    # The wrapper prepares this service's data directory, then drops privileges
+    # before downloading the official database and starting the server.
+    user: "0:0"
+    entrypoint: ["node", "/opt/atlas/placeholder-entrypoint.cjs"]
     environment:
       PORT: 3000
+      CPUS: ${PLACEHOLDER_CPUS:-2}
+      PUID: ${PUID:-65534}
+      PGID: ${PGID:-65534}
       PLACEHOLDER_DATA: /data
-      WOF_DIR: /wof/sqlite
+      PLACEHOLDER_DATABASE_URL: ${PLACEHOLDER_DATABASE_URL:-https://data.geocode.earth/placeholder/store.sqlite3.gz}
     volumes:
       - ./data/placeholder:/data
-      - ./data/whosonfirst:/wof:ro
+      - ./script/placeholder-entrypoint.cjs:/opt/atlas/placeholder-entrypoint.cjs:ro
     restart: unless-stopped
 
   libpostal:

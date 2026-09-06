@@ -322,7 +322,11 @@ defmodule Atlas.Control.RegionApplierTest do
     # resolves to nothing must not inherit it — OTP would shift every opening
     # hour in the new extract by whole hours, silently.
     File.mkdir_p!(Path.join(tmp, "otp"))
-    File.write!(Path.join(tmp, "otp/build-config.json"), ~s({"osmDefaults":{"timeZone":"Europe/Berlin"}}))
+
+    File.write!(
+      Path.join(tmp, "otp/build-config.json"),
+      ~s({"osmDefaults":{"timeZone":"Europe/Berlin"}})
+    )
 
     start_applier(tmp)
 
@@ -441,7 +445,10 @@ defmodule Atlas.Control.RegionApplierTest do
 
     log =
       capture_log(fn ->
-        start_applier(tmp, downloader: fn _url, _dest, _progress -> {:error, {:http_status, 500}} end)
+        start_applier(tmp,
+          downloader: fn _url, _dest, _progress -> {:error, {:http_status, 500}} end
+        )
+
         {:ok, _job_id} = RegionApplier.start(["bayern"])
         assert_receive {:apply_error, _}, 2_000
         Process.sleep(50)
@@ -478,6 +485,7 @@ defmodule Atlas.Control.RegionApplierTest do
     send(dl_pid, :proceed)
     assert_receive {:apply_done, _}, 2_000
   end
+
   describe "summarize_restarts/1" do
     test "reports every failure, not just the first" do
       # reduce_while halted on the first bad compose call, leaving the rest of
@@ -499,5 +507,4 @@ defmodule Atlas.Control.RegionApplierTest do
       assert RegionApplier.summarize_restarts([]) == :ok
     end
   end
-
 end

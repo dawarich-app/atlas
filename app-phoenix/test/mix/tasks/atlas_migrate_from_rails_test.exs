@@ -11,7 +11,9 @@ defmodule Mix.Tasks.Atlas.MigrateFromRailsTest do
   @sentinel_key "migrated_from_rails_at"
 
   setup do
-    tmp_dir = System.tmp_dir!() |> Path.join("atlas-migrate-#{System.unique_integer([:positive])}")
+    tmp_dir =
+      System.tmp_dir!() |> Path.join("atlas-migrate-#{System.unique_integer([:positive])}")
+
     File.mkdir_p!(tmp_dir)
     source = Path.join(tmp_dir, "rails-atlas.sqlite3")
 

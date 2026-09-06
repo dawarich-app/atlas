@@ -61,7 +61,8 @@ defmodule Atlas.Control.DownloaderTest do
     Bypass.down(bypass)
     dest = Path.join(tmp, "down.pbf")
 
-    assert {:error, _reason} = Downloader.fetch(url(bypass, "/down.pbf"), dest, fn _, _ -> :ok end)
+    assert {:error, _reason} =
+             Downloader.fetch(url(bypass, "/down.pbf"), dest, fn _, _ -> :ok end)
 
     refute File.exists?(dest)
     refute File.exists?(dest <> ".partial")

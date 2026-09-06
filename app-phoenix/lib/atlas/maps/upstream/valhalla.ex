@@ -39,15 +39,16 @@ defmodule Atlas.Maps.Upstream.Valhalla do
     mode = opts[:mode] || "auto"
     unless mode in @modes, do: raise(ArgumentError, "invalid mode #{mode}")
 
-    body = %{
-      locations: [
-        %{lat: opts[:from][:lat], lon: opts[:from][:lon]},
-        %{lat: opts[:to][:lat], lon: opts[:to][:lon]}
-      ],
-      costing: mode,
-      directions_options: %{units: "kilometers"}
-    }
-    |> maybe_add_costing_options(mode, opts[:options])
+    body =
+      %{
+        locations: [
+          %{lat: opts[:from][:lat], lon: opts[:from][:lon]},
+          %{lat: opts[:to][:lat], lon: opts[:to][:lon]}
+        ],
+        costing: mode,
+        directions_options: %{units: "kilometers"}
+      }
+      |> maybe_add_costing_options(mode, opts[:options])
 
     Client.post(req, "/route", body)
   end
@@ -114,7 +115,9 @@ defmodule Atlas.Maps.Upstream.Valhalla do
       |> maybe_put(:use_highways, 0.0, options[:avoid_highways])
       |> maybe_put(:use_ferry, 0.0, options[:avoid_ferries])
 
-    if map_size(auto_opts) > 0, do: Map.put(body, :costing_options, %{auto: auto_opts}), else: body
+    if map_size(auto_opts) > 0,
+      do: Map.put(body, :costing_options, %{auto: auto_opts}),
+      else: body
   end
 
   defp maybe_add_costing_options(body, _mode, _options), do: body

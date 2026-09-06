@@ -28,7 +28,12 @@ env:
   IMAGE_NAME: dawarich-app/atlas/app
 
 jobs:
+  test-phoenix:
+    uses: ./.github/workflows/test-phoenix.yml
+  test-config:
+    uses: ./.github/workflows/test-config.yml
   build:
+    needs: [test-phoenix, test-config]
     name: Build & push
     runs-on: ubuntu-latest
     timeout-minutes: 30

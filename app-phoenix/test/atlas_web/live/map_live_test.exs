@@ -32,6 +32,68 @@ defmodule AtlasWeb.MapLiveTest do
     assert html =~ ~s(phx-hook="Map")
   end
 
+  test "directions can be submitted with a button", %{conn: conn} do
+    {:ok, view, _html} = live(conn, ~p"/")
+
+    assert has_element?(
+             view,
+             ~s(form[phx-submit="route"] button[type="submit"]),
+             "Get directions"
+           )
+  end
+
+  test "an invalid route mode does not crash the LiveView", %{conn: conn} do
+    {:ok, view, _html} = live(conn, ~p"/")
+
+    html =
+      render_hook(view, "route", %{
+        "from" => "52.5,13.4",
+        "to" => "52.6,13.5",
+        "mode" => "invalid"
+      })
+
+    assert html =~ "Choose Drive, Bike, Walk or Transit."
+    assert render(view) =~ "Directions"
+  end
+
+  test "routing failures clear the map and never announce Route ready", %{
+    conn: conn,
+    bypass: bypass
+  } do
+    Bypass.down(bypass)
+    {:ok, view, _html} = live(conn, ~p"/")
+    html = render_hook(view, "route", %{"from" => "52.5,13.4", "to" => "52.6,13.5"})
+    assert html =~ "Routing service unavailable"
+    refute html =~ "Route ready."
+
+    assert_push_event(view, "map:draw_route", %{
+      geojson: %{type: "FeatureCollection", features: []}
+    })
+  end
+
+  test "empty transit results clear the previous route", %{conn: conn, bypass: bypass} do
+    Bypass.expect_once(bypass, "POST", "/otp/gtfs/v1", fn c ->
+      Plug.Conn.resp(c, 200, ~s({"data":{"planConnection":{"edges":[]}}}))
+    end)
+
+    {:ok, view, _html} = live(conn, ~p"/")
+
+    html =
+      render_hook(view, "route", %{
+        "from" => "52.5,13.4",
+        "to" => "52.6,13.5",
+        "mode" => "transit"
+      })
+
+    assert html =~ "No route found for this trip."
+
+    assert_push_event(view, "map:draw_route", %{
+      geojson: %{type: "FeatureCollection", features: []}
+    })
+
+    refute html =~ "Route ready."
+  end
+
   test "search submit populates results", %{conn: conn, bypass: bypass} do
     Bypass.expect(bypass, fn c ->
       case c.request_path do
@@ -183,7 +245,8 @@ defmodule AtlasWeb.MapLiveTest do
       :ok
     end
 
-    defp typed(view, q), do: view |> element("form[phx-change=search]") |> render_change(%{"q" => q})
+    defp typed(view, q),
+      do: view |> element("form[phx-change=search]") |> render_change(%{"q" => q})
 
     test "every result gets a marker, not just the one you click", %{conn: conn} do
       # This is what made the Rails map useful: you see where all the matches
@@ -501,7 +564,8 @@ defmodule AtlasWeb.MapLiveTest do
       :ok
     end
 
-    defp change(view, q), do: view |> element("form[phx-change=search]") |> render_change(%{"q" => q})
+    defp change(view, q),
+      do: view |> element("form[phx-change=search]") |> render_change(%{"q" => q})
 
     test "asks for a viewport-sized page, not the old global handful", %{conn: conn} do
       {:ok, view, _html} = live(conn, ~p"/")
@@ -852,8 +916,7 @@ defmodule AtlasWeb.MapLiveTest do
 
       send(
         view.pid,
-        {:apply_progress,
-         %{job_id: job_id, phase: :downloading, region: "berlin", progress: 0.4}}
+        {:apply_progress, %{job_id: job_id, phase: :downloading, region: "berlin", progress: 0.4}}
       )
 
       send(

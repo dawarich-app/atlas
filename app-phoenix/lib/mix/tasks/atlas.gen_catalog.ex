@@ -36,7 +36,10 @@ defmodule Mix.Tasks.Atlas.GenCatalog do
 
   @impl Mix.Task
   def run(args) do
-    Mix.Task.run("app.start")
+    # Catalog generation needs HTTP and compiled modules, not the database or
+    # control plane. A clean CI checkout has no services table to seed.
+    Mix.Task.run("app.config")
+    {:ok, _} = Application.ensure_all_started(:req)
 
     {opts, _, _} =
       OptionParser.parse(args,
@@ -51,25 +54,34 @@ defmodule Mix.Tasks.Atlas.GenCatalog do
 
     out = opts[:out] || Path.join(:code.priv_dir(:atlas), "regions/catalog.json")
 
-    geofabrik = if opts[:no_geofabrik], do: %{"features" => []}, else: load_geofabrik(opts[:geofabrik_file])
+    geofabrik =
+      if opts[:no_geofabrik], do: %{"features" => []}, else: load_geofabrik(opts[:geofabrik_file])
+
     cities = load_bbbike(opts[:bbbike_file])
 
-    Mix.shell().info("Geofabrik features: #{length(geofabrik["features"])}; BBBike cities: #{length(cities)}")
+    Mix.shell().info(
+      "Geofabrik features: #{length(geofabrik["features"])}; BBBike cities: #{length(cities)}"
+    )
 
     head_fun = if opts[:no_sizes], do: fn _ -> {:error, :skipped} end, else: &head_size/1
     entries = CatalogGenerator.build(geofabrik, cities, head_fun)
     nulls = Enum.count(entries, &is_nil(&1["pbf_bytes"]))
 
     case CatalogGenerator.write(entries, out) do
-      :ok -> Mix.shell().info("Wrote #{length(entries)} entries (#{nulls} without size) -> #{out}")
-      {:error, msg} -> Mix.raise("catalog invalid: #{msg}")
+      :ok ->
+        Mix.shell().info("Wrote #{length(entries)} entries (#{nulls} without size) -> #{out}")
+
+      {:error, msg} ->
+        Mix.raise("catalog invalid: #{msg}")
     end
   end
 
   defp load_geofabrik(nil), do: Req.get!(@geofabrik_url).body
   defp load_geofabrik(path), do: path |> File.read!() |> Jason.decode!()
 
-  defp load_bbbike(nil), do: @bbbike_index |> Req.get!() |> Map.fetch!(:body) |> parse_bbbike_index()
+  defp load_bbbike(nil),
+    do: @bbbike_index |> Req.get!() |> Map.fetch!(:body) |> parse_bbbike_index()
+
   defp load_bbbike(path), do: path |> File.read!() |> parse_bbbike_index()
 
   @doc "Extract `<City>` names from the BBBike directory index HTML."

@@ -11,7 +11,9 @@ defmodule Atlas.Maps.Upstream.Placeholder do
 
   def default do
     Client.build_from_env("PLACEHOLDER", "http://localhost:3000",
-                          timeout: 5_000, open_timeout: 2_000)
+      timeout: 5_000,
+      open_timeout: 2_000
+    )
   end
 
   def admin_for(req \\ default(), opts) do

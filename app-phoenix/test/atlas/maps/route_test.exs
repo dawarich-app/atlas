@@ -11,7 +11,11 @@ defmodule Atlas.Maps.RouteTest do
 
   test "plan flattens result to summary + legs + shape_format", %{bypass: bypass} do
     Bypass.expect_once(bypass, "POST", "/route", fn conn ->
-      Plug.Conn.resp(conn, 200, ~s({"trip":{"summary":{"length":1.2},"legs":[{"shape":"abc","maneuvers":[]}]}}))
+      Plug.Conn.resp(
+        conn,
+        200,
+        ~s({"trip":{"summary":{"length":1.2},"legs":[{"shape":"abc","maneuvers":[]}]}})
+      )
     end)
 
     assert {:ok, %Result{features: features, upstream_status: "ok"}} =

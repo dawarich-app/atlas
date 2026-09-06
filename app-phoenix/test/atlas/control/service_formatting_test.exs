@@ -17,6 +17,7 @@ defmodule Atlas.Control.ServiceFormattingTest do
       assert SF.status_label(%{status: :error}) == "error"
     end
   end
+
   describe "unavailable_reason/1" do
     test "a service that has never been observed reads as not installed" do
       # Matches status_label/1's existing convention: unobserved is "off", not
@@ -45,5 +46,4 @@ defmodule Atlas.Control.ServiceFormattingTest do
       end
     end
   end
-
 end

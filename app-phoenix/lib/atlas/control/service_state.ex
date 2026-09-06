@@ -69,7 +69,9 @@ defmodule Atlas.Control.ServiceState do
   def reconcile(name), do: GenServer.cast(Registry.via(name), :reconcile)
   def begin_update(name), do: GenServer.call(Registry.via(name), :begin_update)
   def finish_update(name, opts), do: GenServer.cast(Registry.via(name), {:finish_update, opts})
-  def set_auto_update(name, enabled), do: GenServer.call(Registry.via(name), {:set_auto_update, enabled})
+
+  def set_auto_update(name, enabled),
+    do: GenServer.call(Registry.via(name), {:set_auto_update, enabled})
 
   ## Callbacks
 

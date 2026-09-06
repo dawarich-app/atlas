@@ -113,11 +113,19 @@ defmodule AtlasWeb.SearchCardTest do
 
     test "the highlighted row is not tinted with the backdrop colour" do
       results = [%{id: "1", label: "A"}, %{id: "2", label: "B"}]
-      html = card(%{status: "ok", results: results, active: 1, snapshot: %{enabled?: true, status: :ready}})
+
+      html =
+        card(%{
+          status: "ok",
+          results: results,
+          active: 1,
+          snapshot: %{enabled?: true, status: :ready}
+        })
 
       [_before, active_row] = String.split(html, ~s(phx-value-id="2"))
 
-      refute active_row |> String.slice(0, 300) =~ ~s(class="flex w-full items-start gap-2.5 rounded-xl px-3 py-2.5 text-left transition #{@backdrop}"),
+      refute active_row |> String.slice(0, 300) =~
+               ~s(class="flex w-full items-start gap-2.5 rounded-xl px-3 py-2.5 text-left transition #{@backdrop}"),
              "the highlight must differ from the panel it sits on"
 
       assert html =~ "bg-primary/10"
@@ -125,7 +133,14 @@ defmodule AtlasWeb.SearchCardTest do
 
     test "the hover tint is not the backdrop colour either" do
       results = [%{id: "1", label: "A"}]
-      html = card(%{status: "ok", results: results, active: -1, snapshot: %{enabled?: true, status: :ready}})
+
+      html =
+        card(%{
+          status: "ok",
+          results: results,
+          active: -1,
+          snapshot: %{enabled?: true, status: :ready}
+        })
 
       refute html =~ "hover:bg-base-200"
       assert html =~ "hover:bg-base-100"

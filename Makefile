@@ -171,34 +171,15 @@ geocoding: env placeholder-data ## Boot geocoding stack (Photon + Placeholder + 
 	@echo "Photon is downloading its index — see 'make logs' or 'docker compose logs -f photon'."
 
 .PHONY: placeholder-data
-placeholder-data: ## One-shot: download WOF (~68 GB) + build Placeholder store + auto-cleanup transients
-	@if [ -s data/placeholder/store.sqlite3 ]; then \
-		echo "Placeholder store already exists at data/placeholder/store.sqlite3 ($$(du -sh data/placeholder/store.sqlite3 | cut -f1))"; \
-		echo "  → run 'make placeholder-data-rebuild' to force a fresh build"; \
-	else \
-		echo "⚠️  pelias/whosonfirst:latest always downloads the global WOF bundle (~68 GB transient)."; \
-		echo "⚠️  Allocate ≥16 GB RAM in Docker Desktop or the final optimize step will OOM-kill."; \
-		echo "⚠️  Final store.sqlite3 will be ~3-6 GB after build; transients are auto-removed."; \
-		mkdir -p data/whosonfirst/sqlite data/placeholder && \
-		chmod -R a+rwX data/whosonfirst data/placeholder && \
-		UID=$$(id -u) GID=$$(id -g) $(DC) --profile data-setup run --rm whosonfirst && \
-		$(DC) run --rm placeholder bash -c "./cmd/extract.sh && ./cmd/build.sh" || true; \
-		if [ -s data/placeholder/store.sqlite3 ]; then \
-			store_size=$$(du -sh data/placeholder/store.sqlite3 | cut -f1); \
-			echo "Placeholder store built: $$store_size — auto-cleaning transients..."; \
-			rm -rf data/whosonfirst/* data/placeholder/wof.extract; \
-			touch data/whosonfirst/.gitkeep; \
-			echo "Cleanup done. data/placeholder = $$(du -sh data/placeholder | cut -f1)"; \
-		else \
-			echo "ERROR: data/placeholder/store.sqlite3 was not produced. Check 'docker compose logs'."; \
-			exit 1; \
-		fi; \
-	fi
+placeholder-data: ## Download and validate the official Placeholder SQLite database (cached on later runs)
+	$(DC) run --rm --no-deps placeholder --download-only
 
 .PHONY: placeholder-data-rebuild
-placeholder-data-rebuild: ## Force-rebuild Placeholder store (re-downloads WOF if missing)
-	rm -f data/placeholder/store.sqlite3 data/placeholder/wof.extract
+placeholder-data-rebuild: ## Re-download Placeholder data, preserving the previous database as a backup
+	$(DC) stop placeholder
+	@if [ -f data/placeholder/store.sqlite3 ]; then mv data/placeholder/store.sqlite3 data/placeholder/store.sqlite3.backup-$$(date +%s); fi
 	@$(MAKE) placeholder-data
+	$(DC) up -d placeholder
 
 .PHONY: routing
 routing: env ## Boot Valhalla (downloads PBF + SRTM tiles on first start)

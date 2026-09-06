@@ -30,7 +30,9 @@ defmodule AtlasWeb.SearchMarkersTest do
 
     test "builds the address from whichever parts exist" do
       assert [%{address: "Alexanderplatz, Berlin"}] =
-               SearchMarkers.points([place(%{address: %{street: "Alexanderplatz", city: "Berlin"}})])
+               SearchMarkers.points([
+                 place(%{address: %{street: "Alexanderplatz", city: "Berlin"}})
+               ])
 
       assert [%{address: "10178 Berlin"}] =
                SearchMarkers.points([place(%{address: %{postcode: "10178", city: "Berlin"}})])
@@ -78,7 +80,8 @@ defmodule AtlasWeb.SearchMarkersTest do
     test "an id that names no OSM object yields no link" do
       # Better a popup without a link than one that 404s.
       for id <- ["", "1", "X:1", "N:", nil] do
-        assert [%{osm_url: nil}] = SearchMarkers.points([place(%{id: id})]), "expected nil for #{inspect(id)}"
+        assert [%{osm_url: nil}] = SearchMarkers.points([place(%{id: id})]),
+               "expected nil for #{inspect(id)}"
       end
     end
   end
@@ -87,7 +90,10 @@ defmodule AtlasWeb.SearchMarkersTest do
     test "names the wider area when the address does not already" do
       assert [%{region: "Bayern, Deutschland"}] =
                SearchMarkers.points([
-                 place(%{admin: %{state: "Bayern", country: "Deutschland"}, address: %{city: "München"}})
+                 place(%{
+                   admin: %{state: "Bayern", country: "Deutschland"},
+                   address: %{city: "München"}
+                 })
                ])
     end
 

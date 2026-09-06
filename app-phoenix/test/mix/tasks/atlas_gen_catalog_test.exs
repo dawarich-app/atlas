@@ -4,9 +4,22 @@ defmodule Mix.Tasks.Atlas.GenCatalogTest do
   @geofabrik_fixture Path.join(System.tmp_dir!(), "gf_fixture.json")
 
   setup do
-    File.write!(@geofabrik_fixture, Jason.encode!(%{"features" => [
-      %{"properties" => %{"id" => "europe", "parent" => nil, "name" => "Europe", "urls" => %{"pbf" => "https://x/eu.pbf"}}}
-    ]}))
+    File.write!(
+      @geofabrik_fixture,
+      Jason.encode!(%{
+        "features" => [
+          %{
+            "properties" => %{
+              "id" => "europe",
+              "parent" => nil,
+              "name" => "Europe",
+              "urls" => %{"pbf" => "https://x/eu.pbf"}
+            }
+          }
+        ]
+      })
+    )
+
     on_exit(fn -> File.rm_rf!(@geofabrik_fixture) end)
     :ok
   end

@@ -13,7 +13,8 @@ defmodule Atlas.Maps.Upstream.LibpostalTest do
       Plug.Conn.resp(conn, 200, ~s([{"label":"city","value":"berlin hauptbahnhof"}]))
     end)
 
-    assert %{query: "berlin hauptbahnhof", components: [%{"label" => "city", "value" => _}]} = Libpostal.normalize(req, "Berlin Hbf")
+    assert %{query: "berlin hauptbahnhof", components: [%{"label" => "city", "value" => _}]} =
+             Libpostal.normalize(req, "Berlin Hbf")
   end
 
   test "normalize/2 falls back to original query on upstream failure", %{bypass: bypass, req: req} do
@@ -22,7 +23,10 @@ defmodule Atlas.Maps.Upstream.LibpostalTest do
   end
 
   test "normalize/2 falls back when response is non-list", %{bypass: bypass, req: req} do
-    Bypass.expect_once(bypass, "GET", "/parser", fn conn -> Plug.Conn.resp(conn, 200, ~s({"error":"oops"})) end)
+    Bypass.expect_once(bypass, "GET", "/parser", fn conn ->
+      Plug.Conn.resp(conn, 200, ~s({"error":"oops"}))
+    end)
+
     assert %{query: "Berlin Hbf", components: []} = Libpostal.normalize(req, "Berlin Hbf")
   end
 end

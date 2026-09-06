@@ -32,7 +32,13 @@ defmodule Atlas.Maps.Geocode do
   end
 
   defp forward_lookup(q, lat, lon, lang, limit) do
-    case Search.autocomplete(%{query: String.trim(q), limit: limit, lang: lang, lat: lat, lon: lon}) do
+    case Search.autocomplete(%{
+           query: String.trim(q),
+           limit: limit,
+           lang: lang,
+           lat: lat,
+           lon: lon
+         }) do
       {:ok, result} -> {:ok, :forward, result}
       err -> err
     end

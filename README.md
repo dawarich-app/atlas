@@ -94,10 +94,20 @@ the map UI, admin Settings, the public + admin JSON APIs, and the control plane
 | Job | Trigger | Output |
 |---|---|---|
 | `test-phoenix` | push / PR touching `app-phoenix/**` | `mix test --include parity` (incl. byte-diff parity gate against the Rails goldens) + `credo` |
-| `build-app` | push to `main` touching `app-phoenix/**` | `ghcr.io/dawarich-app/atlas/app:latest` + `:<sha>` (multi-arch amd64+arm64) |
+| `test-config` | push / PR touching deployment files or bootstrap scripts | Deployment, Placeholder bootstrap and release-note checks |
+| `build-app` | published release or manual dispatch on its tag, after tests pass | `ghcr.io/dawarich-app/atlas/app:0.4.0`, `:0.4`, `:latest`, `:sha-<sha>` (amd64+arm64) |
 | `test-rails` | push / PR touching `app/**` | RSpec — the legacy Rails app (`app/`) is retained only as the parity reference for the golden capture; it is no longer built or shipped |
 
 Compose defaults consume the `app` tag directly — `docker compose up -d` against a fresh checkout pulls from GHCR with no auth.
+
+`latest` tracks stable releases. A push to `main` alone does not publish a GHCR
+image. A dated version at the top of `CHANGELOG.md` triggers the release workflow;
+it verifies the version against `mix.exs` and runs Phoenix and deployment tests
+before tagging. An `Unreleased` section does not publish anything.
+
+See [upgrading and rolling back](docs/upgrading.md) before moving an existing
+installation to 0.4.0. Update the checkout as well as the image: Compose and
+the Placeholder startup script are part of the release.
 
 Override the image when iterating locally:
 

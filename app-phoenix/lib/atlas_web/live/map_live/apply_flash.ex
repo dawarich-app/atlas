@@ -14,7 +14,8 @@ defmodule AtlasWeb.MapLive.ApplyFlash do
     do: {:info, "Applied #{tool_count} tool change#{plural(tool_count)}"}
 
   def message(tool_count, :unavailable, _names) when tool_count > 0,
-    do: {:info, "Applied #{tool_count} tool change#{plural(tool_count)}; region apply unavailable"}
+    do:
+      {:info, "Applied #{tool_count} tool change#{plural(tool_count)}; region apply unavailable"}
 
   def message(_, :unavailable, _names),
     do: {:error, "The control plane is not running on this build"}

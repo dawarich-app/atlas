@@ -4,14 +4,35 @@ defmodule Atlas.Control.CatalogGeneratorTest do
 
   @geofabrik %{
     "features" => [
-      %{"properties" => %{"id" => "europe", "parent" => nil, "name" => "Europe",
-        "urls" => %{"pbf" => "https://download.geofabrik.de/europe-latest.osm.pbf"}}},
-      %{"properties" => %{"id" => "germany", "parent" => "europe", "name" => "Germany",
-        "iso3166-1:alpha2" => ["DE"],
-        "urls" => %{"pbf" => "https://download.geofabrik.de/europe/germany-latest.osm.pbf"}}},
-      %{"properties" => %{"id" => "baden-wuerttemberg", "parent" => "germany", "name" => "Baden-Württemberg",
-        "iso3166-2" => ["DE-BW"],
-        "urls" => %{"pbf" => "https://download.geofabrik.de/europe/germany/baden-wuerttemberg-latest.osm.pbf"}}}
+      %{
+        "properties" => %{
+          "id" => "europe",
+          "parent" => nil,
+          "name" => "Europe",
+          "urls" => %{"pbf" => "https://download.geofabrik.de/europe-latest.osm.pbf"}
+        }
+      },
+      %{
+        "properties" => %{
+          "id" => "germany",
+          "parent" => "europe",
+          "name" => "Germany",
+          "iso3166-1:alpha2" => ["DE"],
+          "urls" => %{"pbf" => "https://download.geofabrik.de/europe/germany-latest.osm.pbf"}
+        }
+      },
+      %{
+        "properties" => %{
+          "id" => "baden-wuerttemberg",
+          "parent" => "germany",
+          "name" => "Baden-Württemberg",
+          "iso3166-2" => ["DE-BW"],
+          "urls" => %{
+            "pbf" =>
+              "https://download.geofabrik.de/europe/germany/baden-wuerttemberg-latest.osm.pbf"
+          }
+        }
+      }
     ]
   }
 
@@ -68,25 +89,75 @@ defmodule Atlas.Control.CatalogGeneratorTest do
 
   test "validate/1 rejects dup names and unresolved parents" do
     good = [
-      %{"name" => "gf:europe", "label" => "E", "kind" => "continent", "parent" => nil, "pbf_url" => "x"},
-      %{"name" => "gf:de", "label" => "DE", "kind" => "country", "parent" => "gf:europe", "pbf_url" => "x"}
+      %{
+        "name" => "gf:europe",
+        "label" => "E",
+        "kind" => "continent",
+        "parent" => nil,
+        "pbf_url" => "x"
+      },
+      %{
+        "name" => "gf:de",
+        "label" => "DE",
+        "kind" => "country",
+        "parent" => "gf:europe",
+        "pbf_url" => "x"
+      }
     ]
+
     assert CatalogGenerator.validate(good) == :ok
 
-    dup = good ++ [%{"name" => "gf:de", "label" => "DE2", "kind" => "country", "parent" => "gf:europe", "pbf_url" => "x"}]
+    dup =
+      good ++
+        [
+          %{
+            "name" => "gf:de",
+            "label" => "DE2",
+            "kind" => "country",
+            "parent" => "gf:europe",
+            "pbf_url" => "x"
+          }
+        ]
+
     assert {:error, msg} = CatalogGenerator.validate(dup)
     assert msg =~ "duplicate"
 
-    orphan = [%{"name" => "gf:de", "label" => "DE", "kind" => "country", "parent" => "gf:nope", "pbf_url" => "x"}]
+    orphan = [
+      %{
+        "name" => "gf:de",
+        "label" => "DE",
+        "kind" => "country",
+        "parent" => "gf:nope",
+        "pbf_url" => "x"
+      }
+    ]
+
     assert {:error, msg2} = CatalogGenerator.validate(orphan)
     assert msg2 =~ "parent"
   end
 
   test "build/3 + write/2 produce a sorted, valid, round-trippable file" do
-    geofabrik = %{"features" => [
-      %{"properties" => %{"id" => "europe", "parent" => nil, "name" => "Europe", "urls" => %{"pbf" => "https://x/eu.pbf"}}},
-      %{"properties" => %{"id" => "germany", "parent" => "europe", "name" => "Germany", "iso3166-1:alpha2" => ["DE"], "urls" => %{"pbf" => "https://x/de.pbf"}}}
-    ]}
+    geofabrik = %{
+      "features" => [
+        %{
+          "properties" => %{
+            "id" => "europe",
+            "parent" => nil,
+            "name" => "Europe",
+            "urls" => %{"pbf" => "https://x/eu.pbf"}
+          }
+        },
+        %{
+          "properties" => %{
+            "id" => "germany",
+            "parent" => "europe",
+            "name" => "Germany",
+            "iso3166-1:alpha2" => ["DE"],
+            "urls" => %{"pbf" => "https://x/de.pbf"}
+          }
+        }
+      ]
+    }
 
     entries = CatalogGenerator.build(geofabrik, ["Berlin"], fn _ -> {:ok, 10} end)
     assert CatalogGenerator.validate(entries) == :ok
@@ -117,9 +188,18 @@ defmodule Atlas.Control.CatalogGeneratorTest do
   end
 
   test "build/3 reconciles a bbbike city whose override country is absent from the index" do
-    geofabrik = %{"features" => [
-      %{"properties" => %{"id" => "europe", "parent" => nil, "name" => "Europe", "urls" => %{"pbf" => "https://x/eu.pbf"}}}
-    ]}
+    geofabrik = %{
+      "features" => [
+        %{
+          "properties" => %{
+            "id" => "europe",
+            "parent" => nil,
+            "name" => "Europe",
+            "urls" => %{"pbf" => "https://x/eu.pbf"}
+          }
+        }
+      ]
+    }
 
     entries = CatalogGenerator.build(geofabrik, ["Wien"], fn _ -> {:error, :skipped} end)
     assert CatalogGenerator.validate(entries) == :ok

@@ -50,7 +50,9 @@ defmodule AtlasWeb.SearchMarkers do
 
   # Photon occasionally returns a feature with an empty geometry. A marker at
   # [nil, nil] throws inside MapLibre and takes the rest of the list with it.
-  defp placeable?(%{coords: %{lat: lat, lon: lon}}) when is_number(lat) and is_number(lon), do: true
+  defp placeable?(%{coords: %{lat: lat, lon: lon}}) when is_number(lat) and is_number(lon),
+    do: true
+
   defp placeable?(_), do: false
 
   defp address_line(address) when is_map(address) do

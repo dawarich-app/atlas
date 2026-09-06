@@ -45,9 +45,7 @@ defmodule Mix.Tasks.Atlas.MigrateFromRailsPostgres do
         Mix.raise("Source must be a postgres:// or postgresql:// URL")
 
       not postgres_repo?() ->
-        Mix.raise(
-          "Phoenix Repo is not Postgres. Use mix atlas.migrate_from_rails for SQLite."
-        )
+        Mix.raise("Phoenix Repo is not Postgres. Use mix atlas.migrate_from_rails for SQLite.")
 
       already_migrated?() ->
         Mix.shell().info("Already migrated. Refusing to overwrite.")

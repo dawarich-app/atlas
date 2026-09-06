@@ -35,11 +35,25 @@ defmodule Atlas.Control.OsmiumTest do
     start_osmium({"ok", 0})
 
     assert {:ok, "ok"} =
-             Osmium.merge("/work/data/osm/sources", ["a.osm.pbf", "b.osm.pbf"], "../merged.osm.pbf")
+             Osmium.merge(
+               "/work/data/osm/sources",
+               ["a.osm.pbf", "b.osm.pbf"],
+               "../merged.osm.pbf"
+             )
 
     assert_received {:stub, "osmium", args, opts}
 
-    assert args == ["merge", "a.osm.pbf", "b.osm.pbf", "-O", "-f", "pbf", "-o", "../merged.osm.pbf"]
+    assert args == [
+             "merge",
+             "a.osm.pbf",
+             "b.osm.pbf",
+             "-O",
+             "-f",
+             "pbf",
+             "-o",
+             "../merged.osm.pbf"
+           ]
+
     assert opts[:cd] == "/work/data/osm/sources"
     assert opts[:stderr_to_stdout] == true
   end

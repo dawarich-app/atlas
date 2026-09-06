@@ -17,8 +17,7 @@ defmodule Atlas.Application do
          repos: Application.fetch_env!(:atlas, :ecto_repos), skip: skip_migrations?()},
         {DNSCluster, query: Application.get_env(:atlas, :dns_cluster_query) || :ignore},
         {Phoenix.PubSub, name: Atlas.PubSub},
-        {Cachex,
-         name: :reverse_cache, expiration: expiration(default: :timer.minutes(60))}
+        {Cachex, name: :reverse_cache, expiration: expiration(default: :timer.minutes(60))}
       ] ++ control_children() ++ [AtlasWeb.Endpoint]
 
     # See https://hexdocs.pm/elixir/Supervisor.html

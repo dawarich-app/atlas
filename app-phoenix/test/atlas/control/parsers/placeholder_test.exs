@@ -4,6 +4,14 @@ defmodule Atlas.Control.Parsers.PlaceholderTest do
   alias Atlas.Control.Parsers.LogReplay
   alias Atlas.Control.Parsers.Placeholder
 
+  test "database bootstrap reports downloading until the server is listening" do
+    {downloading, acc} = Placeholder.feed("[placeholder] downloaded 64 MiB", Placeholder.init())
+    assert downloading.phase == "downloading"
+    refute downloading.ready
+    {ready, _acc} = Placeholder.feed("[placeholder] [worker 24] listening on 0.0.0.0:3000", acc)
+    assert ready.ready
+  end
+
   describe "Placeholder parser (log-fixture replay)" do
     test "extract fixture yields phase=extracting, not ready" do
       result = LogReplay.replay(Placeholder, LogReplay.fixture("placeholder-extract.log"))

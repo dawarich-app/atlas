@@ -101,7 +101,8 @@ defmodule AtlasWeb.MapLive do
   def handle_event("search_move", %{"dir" => dir}, socket) when dir in [1, -1] do
     count = length(socket.assigns.search_results)
 
-    {:noreply, assign(socket, search_active: move_active(socket.assigns.search_active, dir, count))}
+    {:noreply,
+     assign(socket, search_active: move_active(socket.assigns.search_active, dir, count))}
   end
 
   def handle_event("search_commit", _params, socket) do
@@ -148,7 +149,7 @@ defmodule AtlasWeb.MapLive do
   @impl true
   def handle_event("route", %{"from" => from, "to" => to} = params, socket) do
     mode = Map.get(params, "mode", socket.assigns.mode)
-    socket = assign(socket, route_from: from, route_to: to, mode: mode)
+    socket = socket |> clear_flash() |> assign(route_from: from, route_to: to, mode: mode)
 
     with {:ok, from_coords} <- Coord.parse_latlon(from),
          {:ok, to_coords} <- Coord.parse_latlon(to),
@@ -172,12 +173,18 @@ defmodule AtlasWeb.MapLive do
       end
     else
       :error ->
-        {:noreply, put_flash(socket, :error, "Could not parse from/to as lat,lon")}
+        {:noreply,
+         socket |> clear_route() |> put_flash(:error, "Could not parse from/to as lat,lon")}
+
+      {:error, :invalid_mode} ->
+        {:noreply,
+         socket |> clear_route() |> put_flash(:error, "Choose Drive, Bike, Walk or Transit.")}
 
       {:error, _e} ->
         {:noreply,
          socket
-         |> assign(directions: %{trip: nil}, upstream_status: "unavailable")
+         |> clear_route()
+         |> assign(upstream_status: "unavailable")
          |> put_flash(:error, "Routing service unavailable")}
     end
   end
@@ -660,8 +667,16 @@ defmodule AtlasWeb.MapLive do
     Maps.Transit.plan(from: from, to: to)
   end
 
-  defp plan_route(mode, from, to, options) do
+  defp plan_route(mode, from, to, options) when mode in ~w(auto bicycle pedestrian) do
     Maps.Route.plan(from: from, to: to, mode: mode, options: costing_options(options))
+  end
+
+  defp plan_route(_mode, _from, _to, _options), do: {:error, :invalid_mode}
+
+  defp clear_route(socket) do
+    socket
+    |> assign(directions: nil)
+    |> push_event("map:draw_route", %{geojson: Coord.legs_to_geojson([])})
   end
 
   # The route-option toggles are stored string-keyed; Valhalla's costing options

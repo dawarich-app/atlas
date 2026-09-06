@@ -25,7 +25,8 @@ defmodule AtlasWeb.Api.V1.BaseControllerTest do
     assert body["error"]["details"]["param"] == "q"
   end
 
-  test "validation_error/2 returns 422 with VALIDATION_ERROR and no details key when details empty", %{conn: conn} do
+  test "validation_error/2 returns 422 with VALIDATION_ERROR and no details key when details empty",
+       %{conn: conn} do
     conn = BaseController.validation_error(conn, "lat must be numeric")
     assert conn.status == 422
     body = Jason.decode!(conn.resp_body)
@@ -50,7 +51,9 @@ defmodule AtlasWeb.Api.V1.BaseControllerTest do
   end
 
   test "parse_bbox_required/1 returns {:ok, bbox} or {:error, :invalid_bbox}" do
-    assert {:ok, [13.0, 52.0, 14.0, 53.0]} = BaseController.parse_bbox_required("13.0,52.0,14.0,53.0")
+    assert {:ok, [13.0, 52.0, 14.0, 53.0]} =
+             BaseController.parse_bbox_required("13.0,52.0,14.0,53.0")
+
     assert {:error, :invalid_bbox} = BaseController.parse_bbox_required("garbage")
     assert {:error, :invalid_bbox} = BaseController.parse_bbox_required(nil)
   end

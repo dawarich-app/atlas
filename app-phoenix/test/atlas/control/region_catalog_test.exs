@@ -4,7 +4,9 @@ defmodule Atlas.Control.RegionCatalogTest do
   alias Atlas.Control.RegionCatalog
 
   setup do
-    tmp = Path.join(System.tmp_dir!(), "atlas_region_catalog_#{System.unique_integer([:positive])}")
+    tmp =
+      Path.join(System.tmp_dir!(), "atlas_region_catalog_#{System.unique_integer([:positive])}")
+
     File.mkdir_p!(tmp)
     on_exit(fn -> File.rm_rf!(tmp) end)
     {:ok, dir: tmp}
@@ -74,19 +76,22 @@ defmodule Atlas.Control.RegionCatalogTest do
   end
 
   test "load_catalog/1 parses catalog.json into structs", %{dir: dir} do
-    File.write!(Path.join(dir, "catalog.json"), Jason.encode!([
-      %{
-        "name" => "gf:germany",
-        "label" => "Germany",
-        "kind" => "country",
-        "source" => "geofabrik",
-        "parent" => "gf:europe",
-        "country_code" => "de",
-        "iso" => ["DE"],
-        "pbf_url" => "https://download.geofabrik.de/europe/germany-latest.osm.pbf",
-        "pbf_bytes" => 4_000_000_000
-      }
-    ]))
+    File.write!(
+      Path.join(dir, "catalog.json"),
+      Jason.encode!([
+        %{
+          "name" => "gf:germany",
+          "label" => "Germany",
+          "kind" => "country",
+          "source" => "geofabrik",
+          "parent" => "gf:europe",
+          "country_code" => "de",
+          "iso" => ["DE"],
+          "pbf_url" => "https://download.geofabrik.de/europe/germany-latest.osm.pbf",
+          "pbf_bytes" => 4_000_000_000
+        }
+      ])
+    )
 
     [g] = RegionCatalog.load_catalog(dir)
     assert g.name == "gf:germany"
@@ -102,19 +107,32 @@ defmodule Atlas.Control.RegionCatalogTest do
     assert RegionCatalog.load_catalog(dir) == []
   end
 
-  test "all/1 merges curated .env presets with catalog.json; curated wins on name clash", %{dir: dir} do
+  test "all/1 merges curated .env presets with catalog.json; curated wins on name clash", %{
+    dir: dir
+  } do
     File.write!(Path.join(dir, "germany.env"), """
     REGION_NAME=germany
     REGION_LABEL="Germany (curated)"
     PBF_URL=https://curated.example/de.pbf
     """)
 
-    File.write!(Path.join(dir, "catalog.json"), Jason.encode!([
-      %{"name" => "germany", "label" => "Germany (baked)", "kind" => "country",
-        "pbf_url" => "https://baked.example/de.pbf"},
-      %{"name" => "gf:france", "label" => "France", "kind" => "country",
-        "pbf_url" => "https://baked.example/fr.pbf"}
-    ]))
+    File.write!(
+      Path.join(dir, "catalog.json"),
+      Jason.encode!([
+        %{
+          "name" => "germany",
+          "label" => "Germany (baked)",
+          "kind" => "country",
+          "pbf_url" => "https://baked.example/de.pbf"
+        },
+        %{
+          "name" => "gf:france",
+          "label" => "France",
+          "kind" => "country",
+          "pbf_url" => "https://baked.example/fr.pbf"
+        }
+      ])
+    )
 
     all = RegionCatalog.all(dir)
     names = Enum.map(all, & &1.name)
@@ -126,10 +144,22 @@ defmodule Atlas.Control.RegionCatalogTest do
   end
 
   test "size_label/1 prefers real bytes, falls back to tier hint" do
-    with_bytes = %RegionCatalog{name: "gf:de", label: "DE", pbf_urls: [], pbf_bytes: 4_100_000_000}
+    with_bytes = %RegionCatalog{
+      name: "gf:de",
+      label: "DE",
+      pbf_urls: [],
+      pbf_bytes: 4_100_000_000
+    }
+
     assert RegionCatalog.size_label(with_bytes) == "4.1 GB"
 
-    small = %RegionCatalog{name: "bbbike:berlin", label: "Berlin", pbf_urls: [], pbf_bytes: 31_457_280}
+    small = %RegionCatalog{
+      name: "bbbike:berlin",
+      label: "Berlin",
+      pbf_urls: [],
+      pbf_bytes: 31_457_280
+    }
+
     assert RegionCatalog.size_label(small) == "31.5 MB"
 
     no_bytes = %RegionCatalog{name: "planet", label: "Planet", pbf_urls: [], pbf_bytes: nil}
@@ -138,12 +168,43 @@ defmodule Atlas.Control.RegionCatalogTest do
 
   describe "tree + search helpers" do
     setup %{dir: dir} do
-      File.write!(Path.join(dir, "catalog.json"), Jason.encode!([
-        %{"name" => "gf:europe", "label" => "Europe", "kind" => "continent", "parent" => nil, "pbf_url" => "x"},
-        %{"name" => "gf:germany", "label" => "Germany", "kind" => "country", "parent" => "gf:europe", "country_code" => "de", "iso" => ["DE"], "pbf_url" => "x"},
-        %{"name" => "gf:germany/bayern", "label" => "Bayern", "kind" => "subregion", "parent" => "gf:germany", "iso" => ["DE-BY"], "pbf_url" => "x"},
-        %{"name" => "bbbike:berlin", "label" => "Berlin", "kind" => "city", "parent" => "gf:germany", "pbf_url" => "x"}
-      ]))
+      File.write!(
+        Path.join(dir, "catalog.json"),
+        Jason.encode!([
+          %{
+            "name" => "gf:europe",
+            "label" => "Europe",
+            "kind" => "continent",
+            "parent" => nil,
+            "pbf_url" => "x"
+          },
+          %{
+            "name" => "gf:germany",
+            "label" => "Germany",
+            "kind" => "country",
+            "parent" => "gf:europe",
+            "country_code" => "de",
+            "iso" => ["DE"],
+            "pbf_url" => "x"
+          },
+          %{
+            "name" => "gf:germany/bayern",
+            "label" => "Bayern",
+            "kind" => "subregion",
+            "parent" => "gf:germany",
+            "iso" => ["DE-BY"],
+            "pbf_url" => "x"
+          },
+          %{
+            "name" => "bbbike:berlin",
+            "label" => "Berlin",
+            "kind" => "city",
+            "parent" => "gf:germany",
+            "pbf_url" => "x"
+          }
+        ])
+      )
+
       :ok
     end
 
@@ -165,11 +226,33 @@ defmodule Atlas.Control.RegionCatalogTest do
 
   describe "tree_index/1" do
     setup %{dir: dir} do
-      File.write!(Path.join(dir, "catalog.json"), Jason.encode!([
-        %{"name" => "gf:europe", "label" => "Europe", "kind" => "continent", "parent" => nil, "pbf_url" => "x"},
-        %{"name" => "gf:germany", "label" => "Germany", "kind" => "country", "parent" => "gf:europe", "pbf_url" => "x"},
-        %{"name" => "gf:germany/bayern", "label" => "Bayern", "kind" => "subregion", "parent" => "gf:germany", "pbf_url" => "x"}
-      ]))
+      File.write!(
+        Path.join(dir, "catalog.json"),
+        Jason.encode!([
+          %{
+            "name" => "gf:europe",
+            "label" => "Europe",
+            "kind" => "continent",
+            "parent" => nil,
+            "pbf_url" => "x"
+          },
+          %{
+            "name" => "gf:germany",
+            "label" => "Germany",
+            "kind" => "country",
+            "parent" => "gf:europe",
+            "pbf_url" => "x"
+          },
+          %{
+            "name" => "gf:germany/bayern",
+            "label" => "Bayern",
+            "kind" => "subregion",
+            "parent" => "gf:germany",
+            "pbf_url" => "x"
+          }
+        ])
+      )
+
       :ok
     end
 
@@ -182,12 +265,15 @@ defmodule Atlas.Control.RegionCatalogTest do
     end
 
     test "child lists are sorted by label", %{dir: dir} do
-      File.write!(Path.join(dir, "catalog.json"), Jason.encode!([
-        %{"name" => "gf:europe", "label" => "Europe", "parent" => nil, "pbf_url" => "x"},
-        %{"name" => "z", "label" => "Zeta", "parent" => "gf:europe", "pbf_url" => "x"},
-        %{"name" => "a", "label" => "Alpha", "parent" => "gf:europe", "pbf_url" => "x"},
-        %{"name" => "m", "label" => "Mu", "parent" => "gf:europe", "pbf_url" => "x"}
-      ]))
+      File.write!(
+        Path.join(dir, "catalog.json"),
+        Jason.encode!([
+          %{"name" => "gf:europe", "label" => "Europe", "parent" => nil, "pbf_url" => "x"},
+          %{"name" => "z", "label" => "Zeta", "parent" => "gf:europe", "pbf_url" => "x"},
+          %{"name" => "a", "label" => "Alpha", "parent" => "gf:europe", "pbf_url" => "x"},
+          %{"name" => "m", "label" => "Mu", "parent" => "gf:europe", "pbf_url" => "x"}
+        ])
+      )
 
       index = RegionCatalog.tree_index(dir)
       assert Enum.map(index["gf:europe"], & &1.label) == ["Alpha", "Mu", "Zeta"]
@@ -196,11 +282,45 @@ defmodule Atlas.Control.RegionCatalogTest do
 
   describe "size_label/1 by kind" do
     test "uses the kind tier when bytes are nil; curated (kind nil) falls back to name hint" do
-      country = %RegionCatalog{name: "gf:germany", label: "Germany", pbf_urls: [], pbf_bytes: nil, kind: "country"}
-      continent = %RegionCatalog{name: "gf:europe", label: "Europe", pbf_urls: [], pbf_bytes: nil, kind: "continent"}
-      subregion = %RegionCatalog{name: "gf:bayern", label: "Bayern", pbf_urls: [], pbf_bytes: nil, kind: "subregion"}
-      city = %RegionCatalog{name: "bbbike:berlin", label: "Berlin", pbf_urls: [], pbf_bytes: nil, kind: "city"}
-      preset = %RegionCatalog{name: "planet", label: "Planet", pbf_urls: [], pbf_bytes: nil, kind: nil}
+      country = %RegionCatalog{
+        name: "gf:germany",
+        label: "Germany",
+        pbf_urls: [],
+        pbf_bytes: nil,
+        kind: "country"
+      }
+
+      continent = %RegionCatalog{
+        name: "gf:europe",
+        label: "Europe",
+        pbf_urls: [],
+        pbf_bytes: nil,
+        kind: "continent"
+      }
+
+      subregion = %RegionCatalog{
+        name: "gf:bayern",
+        label: "Bayern",
+        pbf_urls: [],
+        pbf_bytes: nil,
+        kind: "subregion"
+      }
+
+      city = %RegionCatalog{
+        name: "bbbike:berlin",
+        label: "Berlin",
+        pbf_urls: [],
+        pbf_bytes: nil,
+        kind: "city"
+      }
+
+      preset = %RegionCatalog{
+        name: "planet",
+        label: "Planet",
+        pbf_urls: [],
+        pbf_bytes: nil,
+        kind: nil
+      }
 
       assert RegionCatalog.size_label(country) == "~75 GB"
       assert RegionCatalog.size_label(continent) == "~460 GB"
@@ -215,10 +335,34 @@ defmodule Atlas.Control.RegionCatalogTest do
       File.write!(
         Path.join(dir, "catalog.json"),
         Jason.encode!([
-          %{"name" => "gf:europe", "label" => "Europe", "kind" => "continent", "parent" => nil, "country_code" => nil},
-          %{"name" => "gf:germany", "label" => "Germany", "kind" => "country", "parent" => "gf:europe", "country_code" => "de"},
-          %{"name" => "gf:berlin", "label" => "Berlin", "kind" => "subregion", "parent" => "gf:germany", "country_code" => nil},
-          %{"name" => "bb:kreuzberg", "label" => "Kreuzberg", "kind" => "city", "parent" => "gf:berlin", "country_code" => nil}
+          %{
+            "name" => "gf:europe",
+            "label" => "Europe",
+            "kind" => "continent",
+            "parent" => nil,
+            "country_code" => nil
+          },
+          %{
+            "name" => "gf:germany",
+            "label" => "Germany",
+            "kind" => "country",
+            "parent" => "gf:europe",
+            "country_code" => "de"
+          },
+          %{
+            "name" => "gf:berlin",
+            "label" => "Berlin",
+            "kind" => "subregion",
+            "parent" => "gf:germany",
+            "country_code" => nil
+          },
+          %{
+            "name" => "bb:kreuzberg",
+            "label" => "Kreuzberg",
+            "kind" => "city",
+            "parent" => "gf:berlin",
+            "country_code" => nil
+          }
         ])
       )
 
@@ -249,8 +393,20 @@ defmodule Atlas.Control.RegionCatalogTest do
       File.write!(
         Path.join(dir, "catalog.json"),
         Jason.encode!([
-          %{"name" => "a", "label" => "A", "kind" => "subregion", "parent" => "b", "country_code" => nil},
-          %{"name" => "b", "label" => "B", "kind" => "subregion", "parent" => "a", "country_code" => nil}
+          %{
+            "name" => "a",
+            "label" => "A",
+            "kind" => "subregion",
+            "parent" => "b",
+            "country_code" => nil
+          },
+          %{
+            "name" => "b",
+            "label" => "B",
+            "kind" => "subregion",
+            "parent" => "a",
+            "country_code" => nil
+          }
         ])
       )
 
@@ -259,7 +415,9 @@ defmodule Atlas.Control.RegionCatalogTest do
   end
 
   describe "all/1 dedupe-enrich" do
-    test "collapses a curated preset and a baked entry sharing a PBF URL, adopting hierarchy", %{dir: dir} do
+    test "collapses a curated preset and a baked entry sharing a PBF URL, adopting hierarchy", %{
+      dir: dir
+    } do
       File.write!(Path.join(dir, "germany.env"), """
       REGION_NAME=germany
       REGION_LABEL="Germany"
@@ -272,15 +430,33 @@ defmodule Atlas.Control.RegionCatalogTest do
       PBF_URL=https://download.geofabrik.de/europe-latest.osm.pbf
       """)
 
-      File.write!(Path.join(dir, "catalog.json"), Jason.encode!([
-        %{"name" => "gf:europe", "label" => "Europe", "kind" => "continent", "parent" => nil,
-          "pbf_url" => "https://download.geofabrik.de/europe-latest.osm.pbf"},
-        %{"name" => "gf:germany", "label" => "Germany", "kind" => "country", "parent" => "gf:europe",
-          "pbf_url" => "https://download.geofabrik.de/europe/germany-latest.osm.pbf",
-          "pbf_bytes" => 4_776_095_728},
-        %{"name" => "gf:bayern", "label" => "Bayern", "kind" => "subregion", "parent" => "gf:germany",
-          "pbf_url" => "https://download.geofabrik.de/europe/germany/bayern-latest.osm.pbf"}
-      ]))
+      File.write!(
+        Path.join(dir, "catalog.json"),
+        Jason.encode!([
+          %{
+            "name" => "gf:europe",
+            "label" => "Europe",
+            "kind" => "continent",
+            "parent" => nil,
+            "pbf_url" => "https://download.geofabrik.de/europe-latest.osm.pbf"
+          },
+          %{
+            "name" => "gf:germany",
+            "label" => "Germany",
+            "kind" => "country",
+            "parent" => "gf:europe",
+            "pbf_url" => "https://download.geofabrik.de/europe/germany-latest.osm.pbf",
+            "pbf_bytes" => 4_776_095_728
+          },
+          %{
+            "name" => "gf:bayern",
+            "label" => "Bayern",
+            "kind" => "subregion",
+            "parent" => "gf:germany",
+            "pbf_url" => "https://download.geofabrik.de/europe/germany/bayern-latest.osm.pbf"
+          }
+        ])
+      )
 
       all = RegionCatalog.all(dir)
       by_name = Map.new(all, &{&1.name, &1})

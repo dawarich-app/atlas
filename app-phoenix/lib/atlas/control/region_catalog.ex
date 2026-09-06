@@ -67,7 +67,12 @@ defmodule Atlas.Control.RegionCatalog do
     enriched = Enum.map(curated, &enrich_from_baked(&1, baked_by_url))
 
     curated_names = MapSet.new(curated, & &1.name)
-    url_to_curated = curated |> Enum.map(&{primary_url(&1), &1.name}) |> Enum.reject(&(elem(&1, 0) == nil)) |> Map.new()
+
+    url_to_curated =
+      curated
+      |> Enum.map(&{primary_url(&1), &1.name})
+      |> Enum.reject(&(elem(&1, 0) == nil))
+      |> Map.new()
 
     # Baked entries superseded by a curated preset of a different name → rename
     # their references so children don't orphan when the baked entry is dropped.

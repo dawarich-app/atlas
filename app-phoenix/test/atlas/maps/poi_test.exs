@@ -28,12 +28,19 @@ defmodule Atlas.Maps.PoiTest do
     assert restaurant.pinned == true
   end
 
-  test "nearby/1 with bbox + types issues Overpass bbox query, returns features with category", %{bypass: bypass} do
+  test "nearby/1 with bbox + types issues Overpass bbox query, returns features with category", %{
+    bypass: bypass
+  } do
     Bypass.expect_once(bypass, "POST", "/api/interpreter", fn conn ->
       {:ok, body, conn} = Plug.Conn.read_body(conn)
       assert body =~ ~s|node["amenity"="restaurant"]|
       assert body =~ "52.0,13.0,53.0,14.0"
-      Plug.Conn.resp(conn, 200, ~s({"elements":[{"type":"node","id":1,"lat":52.5,"lon":13.4,"tags":{"amenity":"restaurant","name":"Brandenburger Bistro"}}]}))
+
+      Plug.Conn.resp(
+        conn,
+        200,
+        ~s({"elements":[{"type":"node","id":1,"lat":52.5,"lon":13.4,"tags":{"amenity":"restaurant","name":"Brandenburger Bistro"}}]})
+      )
     end)
 
     assert {:ok, %Result{features: [feat], upstream_status: "ok"}} =

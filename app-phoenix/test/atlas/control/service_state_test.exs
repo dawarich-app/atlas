@@ -10,12 +10,10 @@ defmodule Atlas.Control.ServiceStateTest do
 
     @impl true
     def feed("DONE", _acc),
-      do:
-        {%{phase: "ready", progress: 1.0, last_log_line: "DONE", ready: true}, %{}}
+      do: {%{phase: "ready", progress: 1.0, last_log_line: "DONE", ready: true}, %{}}
 
     def feed(line, _acc),
-      do:
-        {%{phase: "running", progress: 0.5, last_log_line: line, ready: false}, %{}}
+      do: {%{phase: "running", progress: 0.5, last_log_line: line, ready: false}, %{}}
   end
 
   setup do
@@ -217,9 +215,7 @@ defmodule Atlas.Control.ServiceStateTest do
     end
 
     test "corrects a stale running-ish status when nothing is running and service is disabled" do
-      start_supervised!(
-        {Atlas.Control.DockerCompose, runner: fn _cmd, _args -> {"\n", 0} end}
-      )
+      start_supervised!({Atlas.Control.DockerCompose, runner: fn _cmd, _args -> {"\n", 0} end})
 
       Repo.get_by!(Service, name: "photon")
       |> Service.changeset(%{enabled: false, status: :ready})
@@ -264,6 +260,7 @@ defmodule Atlas.Control.ServiceStateTest do
       assert %{status: :unknown} = ServiceState.snapshot("photon")
     end
   end
+
   describe "status derived from a parser phase" do
     # Every parser emits phase as a STRING ("downloading", "error"). The status
     # guards matched atoms, so every enabled non-ready service collapsed to
@@ -300,5 +297,4 @@ defmodule Atlas.Control.ServiceStateTest do
       assert ServiceState.status_for(true, false, nil) == :starting
     end
   end
-
 end

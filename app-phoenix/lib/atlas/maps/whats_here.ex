@@ -41,7 +41,9 @@ defmodule Atlas.Maps.WhatsHere do
       _other ->
         Task.shutdown(reverse_task, :brutal_kill)
         Task.shutdown(overpass_task, :brutal_kill)
-        {:error, %Atlas.Maps.Upstream.Client.Unavailable{message: "overpass returned unexpected shape"}}
+
+        {:error,
+         %Atlas.Maps.Upstream.Client.Unavailable{message: "overpass returned unexpected shape"}}
     end
   end
 

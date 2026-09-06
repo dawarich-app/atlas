@@ -23,6 +23,7 @@ defmodule Atlas.Control.ServiceFormatting do
 
   @doc "Tailwind classes for the colored left-edge bar in service rows."
   def status_bar_class(%{status: :ready}), do: "bg-success"
+
   def status_bar_class(%{status: status}) when status in [:starting, :downloading, :building],
     do: "bg-warning animate-pulse"
 
@@ -32,6 +33,7 @@ defmodule Atlas.Control.ServiceFormatting do
 
   @doc "DaisyUI badge class for the service status pill."
   def badge_class(%{status: :ready}), do: "badge-success"
+
   def badge_class(%{status: status}) when status in [:starting, :downloading, :building],
     do: "badge-warning"
 
@@ -79,7 +81,9 @@ defmodule Atlas.Control.ServiceFormatting do
   end
 
   @doc "Integer percent (0–100) for a snapshot's install progress."
-  def progress_pct(%{progress: p}) when is_number(p), do: p |> Kernel.*(100) |> round() |> min(100) |> max(0)
+  def progress_pct(%{progress: p}) when is_number(p),
+    do: p |> Kernel.*(100) |> round() |> min(100) |> max(0)
+
   def progress_pct(_), do: 0
 
   @doc "Lowercased phase label for a snapshot, or `nil`."

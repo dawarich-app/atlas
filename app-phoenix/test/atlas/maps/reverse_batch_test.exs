@@ -14,13 +14,21 @@ defmodule Atlas.Maps.ReverseBatchTest do
   defp expect_reverse_ok(bypass) do
     Bypass.expect(bypass, fn conn ->
       case conn.request_path do
-        "/reverse" -> Plug.Conn.resp(conn, 200, ~s({"features":[{"geometry":{"coordinates":[13.4,52.5]},"properties":{"name":"X","city":"Y","country":"Z"}}]}))
-        "/parser/search" -> Plug.Conn.resp(conn, 200, "[]")
+        "/reverse" ->
+          Plug.Conn.resp(
+            conn,
+            200,
+            ~s({"features":[{"geometry":{"coordinates":[13.4,52.5]},"properties":{"name":"X","city":"Y","country":"Z"}}]})
+          )
+
+        "/parser/search" ->
+          Plug.Conn.resp(conn, 200, "[]")
       end
     end)
   end
 
-  test "batch returns {:ok, summary} with one result per input coord and cache misses on first run", %{bypass: bypass} do
+  test "batch returns {:ok, summary} with one result per input coord and cache misses on first run",
+       %{bypass: bypass} do
     expect_reverse_ok(bypass)
 
     coords = [%{lat: 52.5, lon: 13.4}, %{lat: 48.1, lon: 11.5}]
@@ -51,7 +59,10 @@ defmodule Atlas.Maps.ReverseBatchTest do
   end
 
   test "batch accepts exactly MAX_COORDS=500 items", %{bypass: bypass} do
-    Bypass.stub(bypass, "GET", "/reverse", fn conn -> Plug.Conn.resp(conn, 200, ~s({"features":[]})) end)
+    Bypass.stub(bypass, "GET", "/reverse", fn conn ->
+      Plug.Conn.resp(conn, 200, ~s({"features":[]}))
+    end)
+
     Bypass.stub(bypass, "GET", "/parser/search", fn conn -> Plug.Conn.resp(conn, 200, "[]") end)
 
     coords = for n <- 1..500, do: %{lat: 52.0 + n / 100_000, lon: 13.0 + n / 100_000}

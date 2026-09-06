@@ -10,17 +10,20 @@ name: test-config
 # `app-phoenix/**` and runs every step inside that directory, so it neither
 # triggers on a Caddyfile or compose change nor can reach a root-level test.
 on:
+  workflow_call:
   push:
     paths:
       - "Caddyfile"
       - "compose*.yml"
       - "test/*.test.mjs"
+      - "script/*.cjs"
       - ".github/workflows/test-config.yml"
   pull_request:
     paths:
       - "Caddyfile"
       - "compose*.yml"
       - "test/*.test.mjs"
+      - "script/*.cjs"
       - ".github/workflows/test-config.yml"
 
 jobs:
