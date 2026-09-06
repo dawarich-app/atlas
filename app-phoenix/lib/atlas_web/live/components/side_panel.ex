@@ -22,6 +22,8 @@ defmodule AtlasWeb.SidePanel do
   attr :mode, :string, required: true
   attr :route_from, :string, default: ""
   attr :route_to, :string, default: ""
+  attr :route_endpoints, :map, default: %{}
+  attr :route_focus, :string, default: nil
   attr :route_options, :map, default: %{}
   attr :categories, :list, default: []
   attr :scope, :string, default: "all"
@@ -88,6 +90,8 @@ defmodule AtlasWeb.SidePanel do
               id="directions-card"
               directions={@directions}
               mode={@mode}
+              route_endpoints={@route_endpoints}
+              route_focus={@route_focus}
               route_from={@route_from}
               route_to={@route_to}
               route_options={@route_options}

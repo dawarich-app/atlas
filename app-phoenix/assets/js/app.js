@@ -5,13 +5,14 @@ import topbar from "../vendor/topbar"
 import MapHook from "./hooks/map"
 import LogStreamHook from "./hooks/log_stream"
 import CopyLogsHook from "./hooks/copy_logs"
+import RouteKeysHook from "./hooks/route_keys"
 import SearchKeysHook from "./hooks/search_keys"
 
 const csrfToken = document.querySelector("meta[name='csrf-token']").getAttribute("content")
 const liveSocket = new LiveSocket("/live", Socket, {
   longPollFallbackMs: 2500,
   params: {_csrf_token: csrfToken},
-  hooks: {Map: MapHook, LogStream: LogStreamHook, CopyLogs: CopyLogsHook, SearchKeys: SearchKeysHook}
+  hooks: {Map: MapHook, LogStream: LogStreamHook, CopyLogs: CopyLogsHook, SearchKeys: SearchKeysHook, RouteKeys: RouteKeysHook}
 })
 
 topbar.config({barColors: {0: "#3b82f6"}, shadowColor: "rgba(0, 0, 0, .3)"})

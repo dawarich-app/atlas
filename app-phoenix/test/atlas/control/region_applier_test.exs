@@ -203,6 +203,13 @@ defmodule Atlas.Control.RegionApplierTest do
     File.mkdir_p!(Path.join(tmp, "otp"))
     File.write!(Path.join(tmp, "otp/graph.obj"), "stale")
 
+    for name <-
+          ~w(file_hashes.txt .file_hashes.txt valhalla_tiles.tar valhalla_tiles/old.gph admin_data/admins.sqlite) do
+      path = Path.join([tmp, "valhalla", name])
+      File.mkdir_p!(Path.dirname(path))
+      File.write!(path, "stale")
+    end
+
     start_applier(tmp)
 
     assert {:ok, job_id} = RegionApplier.start(["berlin"])
@@ -233,6 +240,10 @@ defmodule Atlas.Control.RegionApplierTest do
     assert File.exists?(Path.join(tmp, "gtfs/vbb.gtfs.zip"))
     assert File.exists?(Path.join(tmp, "otp/vbb.gtfs.zip"))
     refute File.exists?(Path.join(tmp, "otp/graph.obj"))
+
+    for name <- ~w(file_hashes.txt .file_hashes.txt valhalla_tiles.tar valhalla_tiles admin_data) do
+      refute File.exists?(Path.join([tmp, "valhalla", name]))
+    end
 
     assert_received {:apply_restarting, ["valhalla", "overpass", "otp"]}
     assert_received {:restart, ["valhalla", "overpass", "otp"]}

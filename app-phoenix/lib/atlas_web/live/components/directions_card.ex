@@ -5,6 +5,9 @@ defmodule AtlasWeb.DirectionsCard do
 
   use Phoenix.Component
 
+  alias AtlasWeb.RouteDetails
+
+  import AtlasWeb.CoreComponents, only: [input: 1]
   import AtlasWeb.IconHelpers
   import AtlasWeb.Settings.Atoms
 
@@ -13,6 +16,8 @@ defmodule AtlasWeb.DirectionsCard do
   attr :mode, :string, required: true
   attr :route_from, :string, default: ""
   attr :route_to, :string, default: ""
+  attr :route_endpoints, :map, default: %{}
+  attr :route_focus, :string, default: nil
   attr :route_options, :map, default: %{}
 
   def directions_card(assigns) do
@@ -34,56 +39,13 @@ defmodule AtlasWeb.DirectionsCard do
       </header>
 
       <div class="flex flex-col gap-4 px-4 py-4 overflow-y-auto flex-1 min-h-0">
-        <form phx-submit="route" phx-change="route_changed" class="grid grid-cols-[1fr_auto] items-stretch gap-2">
+        <form phx-submit="route" phx-change="route_changed" phx-click-away="route_dismiss" class="grid grid-cols-[1fr_auto] items-stretch gap-2">
           <input type="hidden" name="mode" value={@mode} />
-          <div class="flex flex-col gap-2">
-            <div class="relative">
-              <span class="absolute left-3.5 top-1/2 h-2.5 w-2.5 -translate-y-1/2 rounded-full bg-info ring-2 ring-base-100">
-              </span>
-              <input
-                type="text"
-                name="from"
-                value={@route_from || ""}
-                placeholder="From (lat,lon)"
-                autocomplete="off"
-                spellcheck="false"
-                class="w-full rounded-2xl border-2 border-base-content/10 bg-base-300/40 py-2.5 pl-9 pr-11 text-[14px] text-base-content outline-none transition focus:border-base-content"
-              />
-              <button
-                type="button"
-                class="absolute right-2 top-1/2 grid h-[30px] w-[30px] -translate-y-1/2 place-items-center rounded-lg text-base-content/55 transition hover:text-primary"
-                title="Pick from on map"
-                aria-label="Pick from on map"
-                phx-click="pick_point"
-                phx-value-field="from"
-              >
-                {icon("map-pin", class: "w-4 h-4")}
-              </button>
-            </div>
-
-            <div class="relative">
-              <span class="absolute left-3.5 top-1/2 h-2.5 w-2.5 -translate-y-1/2 rounded-sm bg-primary ring-2 ring-base-100">
-              </span>
-              <input
-                type="text"
-                name="to"
-                value={@route_to || ""}
-                placeholder="To (lat,lon)"
-                autocomplete="off"
-                spellcheck="false"
-                class="w-full rounded-2xl border-2 border-base-content/10 bg-base-300/40 py-2.5 pl-9 pr-11 text-[14px] text-base-content outline-none transition focus:border-base-content"
-              />
-              <button
-                type="button"
-                class="absolute right-2 top-1/2 grid h-[30px] w-[30px] -translate-y-1/2 place-items-center rounded-lg text-base-content/55 transition hover:text-primary"
-                title="Pick to on map"
-                aria-label="Pick to on map"
-                phx-click="pick_point"
-                phx-value-field="to"
-              >
-                {icon("map-pin", class: "w-4 h-4")}
-              </button>
-            </div>
+          <div class="flex min-w-0 flex-col gap-2">
+            <.endpoint field="from" label="From" value={@route_from}
+              endpoint={Map.get(@route_endpoints, "from", AtlasWeb.RouteEndpoint.new())} focus={@route_focus} />
+            <.endpoint field="to" label="To" value={@route_to}
+              endpoint={Map.get(@route_endpoints, "to", AtlasWeb.RouteEndpoint.new())} focus={@route_focus} />
           </div>
 
           <button
@@ -118,8 +80,79 @@ defmodule AtlasWeb.DirectionsCard do
         </details>
 
         <div :if={@directions} class="rounded-2xl bg-primary/[0.05] px-3.5 py-3">
-          <span class="text-[15px] font-semibold">Route ready.</span>
+          <p class="text-[15px] font-semibold">{RouteDetails.label(@directions[:route_mode] || @mode)} · {RouteDetails.duration(@directions)}</p>
+          <%= if itinerary = RouteDetails.itinerary(@directions) do %>
+            <p :if={not RouteDetails.transit?(itinerary)} role="status" class="mt-2 text-sm text-warning">
+              No public transport connection returned. This alternative is walking only.
+            </p>
+            <p class="mt-1 text-xs text-base-content/65">Dashed grey: walk · Blue: transport</p>
+            <ol class="mt-3 space-y-2 text-sm">
+              <li :for={leg <- itinerary.legs}>
+                <span class="font-semibold">{RouteDetails.label(leg.mode)} {leg.route_name}</span>
+                <span class="text-base-content/60"> · {RouteDetails.minutes(leg.duration)}</span>
+                <p :if={leg.to[:name]} class="text-xs text-base-content/65">To {leg.to.name}</p>
+              </li>
+            </ol>
+          <% end %>
         </div>
+      </div>
+    </div>
+    """
+  end
+
+  attr :field, :string, required: true
+  attr :label, :string, required: true
+  attr :value, :string, required: true
+  attr :endpoint, :map, required: true
+  attr :focus, :string, default: nil
+
+  defp endpoint(assigns) do
+    assigns =
+      assign(
+        assigns,
+        :expanded,
+        assigns.focus == assigns.field and assigns.endpoint.results != []
+      )
+
+    ~H"""
+    <div id={"route-#{@field}-field"}>
+      <div class="relative [&_.fieldset]:p-0">
+        <span class={["pointer-events-none absolute left-3.5 top-1/2 z-10 h-2.5 w-2.5 -translate-y-1/2 ring-2 ring-base-100", if(@field == "from", do: "rounded-full bg-info", else: "rounded-sm bg-primary")]}></span>
+        <.input type="text" id={"route-#{@field}"} name={@field} value={@value}
+          placeholder={"#{@label}: address, place or coordinates"} aria-label={@label}
+          role="combobox" aria-autocomplete="list" aria-expanded={to_string(@expanded)}
+          aria-controls={if @expanded, do: "route-#{@field}-results"}
+          aria-activedescendant={if @expanded and @endpoint.active >= 0, do: "route-#{@field}-option-#{@endpoint.active}"}
+          autocomplete="off" spellcheck="false" phx-debounce="300" phx-hook="RouteKeys"
+          data-field={@field} data-query={@endpoint.query}
+          data-has-active={to_string(@expanded and @endpoint.active >= 0)}
+          phx-focus="route_focus" phx-value-field={@field}
+          class="w-full rounded-2xl border-2 border-base-content/10 bg-base-300/40 py-2.5 pl-9 pr-11 text-[14px] text-base-content outline-none transition focus:border-base-content" />
+        <button type="button"
+          class="absolute right-2 top-1/2 grid h-[30px] w-[30px] -translate-y-1/2 place-items-center rounded-lg text-base-content/55 transition hover:text-primary"
+          title={"Pick #{@field} on map"} aria-label={"Pick #{@field} on map"}
+          phx-click="pick_point" phx-value-field={@field}>
+          {icon("map-pin", class: "w-4 h-4")}
+        </button>
+      </div>
+      <div :if={@focus == @field}>
+        <p :if={@endpoint.status == :loading} role="status" class="px-3 py-2 text-xs text-base-content/60">Searching…</p>
+        <p :if={@endpoint.status == :error} role="status" class="px-3 py-2 text-xs text-error">Search unavailable. Enter coordinates or
+          <button type="button" class="link link-primary" phx-click="route_retry" phx-value-field={@field}>Retry search</button>.
+        </p>
+        <p :if={@endpoint.status == :invalid} role="status" class="px-3 py-2 text-xs text-error">Latitude must be between −90 and 90; longitude between −180 and 180.</p>
+        <p :if={@endpoint.status == :ready and @endpoint.results == []} role="status" class="px-3 py-2 text-xs text-base-content/60">No places found. Try a fuller address or coordinates.</p>
+        <ul :if={@expanded} id={"route-#{@field}-results"} role="listbox" aria-label={"#{@label} suggestions"}
+          class="mt-1 max-h-48 overflow-y-auto rounded-xl bg-base-100 p-1 shadow-sm">
+          <li :for={{place, index} <- Enum.with_index(@endpoint.results)} role="presentation">
+            <button type="button" role="option" id={"route-#{@field}-option-#{index}"}
+              aria-selected={to_string(index == @endpoint.active)} tabindex="-1"
+              phx-click="route_select" phx-value-field={@field} phx-value-index={index} phx-value-query={@endpoint.query}
+              class={["block w-full rounded-lg px-3 py-2 text-left text-sm leading-snug", if(index == @endpoint.active, do: "bg-primary/10", else: "hover:bg-base-200")]}>
+              {place.label}
+            </button>
+          </li>
+        </ul>
       </div>
     </div>
     """

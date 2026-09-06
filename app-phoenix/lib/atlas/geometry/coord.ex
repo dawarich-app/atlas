@@ -57,7 +57,10 @@ defmodule Atlas.Geometry.Coord do
               %{
                 type: "Feature",
                 geometry: %{type: "LineString", coordinates: coords},
-                properties: %{}
+                properties: %{
+                  mode: leg_field(leg, :mode),
+                  route_name: leg_field(leg, :route_name)
+                }
               }
             ]
 

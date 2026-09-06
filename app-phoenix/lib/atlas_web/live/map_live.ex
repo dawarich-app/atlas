@@ -5,7 +5,7 @@ defmodule AtlasWeb.MapLive do
   alias Atlas.Maps
   alias Atlas.Maps.{Discovery, Poi.Catalog}
   alias Atlas.Settings
-  alias AtlasWeb.SearchMarkers
+  alias AtlasWeb.{RouteDetails, RouteEndpoint, SearchMarkers}
 
   alias Atlas.Control.{
     ApplyTimeline,
@@ -40,9 +40,12 @@ defmodule AtlasWeb.MapLive do
        search_request_id: nil,
        search_count: 0,
        directions: nil,
+       route_request_key: nil,
        mode: "auto",
        route_from: "",
        route_to: "",
+       route_endpoints: %{"from" => RouteEndpoint.new(), "to" => RouteEndpoint.new()},
+       route_focus: nil,
        categories: [],
        search_scope: "all",
        search_bbox: nil,
@@ -220,28 +223,75 @@ defmodule AtlasWeb.MapLive do
 
   @impl true
   def handle_event("set_mode", %{"mode" => mode}, socket) do
-    {:noreply, assign(socket, mode: mode)}
+    {:noreply, socket |> assign(mode: mode) |> maybe_route()}
   end
 
   @impl true
-  def handle_event("route_changed", %{"from" => from, "to" => to}, socket) do
-    {:noreply, assign(socket, route_from: from, route_to: to)}
+  def handle_event("route_changed", %{"from" => from, "to" => to} = params, socket) do
+    socket = socket |> sync_route_inputs(from, to) |> maybe_route()
+    field = List.first(params["_target"] || [])
+    {:noreply, if(field in ~w(from to), do: assign(socket, route_focus: field), else: socket)}
+  end
+
+  def handle_event("route_focus", %{"field" => field}, socket) when field in ~w(from to) do
+    {:noreply, assign(socket, route_focus: field)}
+  end
+
+  def handle_event("route_retry", %{"field" => field}, socket) when field in ~w(from to) do
+    {:noreply, socket |> search_endpoint(field) |> assign(route_focus: field)}
+  end
+
+  def handle_event("route_dismiss", _, socket), do: {:noreply, assign(socket, route_focus: nil)}
+
+  def handle_event("route_move", %{"field" => field, "query" => query, "dir" => dir}, socket)
+      when field in ~w(from to) and dir in [1, -1] do
+    endpoint = socket.assigns.route_endpoints[field]
+
+    if endpoint.query == query do
+      endpoint = %{endpoint | active: move_active(endpoint.active, dir, length(endpoint.results))}
+      {:noreply, socket |> put_endpoint(field, endpoint) |> assign(route_focus: field)}
+    else
+      {:noreply, socket}
+    end
+  end
+
+  def handle_event("route_select", %{"field" => field, "query" => query} = params, socket)
+      when field in ~w(from to) do
+    endpoint = socket.assigns.route_endpoints[field]
+
+    index =
+      case Integer.parse(to_string(params["index"] || endpoint.active)) do
+        {index, ""} when index >= 0 -> index
+        _ -> -1
+      end
+
+    place = if index >= 0 and endpoint.query == query, do: Enum.at(endpoint.results, index)
+
+    {:noreply,
+     if(place, do: set_endpoint(socket, field, RouteEndpoint.select(place)), else: socket)}
   end
 
   def handle_event("route", %{"from" => from, "to" => to} = params, socket) do
     mode = Map.get(params, "mode", socket.assigns.mode)
-    socket = socket |> clear_flash() |> assign(route_from: from, route_to: to, mode: mode)
 
-    with {:ok, from_coords} <- Coord.parse_latlon(from),
-         {:ok, to_coords} <- Coord.parse_latlon(to),
+    socket =
+      socket
+      |> clear_flash()
+      |> sync_route_inputs(from, to)
+      |> assign(mode: mode)
+      |> then(&assign(&1, route_request_key: route_request_key(&1)))
+
+    with {:ok, from_coords} <- resolve_endpoint(socket, "from", from),
+         {:ok, to_coords} <- resolve_endpoint(socket, "to", to),
          {:ok, result} <- plan_route(mode, from_coords, to_coords, socket.assigns.route_options) do
       socket = assign(socket, upstream_status: result.upstream_status)
+      features = RouteDetails.prepare(result.features, mode)
 
-      case route_legs(result.features) do
+      case RouteDetails.legs(features) do
         [_ | _] = legs ->
           {:noreply,
            socket
-           |> assign(directions: result.features)
+           |> assign(directions: features)
            |> push_event("map:draw_route", %{geojson: Coord.legs_to_geojson(legs)})}
 
         [] ->
@@ -253,9 +303,15 @@ defmodule AtlasWeb.MapLive do
            |> put_flash(:info, "No route found for this trip.")}
       end
     else
-      :error ->
+      {:error, {:endpoint, field}} ->
         {:noreply,
-         socket |> clear_route() |> put_flash(:error, "Could not parse from/to as lat,lon")}
+         socket
+         |> clear_route()
+         |> assign(route_focus: field)
+         |> put_flash(
+           :error,
+           "Choose a #{String.capitalize(field)} search result or enter valid coordinates (latitude, longitude)."
+         )}
 
       {:error, :invalid_mode} ->
         {:noreply,
@@ -290,13 +346,19 @@ defmodule AtlasWeb.MapLive do
   def handle_event("point_picked", %{"field" => field, "lat" => lat, "lon" => lon}, socket)
       when field in ~w(from to) do
     value = "#{Coord.format(lat)},#{Coord.format(lon)}"
-    key = if field == "from", do: :route_from, else: :route_to
-    {:noreply, assign(socket, key, value)}
+    {:noreply, set_endpoint(socket, field, RouteEndpoint.new(value))}
   end
 
   @impl true
   def handle_event("swap_route", _params, socket) do
-    {:noreply, push_event(socket, "map:swap_route", %{})}
+    endpoints = socket.assigns.route_endpoints
+
+    {:noreply,
+     socket
+     |> set_endpoint("from", endpoints["to"], false)
+     |> set_endpoint("to", endpoints["from"], false)
+     |> push_route_endpoints()
+     |> maybe_route()}
   end
 
   @impl true
@@ -305,7 +367,7 @@ defmodule AtlasWeb.MapLive do
     options =
       Map.update(socket.assigns.route_options, option, true, fn current -> not current end)
 
-    {:noreply, assign(socket, route_options: options)}
+    {:noreply, socket |> assign(route_options: options) |> maybe_route()}
   end
 
   @impl true
@@ -786,6 +848,148 @@ defmodule AtlasWeb.MapLive do
      |> push_event("map:search_loading", %{loading: false})}
   end
 
+  def handle_async({:route_search, field}, {:ok, {query, result}}, socket) do
+    endpoint = socket.assigns.route_endpoints[field]
+
+    if endpoint.query == query and endpoint.status == :loading do
+      endpoint =
+        case result do
+          {:ok, results} -> %{endpoint | results: results, status: :ready}
+          {:error, _} -> %{endpoint | results: [], status: :error}
+        end
+
+      {:noreply, put_endpoint(socket, field, endpoint)}
+    else
+      {:noreply, socket}
+    end
+  end
+
+  def handle_async({:route_search, field}, {:exit, reason}, socket) do
+    endpoint = socket.assigns.route_endpoints[field]
+
+    if endpoint.status == :loading and reason != {:shutdown, :cancel} do
+      {:noreply, put_endpoint(socket, field, %{endpoint | status: :error})}
+    else
+      {:noreply, socket}
+    end
+  end
+
+  defp sync_route_inputs(socket, from, to) do
+    previous_points = route_points(socket)
+
+    socket =
+      Enum.reduce([{"from", from}, {"to", to}], socket, fn {field, query}, socket ->
+        if socket.assigns.route_endpoints[field].query == query do
+          socket
+        else
+          endpoint = RouteEndpoint.new(query)
+
+          socket =
+            socket
+            |> cancel_async({:route_search, field})
+            |> invalidate_route()
+            |> put_endpoint(field, endpoint)
+
+          search_endpoint(socket, field)
+        end
+      end)
+
+    if route_points(socket) != previous_points, do: push_route_endpoints(socket), else: socket
+  end
+
+  defp search_endpoint(socket, field) do
+    endpoint = socket.assigns.route_endpoints[field]
+    query = endpoint.query
+
+    if endpoint.coords == nil and endpoint.status != :invalid and
+         String.length(String.trim(query)) >= 2 do
+      viewport = socket.assigns.viewport
+
+      socket
+      |> cancel_async({:route_search, field})
+      |> put_endpoint(field, %{endpoint | status: :loading, results: [], active: -1})
+      |> start_async({:route_search, field}, fn ->
+        {query, RouteEndpoint.search(query, viewport)}
+      end)
+    else
+      socket
+    end
+  end
+
+  defp put_endpoint(socket, field, endpoint) do
+    key = if field == "from", do: :route_from, else: :route_to
+
+    socket
+    |> assign(key, endpoint.query)
+    |> assign(route_endpoints: Map.put(socket.assigns.route_endpoints, field, endpoint))
+  end
+
+  defp set_endpoint(socket, field, endpoint, notify_map \\ true) do
+    socket =
+      socket
+      |> cancel_async({:route_search, field})
+      |> invalidate_route()
+      |> put_endpoint(field, %{
+        endpoint
+        | results: [],
+          active: -1,
+          status: if(endpoint.coords, do: :selected, else: :idle)
+      })
+      |> assign(route_focus: nil)
+      |> search_endpoint(field)
+      |> push_event("route:endpoint", %{field: field, value: endpoint.query})
+
+    if notify_map, do: socket |> push_route_endpoints() |> maybe_route(), else: socket
+  end
+
+  defp push_route_endpoints(socket) do
+    push_event(socket, "map:set_route_endpoints", %{points: route_points(socket)})
+  end
+
+  defp route_points(socket) do
+    for field <- ~w(from to),
+        endpoint = socket.assigns.route_endpoints[field],
+        coords = endpoint.coords,
+        not is_nil(coords) do
+      %{field: field, lat: coords.lat, lon: coords.lon, label: endpoint.query}
+    end
+  end
+
+  defp invalidate_route(socket) do
+    socket = assign(socket, route_request_key: nil)
+    if socket.assigns.directions, do: clear_route(socket), else: socket
+  end
+
+  defp route_request_key(socket) do
+    from = socket.assigns.route_endpoints["from"].coords
+    to = socket.assigns.route_endpoints["to"].coords
+    if from && to, do: {from, to, socket.assigns.mode, socket.assigns.route_options}
+  end
+
+  defp maybe_route(socket) do
+    key = route_request_key(socket)
+
+    if key && key != socket.assigns.route_request_key do
+      {:noreply, socket} =
+        handle_event(
+          "route",
+          %{"from" => socket.assigns.route_from, "to" => socket.assigns.route_to},
+          socket
+        )
+
+      socket
+    else
+      socket
+    end
+  end
+
+  defp resolve_endpoint(socket, field, value) do
+    case RouteEndpoint.resolve(socket.assigns.route_endpoints[field], value) do
+      {:ok, coords} -> {:ok, coords}
+      :error -> {:error, {:endpoint, field}}
+    end
+  end
+
   # One event replaces the whole marker set, mirroring the Rails map: every
   # result is a pin, so you can see where the matches are before choosing one.
   # Replacing wholesale also removes the clear-then-add ordering that let a
@@ -855,15 +1059,6 @@ defmodule AtlasWeb.MapLive do
 
   defp costing_options(_), do: %{}
 
-  # Valhalla results carry a flat `legs` list; OTP transit results carry
-  # `itineraries`, each with its own `legs`. Draw the first itinerary.
-  defp route_legs(%{legs: legs}) when is_list(legs), do: legs
-
-  defp route_legs(%{itineraries: [itinerary | _]}) when is_map(itinerary),
-    do: Map.get(itinerary, :legs, [])
-
-  defp route_legs(_), do: []
-
   defp refresh_service_status do
     Seeder.known_services()
     |> Enum.map(fn s -> {s.name, Safe.snapshot(s.name)} end)
@@ -919,6 +1114,8 @@ defmodule AtlasWeb.MapLive do
         search_searched={@search_searched}
         directions={@directions}
         mode={@mode}
+        route_endpoints={@route_endpoints}
+        route_focus={@route_focus}
         route_from={@route_from}
         route_to={@route_to}
         route_options={@route_options}

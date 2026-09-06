@@ -353,9 +353,24 @@ defmodule Atlas.Control.RegionApplier do
     File.rm(dst)
 
     case File.cp(current, dst) do
-      :ok -> :ok
+      :ok -> invalidate_valhalla(valhalla_dir)
       {:error, reason} -> {:error, :staging, {:copy, reason}}
     end
+  end
+
+  # The pinned image hashes PBF filenames, not their contents. Replacing
+  # region.osm.pbf otherwise leaves both its tile cache and old tar in use.
+  defp invalidate_valhalla(dir) do
+    Enum.reduce_while(
+      ~w(file_hashes.txt .file_hashes.txt valhalla_tiles.tar valhalla_tiles admin_data),
+      :ok,
+      fn name, :ok ->
+        case File.rm_rf(Path.join(dir, name)) do
+          {:ok, _} -> {:cont, :ok}
+          {:error, reason, path} -> {:halt, {:error, :staging, {:invalidate_graph, path, reason}}}
+        end
+      end
+    )
   end
 
   defp stage_otp(state, job_id, osm_dir, gtfs_dir, entries) do

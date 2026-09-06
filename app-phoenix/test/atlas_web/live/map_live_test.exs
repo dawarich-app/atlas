@@ -42,7 +42,19 @@ defmodule AtlasWeb.MapLiveTest do
            )
   end
 
-  test "changing travel mode preserves endpoints typed into the form", %{conn: conn} do
+  test "changing travel mode preserves endpoints typed into the form", %{
+    conn: conn,
+    bypass: bypass
+  } do
+    Bypass.stub(bypass, "POST", "/route", &Plug.Conn.resp(&1, 200, ~s({"trip":{"legs":[]}})))
+
+    Bypass.stub(
+      bypass,
+      "POST",
+      "/otp/gtfs/v1",
+      &Plug.Conn.resp(&1, 200, ~s({"data":{"planConnection":{"edges":[]}}}))
+    )
+
     {:ok, view, _html} = live(conn, ~p"/")
 
     view
