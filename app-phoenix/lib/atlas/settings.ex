@@ -22,6 +22,13 @@ defmodule Atlas.Settings do
     |> Repo.insert(on_conflict: {:replace, [:value, :updated_at]}, conflict_target: :key)
   end
 
+  def transit_backend do
+    case get("transit_backend", System.get_env("TRANSIT_BACKEND") || "motis") do
+      "motis" -> "motis"
+      _ -> "otp"
+    end
+  end
+
   def unset(key), do: Repo.delete_all(from s in Setting, where: s.key == ^to_string(key))
 
   @doc """

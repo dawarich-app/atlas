@@ -33,4 +33,21 @@ defmodule Atlas.Control.RegionSelectionTest do
     RegionSelection.toggle("bayern")
     refute RegionSelection.pending_change?()
   end
+
+  test "discard restores the applied order, including an empty baseline" do
+    RegionSelection.toggle("berlin")
+    RegionSelection.toggle("bayern")
+    RegionSelection.mark_applied!()
+    RegionSelection.clear()
+    RegionSelection.toggle("hamburg")
+    assert {:ok, _} = RegionSelection.discard_changes()
+    assert RegionSelection.active_names() == ["berlin", "bayern"]
+    refute RegionSelection.pending_change?()
+
+    RegionSelection.clear()
+    RegionSelection.mark_applied!()
+    RegionSelection.toggle("hamburg")
+    assert {:ok, _} = RegionSelection.discard_changes()
+    assert RegionSelection.active_names() == []
+  end
 end

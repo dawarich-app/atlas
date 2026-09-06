@@ -21,6 +21,13 @@ defmodule AtlasWeb.DirectionsCard do
   attr :route_options, :map, default: %{}
 
   def directions_card(assigns) do
+    assigns =
+      assign(
+        assigns,
+        :transit_engine,
+        if(Atlas.Settings.transit_backend() == "motis", do: "MOTIS", else: "OpenTripPlanner")
+      )
+
     ~H"""
     <div id={@id} class="flex flex-col h-full">
       <header class="px-4 pt-4">
@@ -85,12 +92,16 @@ defmodule AtlasWeb.DirectionsCard do
             <p :if={not RouteDetails.transit?(itinerary)} role="status" class="mt-2 text-sm text-warning">
               No public transport connection returned. This alternative is walking only.
             </p>
-            <p class="mt-1 text-xs text-base-content/65">Dashed grey: walk · Blue: transport</p>
+            <p class="mt-1 text-xs text-base-content/65">{@transit_engine} · Dots: walk · Colours and labels: transport</p>
             <ol class="mt-3 space-y-2 text-sm">
-              <li :for={leg <- itinerary.legs}>
-                <span class="font-semibold">{RouteDetails.label(leg.mode)} {leg.route_name}</span>
+              <li :for={leg <- itinerary.legs} class="flex items-start gap-2.5">
+                <span :if={leg.mode == "WALK"} aria-hidden="true" class="atlas-walk-key">•••</span>
+                <span :if={leg.route_label} class="atlas-route-badge" style={"background-color: #{leg.color}"}>{leg.route_label}</span>
+                <div>
+                <span class="font-semibold">{RouteDetails.label(leg.mode)}</span>
                 <span class="text-base-content/60"> · {RouteDetails.minutes(leg.duration)}</span>
                 <p :if={leg.to[:name]} class="text-xs text-base-content/65">To {leg.to.name}</p>
+                </div>
               </li>
             </ol>
           <% end %>

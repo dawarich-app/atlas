@@ -174,8 +174,12 @@ defmodule Atlas.Control.RegionCatalog do
   child list is sorted by `label`, matching `roots/1`/`children/1` ordering.
   """
   def tree_index(dir \\ default_dir()) do
-    dir
-    |> all()
+    dir |> all() |> index()
+  end
+
+  @doc "Build the tree index from an already loaded catalog."
+  def index(regions) do
+    regions
     |> Enum.group_by(& &1.parent)
     |> Map.new(fn {parent, entries} -> {parent, Enum.sort_by(entries, & &1.label)} end)
   end

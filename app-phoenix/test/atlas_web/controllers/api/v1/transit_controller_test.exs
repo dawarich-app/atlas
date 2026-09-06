@@ -5,6 +5,7 @@ defmodule AtlasWeb.Api.V1.TransitControllerTest do
     bypass = Bypass.open()
     System.put_env("OTP_URL", "http://localhost:#{bypass.port}")
     on_exit(fn -> System.delete_env("OTP_URL") end)
+    Atlas.Settings.set("transit_backend", "otp")
     {:ok, bypass: bypass}
   end
 

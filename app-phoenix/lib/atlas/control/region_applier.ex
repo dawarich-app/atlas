@@ -44,7 +44,7 @@ defmodule Atlas.Control.RegionApplier do
   alias Atlas.Control.OtpBuildConfig
 
   @topic "control:apply"
-  @ingest_services ~w(valhalla overpass otp)
+  @ingest_services ~w(valhalla overpass)
 
   defstruct [
     :downloader,
@@ -184,14 +184,15 @@ defmodule Atlas.Control.RegionApplier do
          :ok <- download_gtfs(state, job_id, entries, gtfs_dir),
          :ok <- materialize_current(state, job_id, osm_dir, sources_dir, sources),
          :ok <- stage_valhalla(state, job_id, osm_dir),
-         :ok <- stage_otp(state, job_id, osm_dir, gtfs_dir, entries) do
+         :ok <- stage_otp(state, job_id, osm_dir, gtfs_dir, entries),
+         :ok <- Atlas.Control.ServiceCoverage.record_inputs(state.data_dir, entries) do
       # Convert last: it only feeds overpass, and it is the one stage that can
       # take hours. Everything valhalla and OTP need is already on disk, so a
       # failed conversion still fails the apply (loudly — see #28) but does not
       # withhold fresh data from the services that are ready for it.
       case convert_for_overpass(state, job_id, osm_dir) do
         :ok ->
-          restart_services(state, job_id, @ingest_services)
+          restart_services(state, job_id, @ingest_services ++ [Atlas.Settings.transit_backend()])
 
         {:error, _phase, _reason} = error ->
           restart_after_failed_convert(state, job_id)
@@ -446,7 +447,11 @@ defmodule Atlas.Control.RegionApplier do
   # must not vanish with it: unrecorded, the valhalla and otp rows go green off
   # the old container's log ticks.
   defp restart_after_failed_convert(state, job_id) do
-    case restart_services(state, job_id, @ingest_services -- ["overpass"]) do
+    case restart_services(
+           state,
+           job_id,
+           (@ingest_services ++ [Atlas.Settings.transit_backend()]) -- ["overpass"]
+         ) do
       :ok -> :ok
       {:error, phase, reason} -> broadcast_error(job_id, phase, reason)
     end

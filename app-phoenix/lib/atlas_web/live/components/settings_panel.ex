@@ -5,8 +5,6 @@ defmodule AtlasWeb.SettingsPanel do
 
   use AtlasWeb, :live_component
 
-  import AtlasWeb.Settings.Atoms
-
   alias Atlas.Control.{Preflight, RegionCatalog, RegionSelection, Seeder, ServiceFormatting}
   alias Atlas.Maps.BasemapPresets
   alias Atlas.Repo
@@ -17,9 +15,13 @@ defmodule AtlasWeb.SettingsPanel do
 
   @impl true
   def update(assigns, socket) do
-    regions_result = safe_regions()
+    regions_result = Map.get_lazy(socket.assigns, :catalog_result, &safe_regions/0)
     selection_result = safe_selection()
-    tree_result = safe_tree_index()
+
+    tree_result =
+      if regions_result == :unavailable,
+        do: :unavailable,
+        else: RegionCatalog.index(regions_result)
 
     control_ready =
       regions_result != :unavailable and selection_result != :unavailable and
@@ -35,6 +37,7 @@ defmodule AtlasWeb.SettingsPanel do
     {:ok,
      socket
      |> assign(assigns)
+     |> assign_new(:transit_switching, fn -> nil end)
      |> assign_new(:pending_services, fn -> %{} end)
      |> assign_new(:tiles_download, fn -> nil end)
      |> assign_new(:timeline, fn -> nil end)
@@ -45,6 +48,7 @@ defmodule AtlasWeb.SettingsPanel do
      |> assign_new(:open_cats, fn -> MapSet.new(@profiles) end)
      |> assign_new(:open_upd, fn -> MapSet.new() end)
      |> assign_new(:info_for, fn -> nil end)
+     |> maybe_cache_catalog(regions_result)
      |> assign(:regions, regions)
      |> assign(:tree_index, tree_index)
      |> assign(:by_name, by_name)
@@ -72,21 +76,21 @@ defmodule AtlasWeb.SettingsPanel do
       pending |> Enum.filter(fn {_n, d} -> !d end) |> Enum.map(&elem(&1, 0)) |> Enum.sort()
 
     region_names = active_region_names(selection)
-    region_changed = region_selection_changed?()
+    applied = applied_region_names()
+    region_changed = Enum.sort(region_names) != Enum.sort(applied)
     pending_region_names = if region_changed, do: region_names, else: []
 
     socket
     |> assign(:pending_enable, enable)
     |> assign(:pending_disable, disable)
     |> assign(:pending_region_names, pending_region_names)
+    |> assign(:region_changed, region_changed)
+    |> assign(:applied_region_names, applied)
     |> assign(:pending_count, map_size(pending) + if(region_changed, do: 1, else: 0))
   end
 
-  defp region_selection_changed? do
-    RegionSelection.pending_change?()
-  rescue
-    _ -> false
-  end
+  defp maybe_cache_catalog(socket, :unavailable), do: socket
+  defp maybe_cache_catalog(socket, regions), do: assign(socket, :catalog_result, regions)
 
   defp active_region_names(selection) when is_list(selection) do
     selection |> Enum.filter(& &1.active) |> Enum.map(& &1.region_name)
@@ -135,37 +139,29 @@ defmodule AtlasWeb.SettingsPanel do
   @impl true
   def render(assigns) do
     ~H"""
-    <div class="relative flex h-full flex-col">
-      <header class="px-4 pt-4">
-        <.eyebrow>Control plane</.eyebrow>
-        <div class="mt-1 flex items-end gap-3.5">
+    <div class="relative mx-auto flex h-full w-full max-w-4xl flex-col">
+      <header class="shrink-0 px-4 pt-4 pb-3">
+        <div class="flex items-center justify-between gap-3">
           <h2 class="font-display text-3xl font-extrabold leading-none tracking-tight">Settings</h2>
-          <div class="ml-auto flex items-center pb-0.5">
-            <.mini_stat
-              value={"#{ready_known(@service_status, @known_services)}/#{length(@known_services)}"}
-              label="ready"
-              flash={installing_any?(@service_status)}
-            />
-            <span class="mx-3.5 h-6 w-px bg-base-content/15"></span>
-            <.mini_stat value={ServiceFormatting.total_disk_label(@service_status)} label="disk" />
-            <span class="mx-3.5 h-6 w-px bg-base-content/15"></span>
-            <.mini_stat
-              value={
-                if @control_ready,
-                  do: active_region_label(@region_selection, @by_name),
-                  else: "…"
-              }
-              label="region"
-            />
-          </div>
+          <button type="button" phx-click="select_tab" phx-value-tab="search" class="btn btn-ghost btn-sm">
+            Back to map
+          </button>
         </div>
-
-        <div class="mt-4 flex gap-2">
+        <p class="mt-2 text-sm text-base-content/65">Manage your regions, map appearance and services.</p>
+        <div class="mt-4 flex flex-wrap gap-x-4 gap-y-1 text-sm" aria-label="Service overview">
+          <span class="font-semibold text-primary">{ready_known(@service_status, @known_services)} running</span>
+          <span>{off_known(@service_status, @known_services)} off</span>
+          <span :if={pending_known(@service_status, @known_services) > 0} class="text-warning">
+            {pending_known(@service_status, @known_services)} need attention or are starting
+          </span>
+          <span class="text-base-content/65">{disk_summary(@service_status)}</span>
+        </div>
+        <nav class="mt-4 flex flex-wrap gap-2" aria-label="Settings sections">
           <.tab_pill :for={{id, lbl} <- tabs()} id={id} label={lbl} active={@settings_tab} target={@myself} />
-        </div>
+        </nav>
       </header>
 
-      <div class="flex-1 min-h-0 overflow-y-auto px-4 py-4">
+      <div class="flex flex-1 min-h-0 flex-col overflow-hidden px-4">
         <div
           :if={@preflight_failures != []}
           class="mb-4 rounded-2xl bg-error/10 px-4 py-3.5"
@@ -201,6 +197,11 @@ defmodule AtlasWeb.SettingsPanel do
         </div>
 
         <div id="settings-tab-region" class={[@settings_tab == "region" && "atlas-fade", panel_class(@settings_tab, "region")]}>
+          <div class="mb-4 rounded-2xl bg-base-100/60 p-4 text-sm">
+            <p class="font-semibold">Last applied selection</p>
+            <p class="mt-1">{region_names_label(@applied_region_names, @by_name)}</p>
+            <p class="mt-2 text-base-content/65">This records the last submitted setup. Dataset coverage and installation status can differ by service.</p>
+          </div>
           <Settings.RegionTab.region_tab
             regions={@regions}
             timeline={@timeline}
@@ -228,6 +229,7 @@ defmodule AtlasWeb.SettingsPanel do
             known_services={@known_services}
             service_status={@service_status}
             pending_services={@pending_services}
+            transit_switching={@transit_switching}
             open_cats={@open_cats}
             open_upd={@open_upd}
             info_for={@info_for}
@@ -236,21 +238,38 @@ defmodule AtlasWeb.SettingsPanel do
         </div>
       </div>
 
-      <footer class="border-t border-base-300 p-4">
+      <footer :if={@settings_tab != "basemap"} class="shrink-0 border-t border-base-300 p-4">
+        <div class="max-h-[25vh] overflow-y-auto" aria-live="polite">
         <Settings.PendingSummary.pending_summary
-          :if={@pending_enable != [] or @pending_disable != []}
+          :if={@pending_count > 0}
           enable={@pending_enable}
           disable={@pending_disable}
           region_names={@pending_region_names}
+          region_changed={@region_changed}
+          previous_region_names={@applied_region_names}
+          by_name={@by_name}
           pending_services={@pending_services}
         />
+        </div>
+        <p :if={@pending_count == 0} class="mb-3 text-sm text-base-content/65">No pending changes.</p>
+        <div class="flex flex-wrap gap-2">
+        <button :if={@pending_count > 0} type="button" phx-click="discard_settings_changes" class="btn btn-ghost">
+          Discard changes
+        </button>
         <button
           type="button"
           phx-click="apply_selection"
           disabled={@pending_count == 0}
-          class={["btn btn-block", @pending_count == 0 && "btn-disabled", @pending_count > 0 && "btn-primary"]}
+          class={["btn flex-1", @pending_count == 0 && "btn-disabled", @pending_count > 0 && "btn-primary"]}
         >
           {apply_label(@pending_count)}
+        </button>
+        </div>
+      </footer>
+      <footer :if={@settings_tab == "basemap"} class="shrink-0 border-t border-base-300 p-4 text-sm text-base-content/65">
+        Map appearance is saved immediately.
+        <button :if={@pending_count > 0} type="button" phx-click="settings_tab" phx-value-tab="region" phx-target={@myself} class="mt-1 block font-semibold text-primary">
+          Review {@pending_count} pending region or service changes
         </button>
       </footer>
 
@@ -268,6 +287,8 @@ defmodule AtlasWeb.SettingsPanel do
     <button
       type="button"
       phx-click="settings_tab"
+      aria-pressed={to_string(@active == @id)}
+      aria-controls={"settings-tab-" <> @id}
       phx-value-tab={@id}
       phx-target={@target}
       class={[
@@ -283,10 +304,12 @@ defmodule AtlasWeb.SettingsPanel do
 
   defp tabs, do: [{"region", "Region"}, {"basemap", "Basemap"}, {"services", "Services"}]
 
-  defp apply_label(0), do: "Save & apply selection"
-  defp apply_label(n), do: "Save & apply (#{n})"
+  defp apply_label(0), do: "Apply changes"
+  defp apply_label(n), do: "Apply changes (#{n})"
 
-  defp panel_class(active, tab) when active == tab, do: "block"
+  defp panel_class(active, tab) when active == tab,
+    do: "block flex-1 min-h-0 overflow-y-auto pb-4"
+
   defp panel_class(_active, _tab), do: "hidden"
 
   defp ready_known(status_map, known) when is_map(status_map) do
@@ -297,11 +320,32 @@ defmodule AtlasWeb.SettingsPanel do
 
   defp ready_known(_, _), do: 0
 
-  defp installing_any?(status_map) when is_map(status_map) do
-    Enum.any?(status_map, fn {_n, snap} -> ServiceFormatting.installing?(snap) end)
+  defp off_known(status_map, known) do
+    Enum.count(known, fn %{name: name} ->
+      snapshot = Map.get(status_map, name)
+
+      not ServiceFormatting.running?(snapshot) and
+        not ServiceFormatting.installing?(snapshot) and
+        not ServiceFormatting.enabled?(snapshot) and
+        not match?(%{status: status} when status in [:error, :unhealthy], snapshot)
+    end)
   end
 
-  defp installing_any?(_), do: false
+  defp pending_known(status_map, known),
+    do: length(known) - ready_known(status_map, known) - off_known(status_map, known)
+
+  defp disk_summary(status_map) do
+    case ServiceFormatting.total_disk_label(status_map) do
+      "—" -> "Storage usage unavailable"
+      label -> "Reported storage: #{label}"
+    end
+  end
+
+  defp applied_region_names do
+    RegionSelection.applied_names()
+  rescue
+    _ -> []
+  end
 
   defp toggle_member(set, key) do
     if MapSet.member?(set, key), do: MapSet.delete(set, key), else: MapSet.put(set, key)
@@ -314,18 +358,10 @@ defmodule AtlasWeb.SettingsPanel do
     |> Enum.take(6)
   end
 
-  defp active_region_label(selection, by_name) when is_list(selection) do
-    case Enum.filter(selection, & &1.active) do
-      [] ->
-        "none"
+  defp region_names_label([], _by_name), do: "No selection recorded"
 
-      [first | rest] ->
-        label = catalog_label(by_name, first.region_name)
-        if rest == [], do: label, else: "#{label} +#{length(rest)}"
-    end
-  end
-
-  defp active_region_label(_, _), do: "none"
+  defp region_names_label(names, by_name),
+    do: Enum.map_join(names, ", ", &catalog_label(by_name, &1))
 
   defp catalog_label(by_name, name) do
     case Map.get(by_name, name) do
@@ -346,12 +382,6 @@ defmodule AtlasWeb.SettingsPanel do
   # during the boot race.
   defp safe_regions do
     RegionCatalog.all()
-  rescue
-    _ -> :unavailable
-  end
-
-  defp safe_tree_index do
-    RegionCatalog.tree_index()
   rescue
     _ -> :unavailable
   end

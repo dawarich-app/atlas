@@ -58,11 +58,14 @@ defmodule AtlasWeb.MapLive do
        },
        service_status: refresh_service_status(),
        pending_services: %{},
+       transit_switching: nil,
+       transit_backend: Settings.transit_backend(),
        tiles_download: Safe.call(fn -> TilesDownloader.status() end, nil),
        basemap_confirm: nil,
        apply_status: Safe.call(fn -> RegionApplier.status() end, nil),
        timeline: Safe.call(fn -> ApplyTimeline.current() end, nil),
        service_logs: nil,
+       service_coverage: nil,
        upstream_status: "ok",
        search_status: "ok",
        search_active: -1,
@@ -460,6 +463,28 @@ defmodule AtlasWeb.MapLive do
   end
 
   @impl true
+  def handle_event("discard_settings_changes", _params, socket) do
+    {:ok, _} = RegionSelection.discard_changes()
+    send_update(AtlasWeb.SettingsPanel, id: "settings-panel", pending_services: %{})
+    {:noreply, assign(socket, pending_services: %{})}
+  end
+
+  @impl true
+  def handle_event("open_service_coverage", %{"name" => name}, socket)
+      when name in ~w(photon libpostal placeholder valhalla overpass otp motis whosonfirst) do
+    {:noreply,
+     socket
+     |> cancel_async(:service_coverage)
+     |> assign(service_coverage: %{name: name, loading: true, result: nil})
+     |> start_async(:service_coverage, fn -> Atlas.Control.ServiceCoverage.read(name) end)}
+  end
+
+  @impl true
+  def handle_event("close_service_coverage", _params, socket) do
+    {:noreply, socket |> cancel_async(:service_coverage) |> assign(service_coverage: nil)}
+  end
+
+  @impl true
   def handle_event("open_logs", %{"name" => name}, socket) do
     if previous = socket.assigns.service_logs do
       Phoenix.PubSub.unsubscribe(Atlas.PubSub, "logs:#{previous.name}")
@@ -500,6 +525,22 @@ defmodule AtlasWeb.MapLive do
   end
 
   @impl true
+  def handle_event("select_transit", %{"name" => name}, socket) when name in ~w(otp motis) do
+    if not is_nil(socket.assigns.transit_switching) or
+         (name == socket.assigns.transit_backend and
+            match?(%{enabled?: true}, Safe.snapshot(name))) do
+      {:noreply, socket}
+    else
+      {:noreply,
+       socket
+       |> assign(
+         transit_switching: name,
+         pending_services: Map.drop(socket.assigns.pending_services, ~w(otp motis))
+       )
+       |> start_async(:transit_switch, fn -> Atlas.Control.DockerCompose.select_transit(name) end)}
+    end
+  end
+
   def handle_event("toggle_service", %{"name" => name}, socket) do
     current = match?(%{enabled?: true}, Safe.snapshot(name))
     pending = socket.assigns.pending_services
@@ -562,7 +603,12 @@ defmodule AtlasWeb.MapLive do
     {region_result, region_names} =
       case RegionSelection.active_names() do
         [] ->
-          {:no_region, []}
+          if RegionSelection.pending_change?() do
+            RegionSelection.mark_applied!()
+            {:selection_cleared, []}
+          else
+            {:no_region, []}
+          end
 
         names ->
           if Safe.call(fn -> RegionSelection.pending_change?() end, true) do
@@ -574,6 +620,7 @@ defmodule AtlasWeb.MapLive do
       end
 
     socket = assign(socket, pending_services: %{}, service_status: refresh_service_status())
+    send_update(AtlasWeb.SettingsPanel, id: "settings-panel", pending_services: %{})
 
     case AtlasWeb.MapLive.ApplyFlash.message(map_size(pending), region_result, region_names) do
       {:info, message} ->
@@ -623,7 +670,20 @@ defmodule AtlasWeb.MapLive do
 
   @impl true
   def handle_info(:status_changed, socket) do
-    {:noreply, assign(socket, service_status: refresh_service_status())}
+    backend = Settings.transit_backend()
+    changed = backend != socket.assigns.transit_backend
+    socket = assign(socket, service_status: refresh_service_status(), transit_backend: backend)
+
+    socket =
+      if changed and socket.assigns.mode == "transit", do: clear_route(socket), else: socket
+
+    socket =
+      if socket.assigns.mode == "transit" and
+           match?(%{status: :ready}, socket.assigns.service_status[backend]),
+         do: maybe_route(socket),
+         else: socket
+
+    {:noreply, socket}
   end
 
   def handle_info({:log_line, line}, socket) do
@@ -837,6 +897,48 @@ defmodule AtlasWeb.MapLive do
   end
 
   @impl true
+  def handle_async(:transit_switch, {:ok, {:ok, _}}, socket) do
+    {:noreply,
+     socket
+     |> assign(
+       transit_switching: nil,
+       transit_backend: Settings.transit_backend(),
+       service_status: refresh_service_status()
+     )
+     |> put_flash(:info, "Transit engine selected. Routes are available when its graph is ready.")}
+  end
+
+  def handle_async(:transit_switch, result, socket) do
+    detail =
+      case result do
+        {:ok, {:error, _, message}} -> String.slice(message, 0, 240)
+        _ -> "Service control is unavailable"
+      end
+
+    {:noreply,
+     socket
+     |> assign(transit_switching: nil)
+     |> put_flash(:error, "Could not switch transit engine: " <> detail)}
+  end
+
+  def handle_async(:service_coverage, {:ok, result}, socket) do
+    case socket.assigns.service_coverage do
+      nil ->
+        {:noreply, socket}
+
+      coverage ->
+        {:noreply, assign(socket, service_coverage: %{coverage | loading: false, result: result})}
+    end
+  end
+
+  def handle_async(:service_coverage, {:exit, _reason}, socket) do
+    handle_async(
+      :service_coverage,
+      {:ok, %{entries: [], note: "Dataset metadata is currently unavailable."}},
+      socket
+    )
+  end
+
   def handle_async(:map_search, {:ok, result}, socket) do
     {:noreply, socket |> assign(search_loading: false) |> apply_search_result(result)}
   end
@@ -963,7 +1065,11 @@ defmodule AtlasWeb.MapLive do
   defp route_request_key(socket) do
     from = socket.assigns.route_endpoints["from"].coords
     to = socket.assigns.route_endpoints["to"].coords
-    if from && to, do: {from, to, socket.assigns.mode, socket.assigns.route_options}
+
+    if from && to,
+      do:
+        {from, to, socket.assigns.mode, socket.assigns.route_options,
+         socket.assigns.transit_backend}
   end
 
   defp maybe_route(socket) do
@@ -1029,7 +1135,7 @@ defmodule AtlasWeb.MapLive do
   defp move_active(-1, -1, count), do: count - 1
   defp move_active(current, dir, count), do: Integer.mod(current + dir, count)
 
-  # Transit goes to OTP; everything else (auto/bicycle/pedestrian) to Valhalla.
+  # Transit goes to the selected engine; everything else (auto/bicycle/pedestrian) to Valhalla.
   # Valhalla.route/2 raises on an unknown costing, so transit must never reach it.
   defp plan_route("transit", from, to, _options) do
     Maps.Transit.plan(from: from, to: to)
@@ -1101,7 +1207,7 @@ defmodule AtlasWeb.MapLive do
       />
     <% end %>
 
-    <div class="fixed inset-0 p-2 sm:p-3 bg-base-200 flex flex-col md:flex-row gap-2 sm:gap-3">
+    <div id="atlas-workspace" data-settings-open={to_string(@active_tab == "settings")} class="fixed inset-0 p-2 sm:p-3 bg-base-200 flex flex-col md:flex-row gap-2 sm:gap-3">
       <AtlasWeb.SidePanel.side_panel
         active_tab={@active_tab}
         search_query={@search_query}
@@ -1128,12 +1234,13 @@ defmodule AtlasWeb.MapLive do
         theme={@theme}
         service_status={@service_status}
         pending_services={@pending_services}
+        transit_switching={@transit_switching}
         tiles_download={@tiles_download}
         basemap_confirm={@basemap_confirm}
         timeline={@timeline}
       />
 
-      <div class="relative flex-1 min-w-0 min-h-0 rounded-2xl border border-base-300 bg-base-100 overflow-hidden">
+      <div id="map-frame" class="relative flex-1 min-w-0 min-h-0 rounded-2xl border border-base-300 bg-base-100 overflow-hidden">
         <div
           id="map"
           phx-hook="Map"
@@ -1148,6 +1255,8 @@ defmodule AtlasWeb.MapLive do
         </div>
       </div>
     </div>
+
+    <AtlasWeb.Settings.CoverageModal.coverage_modal :if={@service_coverage} coverage={@service_coverage} />
 
     <AtlasWeb.Settings.LogsModal.logs_modal
       :if={@service_logs}

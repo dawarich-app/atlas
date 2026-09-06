@@ -1,5 +1,23 @@
 # Upgrading Atlas
 
+## Upgrade from 0.4.0 to 0.5.0
+
+1. Back up `data/app/atlas.sqlite3` and your `.env` before changing the checkout.
+2. Fetch the release: `git fetch --tags origin`, then `git checkout v0.5.0`.
+3. Pull and recreate the application: `docker compose pull app && docker compose up -d app`.
+4. Atlas now defaults new installations to MOTIS for `/api/v1/transit`. Existing
+   saved engine choices are deliberately preserved. Select **MOTIS** in
+   **Settings → Services → Public transport → Transit engine** if the instance
+   still uses OTP; wait for the MOTIS service to reach **Ready** before routing.
+
+## What changes in 0.5.0
+
+- MOTIS is available as the default transit engine, while OTP remains a supported
+  alternative.
+- The public transit response envelope stays stable; clients do not need to
+  change when the selected engine changes.
+- Search now collects and clusters results beyond the initial geocoder page.
+
 ## Upgrade from 0.3.0 to 0.4.0
 
 1. Record your current checkout (`git rev-parse HEAD`) and retain your current

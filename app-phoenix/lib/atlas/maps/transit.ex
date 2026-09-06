@@ -1,23 +1,25 @@
 defmodule Atlas.Maps.Transit do
   @moduledoc """
-  Transit orchestrator. Calls OTP and serializes the camelCase response into
+  Transit orchestrator. Calls the selected engine and serializes its response into
   snake_case `plan`/`leg` shapes matching Rails `TransitsController#serialize_plan`.
   """
-  alias Atlas.Maps.{Result, Upstream.Client, Upstream.Otp}
+  alias Atlas.Maps.{Result, Upstream.Client, Upstream.Motis, Upstream.Otp}
   require Logger
 
   def plan(opts) do
-    case Otp.plan(opts) do
+    backend = if Atlas.Settings.transit_backend() == "motis", do: Motis, else: Otp
+
+    case backend.plan(opts) do
       {:ok, body} ->
         plan = serialize_plan(body["plan"] || %{})
         {:ok, %Result{features: plan, upstream_status: "ok"}}
 
       {:error, %Client.Unavailable{} = e} ->
-        Logger.warning("otp unavailable: #{Exception.message(e)}")
+        Logger.warning("transit unavailable: #{Exception.message(e)}")
         {:error, e}
 
       {:error, %Client.BadResponse{} = e} ->
-        Logger.warning("otp bad response: #{Exception.message(e)}")
+        Logger.warning("transit bad response: #{Exception.message(e)}")
         {:error, e}
     end
   end
@@ -58,7 +60,11 @@ defmodule Atlas.Maps.Transit do
       from: leg_place(leg["from"]),
       to: leg_place(leg["to"]),
       shape: get_in(leg, ["legGeometry", "points"]),
-      shape_format: "google_polyline5"
+      shape_format:
+        if(get_in(leg, ["legGeometry", "precision"]) == 6,
+          do: "google_polyline6",
+          else: "google_polyline5"
+        )
     }
   end
 

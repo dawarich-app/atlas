@@ -56,7 +56,23 @@ defmodule Atlas.Control.ServiceState do
 
   def feed(name, line), do: GenServer.cast(Registry.via(name), {:feed, line})
   def snapshot(name), do: GenServer.call(Registry.via(name), :snapshot)
+
+  def enable(name) when name in ~w(otp motis) do
+    Task.start(fn ->
+      case DockerCompose.select_transit(name) do
+        {:ok, _} -> :ok
+        error -> transit_state(name, snapshot(name).enabled?, error)
+      end
+    end)
+
+    :ok
+  end
+
   def enable(name), do: GenServer.call(Registry.via(name), :enable)
+
+  def transit_state(name, enabled, result),
+    do: GenServer.call(Registry.via(name), {:transit_state, enabled, result})
+
   def disable(name), do: GenServer.call(Registry.via(name), :disable)
 
   @doc """
@@ -122,6 +138,38 @@ defmodule Atlas.Control.ServiceState do
   end
 
   @impl true
+  def handle_call({:transit_state, enabled, result}, _from, state) do
+    error =
+      case result do
+        {:error, _, output} -> trim_error(output)
+        _ -> nil
+      end
+
+    status =
+      cond do
+        error -> :error
+        enabled -> :starting
+        true -> :stopped
+      end
+
+    new_state = %{
+      state
+      | enabled?: enabled,
+        status: status,
+        ready?: false,
+        phase: nil,
+        progress: nil,
+        parser_acc: state.parser_mod.init(),
+        compose_ref: nil,
+        last_error: error
+    }
+
+    persist_user_fields!(new_state, %{enabled: enabled, last_error: error})
+    if enabled and match?({:ok, _}, result), do: safe_start_tail(state.name)
+    broadcast(new_state)
+    {:reply, :ok, new_state}
+  end
+
   def handle_call(:snapshot, _from, state), do: {:reply, snapshot_struct(state), state}
 
   # Enable/disable reply immediately with an optimistic status and run the

@@ -92,4 +92,47 @@ defmodule Atlas.Maps.SearchAllTest do
     assert result.complete
     assert_receive {:progress, %{complete: false, features: [_ | _]}}
   end
+
+  test "unrelated full pages are excluded from markers and suggestions without recursive flooding" do
+    fetch = fn _opts ->
+      {:ok,
+       %{
+         "features" =>
+           for id <- 1..50 do
+             feature(id, 13.4, 52.5)
+             |> put_in(["properties", "name"], "Berliner Promenade")
+             |> put_in(["properties", "city"], "Berlin")
+             |> put_in(["properties", "country"], "Deutschland")
+           end
+       }}
+    end
+
+    result = SearchAll.run("Adlershof, Berlin, Deutschland", fetch: fetch)
+    assert result.features == []
+    assert result.suggestions == []
+    assert result.requests == 1
+    refute result.complete
+  end
+
+  test "mixed pages still subdivide so valid matches past the first page are collected" do
+    owner = self()
+    root = [-180.0, -90.0, 180.0, 90.0]
+
+    fetch = fn opts ->
+      send(owner, {:bbox, opts[:bbox]})
+
+      features =
+        if opts[:bbox] == root,
+          do: [feature(1, 1, 1), put_in(feature(2, 2, 2), ["properties", "name"], "Other")],
+          else: [feature(3, 3, 3)]
+
+      {:ok, %{"features" => features}}
+    end
+
+    result = SearchAll.run("McDonald's", fetch: fetch, page_size: 2)
+    assert result.complete
+    assert Enum.sort(Enum.map(result.features, & &1.id)) == ["N:1", "N:3"]
+    assert Enum.map(result.suggestions, & &1.id) == ["N:1"]
+    assert result.requests == 3
+  end
 end

@@ -5,22 +5,32 @@ defmodule AtlasWeb.Settings.PendingSummary do
 
   use Phoenix.Component
 
-  alias Atlas.Control.{ApplyProjection, RegionCatalog}
+  alias Atlas.Control.ApplyProjection
 
   attr :enable, :list, required: true
   attr :disable, :list, required: true
   attr :region_names, :list, required: true
   attr :pending_services, :map, required: true
+  attr :region_changed, :boolean, default: false
+  attr :previous_region_names, :list, default: []
+  attr :by_name, :map, default: %{}
 
   def pending_summary(assigns) do
     region_structs =
       assigns.region_names
-      |> Enum.map(&safe_find/1)
+      |> Enum.map(&Map.get(assigns.by_name, &1))
       |> Enum.reject(&is_nil/1)
 
     assigns =
       assigns
-      |> assign(:region_labels, Enum.map(region_structs, & &1.label))
+      |> assign(
+        :region_labels,
+        Enum.map(assigns.region_names, &region_label(&1, assigns.by_name))
+      )
+      |> assign(
+        :previous_labels,
+        Enum.map_join(assigns.previous_region_names, ", ", &region_label(&1, assigns.by_name))
+      )
       |> assign(:projection, build_projection(region_structs, assigns.pending_services))
 
     ~H"""
@@ -53,19 +63,14 @@ defmodule AtlasWeb.Settings.PendingSummary do
         </span>
       </div>
 
-      <div :if={@region_labels != []} class="mb-1.5 flex flex-wrap items-center gap-1.5">
-        <span class="font-mono text-[11px] uppercase tracking-[0.06em] text-base-content/55">
-          region
-        </span>
-        <span
-          :for={label <- @region_labels}
-          class="rounded-md bg-base-content/10 px-1.5 py-0.5 font-mono text-[12px] font-semibold text-base-content/70"
-        >
-          {label}
-        </span>
-      </div>
-
-      <div class="mt-1.5 border-t border-primary/15 pt-1.5 font-mono text-[12px] font-semibold text-primary">
+      <p :if={@region_changed} class="mb-2 text-sm text-base-content/70">
+        Regions: {if @previous_labels == "", do: "No selection", else: @previous_labels}
+        → {if @region_labels == [], do: "No selection", else: Enum.join(@region_labels, ", ")}
+      </p>
+      <p :if={@region_changed and @region_labels == []} class="mb-2 text-sm text-base-content/70">
+        Clears the selection. Existing datasets are kept.
+      </p>
+      <div :if={@region_labels != [] and @projection.total_disk_gb > 0} class="mt-1.5 border-t border-primary/15 pt-1.5 font-mono text-[12px] font-semibold text-primary">
         ≈ {@projection.total_disk_gb} GB · ~{@projection.first_boot_hours} h first boot
       </div>
     </div>
@@ -81,9 +86,10 @@ defmodule AtlasWeb.Settings.PendingSummary do
     _ -> %{total_disk_gb: 0.0, first_boot_hours: 0.0}
   end
 
-  defp safe_find(name) do
-    RegionCatalog.find(name)
-  rescue
-    _ -> nil
+  defp region_label(name, by_name) do
+    case Map.get(by_name, name) do
+      %{label: label} when is_binary(label) -> label
+      _ -> name
+    end
   end
 end

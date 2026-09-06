@@ -1,6 +1,7 @@
 import maplibregl from "../../vendor/maplibre-gl"
 import SearchClusters from "./search_clusters"
 import RouteEndpoints from "./route_endpoints"
+import RouteLabels from "./route_labels"
 
 // Hardcoded OSM raster fallback — used when no TILES_URL is configured.
 // Matches the Rails JS controller's OSM_RASTER_FALLBACK byte-for-byte.
@@ -80,11 +81,13 @@ export default {
         this._renderRoute()
       }
     })
+    this.routeLabels = new RouteLabels(this.map, maplibregl)
     this.routeEndpoints = new RouteEndpoints(this.map, maplibregl)
     this.handleEvent("map:set_route_endpoints", ({points}) => this.routeEndpoints.setPoints(points))
 
     this.handleEvent("map:draw_route", ({ geojson }) => {
       this.routeGeoJSON = geojson
+      this.routeLabels.setRoute(geojson)
       this._renderRoute()
       const coordinates = (geojson.features || []).flatMap((feature) => feature.geometry.coordinates)
       if (coordinates.length > 0) {
@@ -148,18 +151,26 @@ export default {
     const addRoute = () => {
       this.map.addSource("route", { type: "geojson", data: geojson })
       this.map.addLayer({
+        id: "route-casing", type: "line", source: "route",
+        filter: ["!=", ["get", "mode"], "WALK"],
+        layout: {"line-cap": "round", "line-join": "round"},
+        paint: {"line-color": "#ffffff", "line-width": 9, "line-opacity": 0.8}
+      })
+      this.map.addLayer({
         id: "route-line",
         type: "line",
         source: "route",
         filter: ["!=", ["get", "mode"], "WALK"],
-        paint: { "line-color": "#2563eb", "line-width": 5 }
+        layout: {"line-cap": "round", "line-join": "round"},
+        paint: { "line-color": ["coalesce", ["get", "color"], "#2563eb"], "line-width": 6 }
       })
       this.map.addLayer({
         id: "route-walk",
         type: "line",
         source: "route",
         filter: ["==", ["get", "mode"], "WALK"],
-        paint: { "line-color": "#475569", "line-width": 4, "line-dasharray": [2, 1.5] }
+        layout: {"line-cap": "round", "line-join": "round"},
+        paint: { "line-color": "#475569", "line-width": 7, "line-dasharray": [0, 1.8] }
       })
       this._renderedRoute = geojson
     }
@@ -176,6 +187,7 @@ export default {
     if (this.resizeObserver) this.resizeObserver.disconnect()
     if (this.searchClusters) this.searchClusters.destroy()
     if (this.routeEndpoints) this.routeEndpoints.destroy()
+    if (this.routeLabels) this.routeLabels.destroy()
     if (this.map) this.map.remove()
   }
 }

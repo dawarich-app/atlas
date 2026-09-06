@@ -8,7 +8,7 @@ defmodule Atlas.Maps.SearchAll do
   never turn the currently collected points into a claimed exhaustive count.
   """
 
-  alias Atlas.Maps.{Place, Upstream.Photon}
+  alias Atlas.Maps.{Place, SearchMatch, Upstream.Photon}
 
   @page_size 50
   @world [-180.0, -90.0, 180.0, 90.0]
@@ -27,6 +27,7 @@ defmodule Atlas.Maps.SearchAll do
       fetch: Keyword.get(opts, :fetch, &Photon.search/1),
       progress: Keyword.get(opts, :on_progress, fn _ -> :ok end),
       query: String.trim(query),
+      match: SearchMatch.compile(query),
       osm_tags: Keyword.get(opts, :osm_tags),
       concurrency: Keyword.get(opts, :concurrency, 4),
       request_timeout: Keyword.get(opts, :request_timeout, 10_000)
@@ -76,11 +77,12 @@ defmodule Atlas.Maps.SearchAll do
 
   defp consume({{bbox, depth}, {:ok, {:ok, %{"features" => features}}}}, state)
        when is_list(features) do
-    places = Enum.reduce(features, state.places, &add_feature/2)
+    matches = Enum.filter(features, &SearchMatch.matches?(state.match, &1))
+    places = Enum.reduce(matches, state.places, &add_feature/2)
 
     suggestions =
       if state.suggestions == [] do
-        features |> Enum.map(&Place.from_photon_feature/1) |> Enum.reject(&is_nil/1)
+        matches |> Enum.map(&Place.from_photon_feature/1) |> Enum.reject(&is_nil/1)
       else
         state.suggestions
       end
@@ -89,6 +91,10 @@ defmodule Atlas.Maps.SearchAll do
 
     cond do
       length(features) < state.page_size -> state
+      # A full page of unrelated fallback suggestions must not trigger a scan
+      # of every address in the dataset. Photon ranks results rather than
+      # exposing an exact match count: retain an honest incomplete flag.
+      matches == [] -> %{state | complete: false}
       depth >= state.max_depth -> %{state | complete: false}
       true -> %{state | queue: state.queue ++ Enum.map(split(bbox), &{&1, depth + 1})}
     end

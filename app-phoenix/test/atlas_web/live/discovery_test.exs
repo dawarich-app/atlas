@@ -122,7 +122,7 @@ defmodule AtlasWeb.DiscoveryTest do
   } do
     photon(bypass, self())
     overpass(bypass, self())
-    {:ok, view, _} = live(conn, "/?q=Berlin")
+    {:ok, view, _} = live(conn, "/?q=McDonalds")
     render_async(view)
     render_hook(view, "select_result", %{"id" => "N:1"})
     render_hook(view, "viewport_changed", %{"bbox" => [13.0, 52.0, 14.0, 53.0]})

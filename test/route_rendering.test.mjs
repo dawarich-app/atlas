@@ -19,8 +19,10 @@ test('a route arriving after map load while tiles are busy renders the latest da
   map.ready=true
   MapHook._renderRoute.call(context)
   assert.deepEqual(sources.get('route').data,{features:['new']})
-  assert.deepEqual(layers.map(layer=>layer.id),['route-line','route-walk'])
-  assert.ok(layers.find(layer=>layer.id==='route-walk').paint['line-dasharray'])
+  assert.deepEqual(layers.map(layer=>layer.id),['route-casing','route-line','route-walk'])
+  assert.deepEqual(layers.find(layer=>layer.id==='route-walk').paint['line-dasharray'],[0,1.8])
+  assert.equal(layers.find(layer=>layer.id==='route-walk').layout['line-cap'],'round')
+  assert.deepEqual(layers.find(layer=>layer.id==='route-line').paint['line-color'],['coalesce',['get','color'],'#2563eb'])
   assert.equal(context._renderedRoute,context.routeGeoJSON)
   sources.clear()
   MapHook._renderRoute.call(context)

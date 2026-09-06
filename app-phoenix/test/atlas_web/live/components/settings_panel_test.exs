@@ -17,12 +17,12 @@ defmodule AtlasWeb.SettingsPanelTest do
 
     # The control-plane header + the four functional groupings PR #10
     # collapsed onto a single tab: Region, Basemap, Services, Apply.
-    assert html =~ "Control plane"
+    assert html =~ "Back to map"
     assert html =~ "Settings"
     assert html =~ "Region"
     assert html =~ "Basemap"
     assert html =~ "Services"
-    assert html =~ "Save &amp; apply selection"
+    assert html =~ "Apply changes"
   end
 
   test "regions section renders continent roots as selectable tree nodes",
@@ -121,8 +121,8 @@ defmodule AtlasWeb.SettingsPanelTest do
       )
 
     total = length(known)
-    assert html =~ "#{total}/#{total}"
-    refute html =~ "#{total + 1}/#{total}"
+    assert html =~ "#{total} running"
+    refute html =~ "#{total + 1} running"
   end
 
   test "region tab is the default active sub-tab", %{conn: conn} do
@@ -188,7 +188,7 @@ defmodule AtlasWeb.SettingsPanelTest do
     assert html =~ "Pending changes"
   end
 
-  test "the pending summary projects disk and first-boot hours for staged tools",
+  test "service-only changes do not show an invented installation estimate",
        %{conn: conn} do
     {:ok, view, _html} = open_settings(conn)
 
@@ -201,9 +201,9 @@ defmodule AtlasWeb.SettingsPanelTest do
       |> element(~s(input[phx-click=toggle_service][phx-value-name=photon]))
       |> render_click()
 
-    # The projection line shows a disk/hours estimate for the staged set.
-    assert html =~ "GB"
-    assert html =~ ~r/\dh|first boot/i
+    assert html =~ "Pending changes"
+    refute html =~ "first boot"
+    assert html =~ "Discard changes"
   end
 
   test "opening logs surfaces the logs modal for that service",
@@ -239,7 +239,7 @@ defmodule AtlasWeb.SettingsPanelTest do
     {:ok, view, _html} = live(conn, ~p"/?tab=settings")
 
     view
-    |> element(~s([data-node="gf:asia"] > div[phx-click="toggle_region"]))
+    |> element(~s([data-node="gf:asia"] input[phx-click="toggle_region"]))
     |> render_click()
 
     # toggle_region is parent-handled (MapLive); the send_update/2 it issues makes
@@ -301,15 +301,15 @@ defmodule AtlasWeb.SettingsPanelTest do
 
     {:ok, view, _html} = live(conn, ~p"/?tab=settings")
 
-    assert render(view) =~ "Save &amp; apply selection"
+    assert render(view) =~ "Apply changes"
     assert has_element?(view, "button[phx-click=apply_selection][disabled]")
 
     # A new selection re-arms the button.
     view
-    |> element(~s([data-node="gf:africa"] > div[phx-click="toggle_region"]))
+    |> element(~s([data-node="gf:africa"] input[phx-click="toggle_region"]))
     |> render_click()
 
-    assert render(view) =~ "Save &amp; apply (1)"
+    assert render(view) =~ "Apply changes (1)"
     refute has_element?(view, "button[phx-click=apply_selection][disabled]")
   end
 
@@ -386,5 +386,104 @@ defmodule AtlasWeb.SettingsPanelTest do
 
     assert timeline_html =~ "2.0 KB"
     refute timeline_html =~ "%"
+  end
+
+  test "discard restores applied regions and clears staged services", %{conn: conn} do
+    RegionSelection.clear()
+    RegionSelection.toggle("gf:asia")
+    RegionSelection.mark_applied!()
+    RegionSelection.clear()
+
+    {:ok, view, _} = open_settings(conn)
+    view |> element("button[phx-click=select_tab][phx-value-tab=settings]") |> render_click()
+    assert has_element?(view, "#atlas-workspace[data-settings-open=true]")
+    assert render(view) =~ "Existing datasets are kept"
+
+    view |> element("button[phx-click=settings_tab][phx-value-tab=services]") |> render_click()
+    view |> element("input[phx-click=toggle_service][phx-value-name=photon]") |> render_click()
+    assert render(view) =~ "Apply changes (2)"
+
+    view |> element("button[phx-click=discard_settings_changes]") |> render_click()
+    assert RegionSelection.active_names() == ["gf:asia"]
+    assert has_element?(view, "button[phx-click=apply_selection][disabled]")
+    refute render(view) =~ "Pending changes"
+
+    view |> element("header button[phx-click=select_tab][phx-value-tab=search]") |> render_click()
+    assert has_element?(view, "#atlas-workspace[data-settings-open=false]")
+    assert has_element?(view, "#map[phx-hook=Map]")
+  end
+
+  test "applying an empty selection clears the pending state", %{conn: conn} do
+    RegionSelection.clear()
+    RegionSelection.toggle("gf:asia")
+    RegionSelection.mark_applied!()
+    RegionSelection.clear()
+    {:ok, view, _} = open_settings(conn)
+
+    assert render(view) =~ "Pending changes"
+    view |> element("button[phx-click=apply_selection]") |> render_click()
+    assert RegionSelection.applied_names() == []
+    refute RegionSelection.pending_change?()
+    assert has_element?(view, "button[phx-click=apply_selection][disabled]")
+    assert render(view) =~ "Region selection cleared. Existing datasets are kept."
+  end
+
+  test "basemap explains immediate saving and links to pending changes", %{conn: conn} do
+    RegionSelection.clear()
+    RegionSelection.mark_applied!()
+    RegionSelection.toggle("gf:asia")
+    {:ok, view, _} = open_settings(conn)
+    view |> element("button[phx-click=settings_tab][phx-value-tab=basemap]") |> render_click()
+    assert render(view) =~ "Map appearance is saved immediately"
+    assert render(view) =~ "Review 1 pending"
+    refute has_element?(view, "button[phx-click=apply_selection]")
+    view |> element("footer button[phx-click=settings_tab]") |> render_click()
+    assert has_element?(view, "button[phx-click=apply_selection]")
+  end
+
+  test "service help describes purpose instead of showing a log line", %{conn: conn} do
+    Atlas.Settings.set("transit_backend", "otp")
+    {:ok, view, _} = open_settings(conn)
+    view |> element("button[phx-click=settings_tab][phx-value-tab=services]") |> render_click()
+    view |> element("button[phx-click=toggle_info][phx-value-name=otp]") |> render_click()
+    assert render(view) =~ "Combines public transport timetables with walking connections"
+    assert has_element?(view, ~s(input[aria-label="Enable OpenTripPlanner"]))
+  end
+
+  test "coverage opens asynchronously and closes without changing the selection", %{conn: conn} do
+    before = RegionSelection.active_names()
+    {:ok, view, _} = open_settings(conn)
+    render_hook(view, "open_service_coverage", %{name: "libpostal"})
+    assert has_element?(view, "#service-coverage-dialog[role=dialog]")
+    html = render_async(view)
+    assert html =~ "does not install a separate map dataset"
+    assert RegionSelection.active_names() == before
+    render_hook(view, "close_service_coverage", %{})
+    refute has_element?(view, "#service-coverage-dialog")
+  end
+
+  test "MOTIS and OTP share an exclusive selector, with only the selected service card", %{
+    conn: conn
+  } do
+    Atlas.Settings.set("transit_backend", "motis")
+    {:ok, view, _} = open_settings(conn)
+    view |> element("button[phx-value-tab=services]") |> render_click()
+    assert has_element?(view, ~s(input[type=radio][value=motis][checked]))
+    assert has_element?(view, ~s|input[type=radio][value=otp]:not([checked])|)
+    assert has_element?(view, ~s(input[aria-label="Enable MOTIS"]))
+    refute has_element?(view, ~s(input[aria-label="Enable OpenTripPlanner"]))
+    assert render(view) =~ "Changes apply immediately"
+  end
+
+  test "failed switch keeps previous engine selected and shows the cause", %{conn: conn} do
+    Atlas.Settings.set("transit_backend", "otp")
+    start_supervised!({Atlas.Control.DockerCompose, runner: fn _, _ -> {"stop denied", 1} end})
+    {:ok, view, _} = open_settings(conn)
+    view |> element("button[phx-value-tab=services]") |> render_click()
+    view |> element("input[type=radio][value=motis]") |> render_click()
+    html = render_async(view)
+    assert html =~ "stop denied"
+    assert has_element?(view, ~s(input[type=radio][value=otp][checked]))
+    refute has_element?(view, ~s(input[aria-label="Enable MOTIS"]))
   end
 end

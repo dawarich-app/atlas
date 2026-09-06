@@ -18,9 +18,9 @@ defmodule Atlas.Control.Health do
   def capabilities, do: @capabilities
 
   @spec summarize(%{optional(String.t()) => term()}) :: map()
-  def summarize(statuses) when is_map(statuses) do
+  def summarize(statuses, backend \\ "otp") when is_map(statuses) do
     caps =
-      Map.new(@capabilities, fn {cap, service} ->
+      Map.new(Map.put(@capabilities, "transit", backend), fn {cap, service} ->
         {cap, normalize(Map.get(statuses, service))}
       end)
 
@@ -32,7 +32,7 @@ defmodule Atlas.Control.Health do
     Service
     |> Repo.all()
     |> Map.new(fn s -> {s.name, s.status} end)
-    |> summarize()
+    |> summarize(Atlas.Settings.transit_backend())
   end
 
   defp normalize(s) when s in ["ready", :ready], do: "up"

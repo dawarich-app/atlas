@@ -124,7 +124,9 @@ services:
       MAP_MATCH_MAX_POINTS: ${MAP_MATCH_MAX_POINTS:-}
       VALHALLA_MATCH_TIMEOUT: ${VALHALLA_MATCH_TIMEOUT:-}
       OVERPASS_URL: http://overpass:80
-      OTP_URL: http://otp:8080
+      OTP_URL: ${OTP_URL:-http://otp:8080}
+      MOTIS_URL: ${MOTIS_URL:-http://motis:8080}
+      TRANSIT_BACKEND: ${TRANSIT_BACKEND:-motis}
       TILES_URL: ${TILES_URL:-}
       TILES_THEME: ${TILES_THEME:-atlas-light}
       DEFAULT_LAT: ${DEFAULT_LAT:-51.1657}

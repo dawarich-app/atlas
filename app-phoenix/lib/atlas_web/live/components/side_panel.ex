@@ -33,6 +33,7 @@ defmodule AtlasWeb.SidePanel do
   attr :tiles_url, :string, required: true
   attr :theme, :string, required: true
   attr :service_status, :map, required: true
+  attr :transit_switching, :string, default: nil
   attr :pending_services, :map, default: %{}
   attr :tiles_download, :any, default: nil
   attr :timeline, :any, default: nil
@@ -40,7 +41,7 @@ defmodule AtlasWeb.SidePanel do
 
   def side_panel(assigns) do
     ~H"""
-    <aside class="flex flex-col flex-none min-h-0 h-1/2 w-full md:h-auto md:w-auto">
+    <aside id="atlas-side-panel" class="flex flex-col flex-none min-h-0 h-1/2 w-full md:h-auto md:w-auto">
       <div class="apo-brand px-2.5 py-3 flex items-center gap-2.5 flex-shrink-0">
         <span class="w-2.5 h-2.5 rounded-full bg-primary shadow-sm flex-shrink-0"></span>
         <span class="apo-brand-text font-display font-semibold text-[15px] leading-none tracking-tight whitespace-nowrap text-base-content">
@@ -65,7 +66,7 @@ defmodule AtlasWeb.SidePanel do
           </button>
         </nav>
 
-        <div class="flex-1 min-w-0 md:flex-none md:w-[380px] flex flex-col overflow-y-auto">
+        <div id="atlas-panel-content" class="flex-1 min-w-0 md:flex-none md:w-[380px] flex flex-col overflow-y-auto">
           <div class={tab_visible_class(@active_tab, "search")}>
             <AtlasWeb.SearchCard.search_card
               id="search-card"
@@ -105,6 +106,7 @@ defmodule AtlasWeb.SidePanel do
               theme={@theme}
               service_status={@service_status}
               pending_services={@pending_services}
+              transit_switching={@transit_switching}
               tiles_download={@tiles_download}
               timeline={@timeline}
               basemap_confirm={@basemap_confirm}

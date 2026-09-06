@@ -1,0 +1,22 @@
+name: atlas-motis-experiment
+services:
+  motis:
+    image: ghcr.io/motis-project/motis:2.11.2@sha256:6055f51eec43eeed28524037ca0161b96efe9cd05728eaa9ac04c20c2826d330
+    container_name: atlas-motis-experiment
+    user: "${LOCAL_UID:-1000}:${LOCAL_GID:-1000}"
+    command: ["/motis", "server", "--data", "/data"]
+    mem_limit: 4g
+    cpus: 4
+    ports:
+      - "127.0.0.1:8485:8080"
+    volumes:
+      - ./config.yml:/config.yml:ro
+      - ${ATLAS_DATA_DIR:-../../data}:/input:ro
+      - ${MOTIS_DATA_DIR:-../../data/motis-benchmark}/graph:/data
+    networks:
+      default:
+        aliases: [motis-experiment]
+networks:
+  default:
+    external: true
+    name: ${ATLAS_NETWORK:-local-integration_default}

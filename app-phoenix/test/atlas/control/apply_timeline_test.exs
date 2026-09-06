@@ -1,5 +1,5 @@
 defmodule Atlas.Control.ApplyTimelineTest do
-  use ExUnit.Case, async: false
+  use Atlas.DataCase, async: false
 
   alias Atlas.Control.ApplyTimeline
   alias Atlas.Control.ApplyTimeline.Timeline
@@ -479,12 +479,12 @@ defmodule Atlas.Control.ApplyTimelineTest do
       assert_receive {:timeline, %Timeline{job_id: "j5", stages: stages}}, 1_000
 
       assert Enum.map(stages, & &1.key) ==
-               [:download, :merge, :stage_otp, :convert, :valhalla, :overpass, :otp]
+               [:download, :merge, :stage_otp, :convert, :valhalla, :overpass, :motis]
 
       Phoenix.PubSub.broadcast(
         Atlas.PubSub,
         "control:apply",
-        {:apply_restarting, ["valhalla", "otp"]}
+        {:apply_restarting, ["valhalla", "motis"]}
       )
 
       assert_receive {:timeline, %Timeline{stages: after_restart}}, 1_000
@@ -564,11 +564,11 @@ defmodule Atlas.Control.ApplyTimelineTest do
       assert_receive {:timeline, %Timeline{} = timeline}, 1_000
 
       assert Enum.map(timeline.stages, & &1.key) ==
-               [:download, :merge, :stage_otp, :convert, :valhalla, :overpass, :otp]
+               [:download, :merge, :stage_otp, :convert, :valhalla, :overpass, :motis]
 
       assert stage(timeline, :valhalla).state == :running
       assert stage(timeline, :overpass).state == :skipped
-      assert stage(timeline, :otp).state == :skipped
+      assert stage(timeline, :motis).state == :skipped
 
       assert %Timeline{} = current = ApplyTimeline.current()
       assert stage(current, :valhalla).state == :running

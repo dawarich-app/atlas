@@ -11,6 +11,8 @@ defmodule AtlasWeb.MapLiveTest do
       &System.put_env(&1, "http://localhost:#{bypass.port}")
     )
 
+    Atlas.Settings.set("transit_backend", "otp")
+
     on_exit(fn ->
       Enum.each(
         ~w[PHOTON_URL PLACEHOLDER_URL LIBPOSTAL_URL VALHALLA_URL OTP_URL],
@@ -280,7 +282,7 @@ defmodule AtlasWeb.MapLiveTest do
       features =
         1..3
         |> Enum.map_join(",", fn i ->
-          ~s({"geometry":{"coordinates":[13.#{i},52.#{i}]},"properties":{"name":"P#{i}","city":"Berlin","osm_id":#{i},"osm_type":"N","osm_key":"place","osm_value":"city"}})
+          ~s({"geometry":{"coordinates":[13.#{i},52.#{i}]},"properties":{"name":"Berlin P#{i}","city":"Berlin","osm_id":#{i},"osm_type":"N","osm_key":"place","osm_value":"city"}})
         end)
 
       Bypass.stub(bypass, "GET", "/api", fn c ->
@@ -376,7 +378,7 @@ defmodule AtlasWeb.MapLiveTest do
 
       refute html =~ "search-results"
       refute html =~ "No results"
-      assert html =~ ~s(value="P1, Berlin")
+      assert html =~ ~s(value="Berlin P1, Berlin")
     end
   end
 
@@ -477,7 +479,7 @@ defmodule AtlasWeb.MapLiveTest do
       features =
         1..3
         |> Enum.map_join(",", fn i ->
-          ~s({"geometry":{"coordinates":[13.#{i},52.#{i}]},"properties":{"name":"P#{i}","city":"Berlin","osm_id":#{i},"osm_type":"N","osm_key":"place","osm_value":"city"}})
+          ~s({"geometry":{"coordinates":[13.#{i},52.#{i}]},"properties":{"name":"Berlin P#{i}","city":"Berlin","osm_id":#{i},"osm_type":"N","osm_key":"place","osm_value":"city"}})
         end)
 
       Bypass.stub(bypass, "GET", "/api", fn c ->
