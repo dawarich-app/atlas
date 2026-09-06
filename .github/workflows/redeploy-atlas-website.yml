@@ -1,0 +1,19 @@
+name: Redeploy Atlas website
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - app/swagger/**
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  redeploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger Cloudflare production build
+        env:
+          DEPLOY_HOOK: ${{ secrets.ATLAS_WEBSITE_DEPLOY_HOOK }}
+        run: curl --fail --silent --show-error --request POST "$DEPLOY_HOOK"
