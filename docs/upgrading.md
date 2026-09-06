@@ -2,8 +2,9 @@
 
 ## Upgrade from 0.3.0 to 0.4.0
 
-1. Record your current checkout (`git rev-parse HEAD`) and image (`docker
-   inspect atlas-app --format '{{.Image}}'`). Stop writes while making a backup:
+1. Record your current checkout (`git rev-parse HEAD`) and retain your current
+   local image: `docker image tag "$(docker inspect atlas-app --format '{{.Image}}')"
+   atlas-app:before-0.4.0`. Stop writes while making a backup:
    `docker compose stop app`.
 2. Back up `.env`, your Compose overrides and `data/app/` while the app is
    stopped. Preserve the whole directory, including SQLite WAL files and
@@ -54,8 +55,10 @@ Search is enabled through Settings.
 
 Stop the app, preserve the failed upgrade's data separately, restore the
 `data/app/` backup, and return to the previously recorded checkout and image.
-Use `APP_IMAGE=ghcr.io/dawarich-app/atlas/app:0.3.0` if that was the previous
-release, then run `docker compose up -d app caddy`. Restore any region datasets
+Use `APP_IMAGE=atlas-app:before-0.4.0` and `APP_PULL_POLICY=never`, then run
+`docker compose up -d app caddy`. The original 0.3.0 publication did not provide
+a `:0.3.0` image tag, so retain the exact image instead of relying on that tag
+or on a mutable `latest`. Restore any region datasets
 you changed after the backup if you need the previous maps too. Do not delete
 all of `data/`: it contains separately owned upstream databases.
 

@@ -147,6 +147,10 @@ defmodule AtlasWeb.MapLive do
   end
 
   @impl true
+  def handle_event("route_changed", %{"from" => from, "to" => to}, socket) do
+    {:noreply, assign(socket, route_from: from, route_to: to)}
+  end
+
   def handle_event("route", %{"from" => from, "to" => to} = params, socket) do
     mode = Map.get(params, "mode", socket.assigns.mode)
     socket = socket |> clear_flash() |> assign(route_from: from, route_to: to, mode: mode)

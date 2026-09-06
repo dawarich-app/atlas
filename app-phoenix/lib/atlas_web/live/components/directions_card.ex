@@ -34,7 +34,7 @@ defmodule AtlasWeb.DirectionsCard do
       </header>
 
       <div class="flex flex-col gap-4 px-4 py-4 overflow-y-auto flex-1 min-h-0">
-        <form phx-submit="route" class="grid grid-cols-[1fr_auto] items-stretch gap-2">
+        <form phx-submit="route" phx-change="route_changed" class="grid grid-cols-[1fr_auto] items-stretch gap-2">
           <input type="hidden" name="mode" value={@mode} />
           <div class="flex flex-col gap-2">
             <div class="relative">

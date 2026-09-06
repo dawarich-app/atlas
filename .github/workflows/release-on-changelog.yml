@@ -17,8 +17,16 @@ jobs:
     uses: ./.github/workflows/test-phoenix.yml
   test-config:
     uses: ./.github/workflows/test-config.yml
+  verify-images:
+    uses: ./.github/workflows/build-app.yml
+    permissions:
+      contents: read
+      packages: write
+    with:
+      publish: false
   release:
-    needs: [test-phoenix, test-config]
+    if: github.ref == 'refs/heads/main'
+    needs: [test-phoenix, test-config, verify-images]
     name: Tag & release if new version
     runs-on: ubuntu-latest
     timeout-minutes: 5
@@ -92,4 +100,4 @@ jobs:
           # raise workflow-triggering events for anything GITHUB_TOKEN does — so
           # build-app.yml never sees a `release` event from it. workflow_dispatch
           # is the documented exception to that rule, so trigger it by hand.
-          gh workflow run build-app.yml --ref "${TAG}"
+          gh workflow run build-app.yml --ref "${TAG}" -f publish=true

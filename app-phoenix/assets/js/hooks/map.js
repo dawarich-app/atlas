@@ -88,6 +88,11 @@ export default {
     this.handleEvent("map:draw_route", ({ geojson }) => {
       this.routeGeoJSON = geojson
       this._renderRoute()
+      const coordinates = (geojson.features || []).flatMap((feature) => feature.geometry.coordinates)
+      if (coordinates.length > 0) {
+        const bounds = coordinates.reduce((bounds, point) => bounds.extend(point), new maplibregl.LngLatBounds())
+        this.map.fitBounds(bounds, { padding: 60, maxZoom: 16 }, { atlasProgrammatic: true })
+      }
     })
 
     // Pick-point flow: when the user clicks the pin button next to From/To,

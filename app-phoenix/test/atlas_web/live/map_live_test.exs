@@ -42,6 +42,18 @@ defmodule AtlasWeb.MapLiveTest do
            )
   end
 
+  test "changing travel mode preserves endpoints typed into the form", %{conn: conn} do
+    {:ok, view, _html} = live(conn, ~p"/")
+
+    view
+    |> form("form[phx-submit=route]", %{"from" => "47.141,9.521", "to" => "47.146,9.516"})
+    |> render_change()
+
+    view |> element(~s(button[phx-click="set_mode"][phx-value-mode="transit"])) |> render_click()
+    assert has_element?(view, ~s(input[name="from"][value="47.141,9.521"]))
+    assert has_element?(view, ~s(input[name="to"][value="47.146,9.516"]))
+  end
+
   test "an invalid route mode does not crash the LiveView", %{conn: conn} do
     {:ok, view, _html} = live(conn, ~p"/")
 
