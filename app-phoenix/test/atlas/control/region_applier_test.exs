@@ -1,5 +1,5 @@
 defmodule Atlas.Control.RegionApplierTest do
-  use ExUnit.Case, async: false
+  use Atlas.DataCase, async: false
 
   alias Atlas.Control.{RegionApplier, RegionCatalog}
 
@@ -151,7 +151,7 @@ defmodule Atlas.Control.RegionApplierTest do
       assert File.exists?(Path.join(tmp, "otp/region.osm.pbf")),
              "a broken overpass source must not withhold the fresh PBF from OTP"
 
-      assert_received {:apply_restarting, ["valhalla", "otp"]},
+      assert_received {:apply_restarting, ["valhalla", "motis"]},
                       "the timeline must be told exactly which services are being restarted"
 
       assert_received {:restart, services},
@@ -203,6 +203,13 @@ defmodule Atlas.Control.RegionApplierTest do
     File.mkdir_p!(Path.join(tmp, "otp"))
     File.write!(Path.join(tmp, "otp/graph.obj"), "stale")
 
+    for name <-
+          ~w(file_hashes.txt .file_hashes.txt valhalla_tiles.tar valhalla_tiles/old.gph admin_data/admins.sqlite) do
+      path = Path.join([tmp, "valhalla", name])
+      File.mkdir_p!(Path.dirname(path))
+      File.write!(path, "stale")
+    end
+
     start_applier(tmp)
 
     assert {:ok, job_id} = RegionApplier.start(["berlin"])
@@ -234,8 +241,12 @@ defmodule Atlas.Control.RegionApplierTest do
     assert File.exists?(Path.join(tmp, "otp/vbb.gtfs.zip"))
     refute File.exists?(Path.join(tmp, "otp/graph.obj"))
 
-    assert_received {:apply_restarting, ["valhalla", "overpass", "otp"]}
-    assert_received {:restart, ["valhalla", "overpass", "otp"]}
+    for name <- ~w(file_hashes.txt .file_hashes.txt valhalla_tiles.tar valhalla_tiles admin_data) do
+      refute File.exists?(Path.join([tmp, "valhalla", name]))
+    end
+
+    assert_received {:apply_restarting, ["valhalla", "overpass", "motis"]}
+    assert_received {:restart, ["valhalla", "overpass", "motis"]}
 
     assert RegionApplier.status() == nil
   end
@@ -249,8 +260,8 @@ defmodule Atlas.Control.RegionApplierTest do
     assert {:ok, job_id} = RegionApplier.start(["berlin"])
     assert_receive {:apply_done, %{job_id: ^job_id}}, 2_000
 
-    assert_received {:apply_restarting, ["valhalla", "otp"]}
-    assert_received {:restart, ["valhalla", "otp"]}
+    assert_received {:apply_restarting, ["valhalla", "motis"]}
+    assert_received {:restart, ["valhalla", "motis"]}
   end
 
   test "staging pins OTP's time zone when the regions agree on one", %{tmp: tmp} do

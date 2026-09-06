@@ -10,6 +10,13 @@ defmodule AtlasWeb.MapLive.ApplyFlash do
   """
   def message(0, :no_region, _names), do: {:info, "Nothing to apply"}
 
+  def message(tool_count, :selection_cleared, names) do
+    prefix =
+      if tool_count > 0, do: elem(message(tool_count, :no_region, names), 1) <> ". ", else: ""
+
+    {:info, prefix <> "Region selection cleared. Existing datasets are kept."}
+  end
+
   def message(tool_count, :no_region, _names),
     do: {:info, "Applied #{tool_count} tool change#{plural(tool_count)}"}
 

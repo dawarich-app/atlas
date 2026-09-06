@@ -11,6 +11,10 @@ defmodule Atlas.SettingsTest do
     assert Settings.get("missing", "fallback") == "fallback"
   end
 
+  test "transit backend defaults to MOTIS unless configured" do
+    assert Settings.transit_backend() == (System.get_env("TRANSIT_BACKEND") || "motis")
+  end
+
   test "set overwrites existing" do
     Settings.set("key1", "a")
     Settings.set("key1", "b")

@@ -12,7 +12,22 @@ defmodule AtlasWeb.Admin.ServicesLive do
       end)
     end
 
-    {:ok, assign(socket, services: load_services(), page_title: "Services")}
+    {:ok,
+     assign(socket, services: load_services(), page_title: "Services", transit_switching: nil)}
+  end
+
+  @impl true
+  def handle_event("select_transit", %{"name" => name}, socket) when name in ~w(otp motis) do
+    if not is_nil(socket.assigns.transit_switching) or
+         (name == Atlas.Settings.transit_backend() and
+            match?(%{enabled?: true}, Safe.snapshot(name))) do
+      {:noreply, socket}
+    else
+      {:noreply,
+       socket
+       |> assign(transit_switching: name)
+       |> start_async(:transit_switch, fn -> Atlas.Control.DockerCompose.select_transit(name) end)}
+    end
   end
 
   @impl true
@@ -71,6 +86,21 @@ defmodule AtlasWeb.Admin.ServicesLive do
       true ->
         {:noreply, put_flash(socket, :error, "Invalid cron expression")}
     end
+  end
+
+  @impl true
+  def handle_async(:transit_switch, {:ok, {:ok, _}}, socket) do
+    {:noreply,
+     socket
+     |> assign(transit_switching: nil, services: load_services())
+     |> put_flash(:info, "Transit engine selected")}
+  end
+
+  def handle_async(:transit_switch, _error, socket) do
+    {:noreply,
+     socket
+     |> assign(transit_switching: nil, services: load_services())
+     |> put_flash(:error, "Could not switch transit engine. Check service logs.")}
   end
 
   @impl true
@@ -139,7 +169,11 @@ defmodule AtlasWeb.Admin.ServicesLive do
 
   @impl true
   def render(assigns) do
-    assigns = assign(assigns, :preflight_failures, preflight_failures())
+    assigns =
+      assign(assigns,
+        preflight_failures: preflight_failures(),
+        transit_backend: Atlas.Settings.transit_backend()
+      )
 
     ~H"""
     <h1 class="text-2xl font-bold mb-4">Services</h1>
@@ -158,9 +192,12 @@ defmodule AtlasWeb.Admin.ServicesLive do
       </div>
     </div>
 
+    <AtlasWeb.Settings.ServicesTab.transit_picker transit_backend={@transit_backend} transit_switching={@transit_switching} />
+
     <div class="space-y-4">
       <.live_component
         :for={service <- @services}
+        :if={service.profile != "transit" or service.name == @transit_backend}
         module={AtlasWeb.ServiceCard}
         id={"service-#{service.name}"}
         service={service}

@@ -44,6 +44,10 @@ defmodule AtlasWeb.ApiParityTest do
       &System.put_env(&1, url)
     )
 
+    # Rails goldens use OTP's response normalization. Select it explicitly so
+    # the parity fixture is independent of Atlas's MOTIS production default.
+    Atlas.Settings.set("transit_backend", "otp")
+
     # Start from a cold reverse cache so the batch golden is served from this
     # test's Bypass stubs, not stale entries left by other reverse tests.
     Cachex.clear(:reverse_cache)

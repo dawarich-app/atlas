@@ -416,3 +416,117 @@ body.apo-picking .maplibregl-canvas { cursor: crosshair !important; }
   transform: scale(1.3);
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.45);
 }
+
+.atlas-route-endpoint {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border: 3px solid white;
+  border-radius: 50%;
+  background: #507783;
+  color: white;
+  font: 800 15px var(--font-sans);
+  box-shadow: 0 2px 8px #0005;
+  cursor: pointer;
+  z-index: 5;
+}
+.atlas-route-endpoint-to { background: #3b5b40; border-radius: 9px; }
+.atlas-route-endpoint:focus-visible { outline: 3px solid var(--color-accent); outline-offset: 3px; }
+.atlas-route-endpoint-caption {
+  position: absolute;
+  top: 36px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 2px 6px;
+  border-radius: 5px;
+  background: var(--color-base-100);
+  color: var(--color-base-content);
+  font: 600 11px var(--font-sans);
+  box-shadow: 0 1px 4px #0003;
+  white-space: nowrap;
+}
+
+/* Counts remain readable without a remote MapLibre glyph service. */
+.atlas-search-cluster {
+  display: grid;
+  place-items: center;
+  min-width: 42px;
+  height: 42px;
+  padding: 0 9px;
+  border: 3px solid var(--color-base-100);
+  border-radius: 999px;
+  background: var(--color-primary);
+  color: var(--color-primary-content);
+  font: 700 13px var(--font-sans);
+  box-shadow: 0 2px 8px #0004;
+  cursor: pointer;
+}
+.atlas-search-cluster:hover, .atlas-search-cluster:focus-visible {
+  outline: 3px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+/* Breathe around a stable marker: numbers and map coordinates never fade or
+   scale. The same halo survives progressive batches instead of restarting. */
+.atlas-search-cluster::after, .apo-poi-marker::after {
+  content: "";
+  position: absolute;
+  inset: -6px;
+  border: 2px solid var(--color-primary);
+  border-radius: 999px;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 350ms ease;
+}
+.apo-poi-marker::after { border-color: var(--color-accent); }
+.atlas-marker-loading::after {
+  animation: atlas-marker-breathe 1800ms ease-in-out infinite;
+}
+@keyframes atlas-marker-breathe {
+  0%, 100% { transform: scale(0.98); opacity: 0.18; }
+  50% { transform: scale(1.2); opacity: 0.55; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .atlas-marker-loading::after { animation: none; opacity: 0.45; }
+  .atlas-search-cluster::after, .apo-poi-marker::after { transition: none; }
+}
+
+.atlas-route-badge {
+  display: inline-block;
+  flex-shrink: 0;
+  max-width: 120px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  border-radius: 7px;
+  padding: 3px 7px;
+  color: #fff;
+  font: 750 12px/1.3 var(--font-sans);
+}
+.atlas-route-label { z-index: 2; pointer-events: none; }
+.atlas-route-label .atlas-route-badge {
+  border: 2px solid white;
+  box-shadow: 0 1px 5px #0005;
+  font-size: 13px;
+}
+.atlas-walk-key { color: #475569; font-size: 20px; line-height: 22px; letter-spacing: 2px; }
+
+/* Settings gets a full workspace; keep the map mounted to preserve its state. */
+#atlas-workspace[data-settings-open="true"] #atlas-side-panel {
+  height: 100%;
+  width: 100%;
+  flex: 1 1 0%;
+}
+#atlas-workspace[data-settings-open="true"] #atlas-panel-content {
+  flex: 1 1 0%;
+  width: auto;
+  overflow: hidden;
+}
+#atlas-workspace[data-settings-open="true"] #map-frame {
+  display: none;
+}
+
+.region-saving { display: none; }
+.region-choice:has(.phx-click-loading) .region-saving { display: inline; }
+.region-choice:has(.phx-click-loading) { pointer-events: none; }

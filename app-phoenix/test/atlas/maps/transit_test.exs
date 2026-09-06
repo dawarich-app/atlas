@@ -1,11 +1,12 @@
 defmodule Atlas.Maps.TransitTest do
-  use ExUnit.Case, async: false
+  use Atlas.DataCase, async: false
   alias Atlas.Maps.{Result, Transit}
 
   setup do
     bypass = Bypass.open()
     System.put_env("OTP_URL", "http://localhost:#{bypass.port}")
     on_exit(fn -> System.delete_env("OTP_URL") end)
+    Atlas.Settings.set("transit_backend", "otp")
     {:ok, bypass: bypass}
   end
 

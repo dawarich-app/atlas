@@ -1,6 +1,6 @@
 defmodule Atlas.Control.Seeder do
   @moduledoc """
-  Boot-time seeding for the 7 known upstream services.
+  Boot-time seeding for the 8 known upstream services.
 
   Idempotent on both layers:
 
@@ -14,6 +14,7 @@ defmodule Atlas.Control.Seeder do
   alias Atlas.Control.Parsers
   alias Atlas.Control.{Service, ServiceSupervisor}
   alias Atlas.Repo
+  import Ecto.Query
 
   @services [
     %{name: "photon", profile: "geocoding", parser: Parsers.Photon},
@@ -22,6 +23,7 @@ defmodule Atlas.Control.Seeder do
     %{name: "valhalla", profile: "routing", parser: Parsers.Valhalla},
     %{name: "overpass", profile: "pois", parser: Parsers.Overpass},
     %{name: "otp", profile: "transit", parser: Parsers.OTP},
+    %{name: "motis", profile: "transit", parser: Parsers.Motis},
     %{name: "whosonfirst", profile: "data-setup", parser: Parsers.Whosonfirst}
   ]
 
@@ -40,6 +42,9 @@ defmodule Atlas.Control.Seeder do
       end)
 
     Repo.insert_all(Service, rows, on_conflict: :nothing, conflict_target: :name)
+
+    other = if Atlas.Settings.transit_backend() == "otp", do: "motis", else: "otp"
+    Repo.update_all(from(s in Service, where: s.name == ^other), set: [enabled: false])
 
     Enum.each(@services, fn s ->
       case ServiceSupervisor.start_service(s.name, s.profile, s.parser) do

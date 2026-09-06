@@ -45,6 +45,7 @@ defmodule AtlasWeb.Settings.RegionTab do
           <input
             type="text"
             name="q"
+            aria-label="Search regions"
             value={@region_query}
             phx-debounce="150"
             placeholder="Search regions…"
@@ -112,6 +113,7 @@ defmodule AtlasWeb.Settings.RegionTab do
         <button
           type="button"
           phx-click="clear_regions"
+          phx-disable-with="Clearing…"
           class="ml-auto normal-case tracking-normal text-[12px] font-semibold text-error/80"
         >
           clear all
@@ -123,6 +125,7 @@ defmodule AtlasWeb.Settings.RegionTab do
           type="button"
           phx-click="toggle_region"
           phx-value-name={row.region_name}
+          phx-disable-with="Removing…"
           data-selected-chip={row.region_name}
           class="btn btn-sm btn-primary gap-1"
           aria-label={"Remove " <> row.region_name}
@@ -146,34 +149,13 @@ defmodule AtlasWeb.Settings.RegionTab do
 
   defp quick_pick(assigns) do
     ~H"""
-    <button
-      type="button"
-      phx-click="toggle_region"
-      phx-value-name={@region.name}
-      class={[
-        "flex items-center gap-2.5 rounded-xl border px-3 py-3 text-left transition",
-        @selected && "border-primary bg-primary/10",
-        !@selected && "border-base-content/15 bg-transparent"
-      ]}
-    >
-      <span class={[
-        "grid h-[18px] w-[18px] flex-none place-items-center rounded-full border-2",
-        @selected && "border-primary bg-primary text-primary-content",
-        !@selected && "border-base-content/30"
-      ]}>
-        <span :if={@selected}>{icon("check", class: "w-[11px] h-[11px]")}</span>
-      </span>
-      <span class={[
-        "flex-1 min-w-0 truncate text-sm",
-        @selected && "font-bold text-primary",
-        !@selected && "font-medium text-base-content"
-      ]}>
-        {@region.label}
-      </span>
-      <span class="flex-none font-mono text-[10.5px] text-base-content/55">
-        {RegionCatalog.size_label(@region)}
-      </span>
-    </button>
+    <label id={"region-quick-choice-" <> @region.name} class="region-choice flex cursor-pointer items-center gap-2.5 rounded-xl border border-base-content/15 px-3 py-3 text-left transition has-[:checked]:border-primary has-[:checked]:bg-primary/10">
+      <input id={"region-quick-" <> @region.name} type="checkbox" checked={@selected} phx-click="toggle_region" phx-value-name={@region.name}
+        aria-label={"Select " <> @region.label} class="checkbox checkbox-sm checkbox-primary shrink-0" />
+      <span class="flex-1 min-w-0 text-sm font-medium">{@region.label}</span>
+      <span class="region-saving text-xs text-primary" role="status">Saving…</span>
+      <span class="flex-none font-mono text-[10.5px] text-base-content/55">{RegionCatalog.size_label(@region)}</span>
+    </label>
     """
   end
 
@@ -196,46 +178,23 @@ defmodule AtlasWeb.Settings.RegionTab do
       |> assign(:selected, region_selected?(assigns.node, assigns.selection))
 
     ~H"""
-    <div data-node={@node.name}>
-      <div
-        phx-click="toggle_region"
-        phx-value-name={@node.name}
-        class={[
-          "mx-1.5 my-0.5 flex cursor-pointer items-center gap-2.5 rounded-xl py-2.5 pr-3 transition",
-          @selected && "bg-primary/10",
-          indent_class(@depth)
-        ]}
-      >
-        <button
-          :if={@children != []}
-          type="button"
-          phx-click="toggle_node"
-          phx-value-name={@node.name}
-          phx-target={@myself}
-          class="grid place-items-center p-0.5 text-base-content/55"
-        >
+    <div id={"region-node-" <> @node.name} data-node={@node.name}>
+      <div class={["mx-1.5 my-0.5 flex items-center gap-2 rounded-xl py-1 pr-3", indent_class(@depth)]}>
+        <button :if={@children != []} type="button" phx-click="toggle_node" phx-value-name={@node.name}
+          phx-target={@myself} aria-label={"Expand " <> @node.label} aria-expanded={to_string(@node_open)}
+          class="grid place-items-center p-1 text-base-content/55">
           <span class={["inline-block transition-transform duration-200", @node_open && "rotate-90"]}>
             {icon("chevron-down", class: "w-3.5 h-3.5 -rotate-90")}
           </span>
         </button>
         <span :if={@children == []} class="w-[18px] flex-none"></span>
-        <span class={[
-          "grid h-[19px] w-[19px] flex-none place-items-center rounded-full border-2 transition",
-          @selected && "border-primary bg-primary text-primary-content",
-          !@selected && "border-base-content/30"
-        ]}>
-          <span :if={@selected}>{icon("check", class: "w-[11px] h-[11px]")}</span>
-        </span>
-        <span class={[
-          "flex-1 min-w-0 truncate text-[15px]",
-          @selected && "font-bold text-primary",
-          !@selected && "font-medium text-base-content"
-        ]}>
-          {@node.label}
-        </span>
-        <span class="flex-none whitespace-nowrap font-mono text-xs text-base-content/55">
-          {RegionCatalog.size_label(@node)}
-        </span>
+        <label class="region-choice flex min-w-0 flex-1 cursor-pointer items-center gap-2.5 rounded-xl p-2 has-[:checked]:bg-primary/10">
+          <input id={"region-select-" <> @node.name} type="checkbox" checked={@selected} phx-click="toggle_region" phx-value-name={@node.name}
+            aria-label={"Select " <> @node.label} class="checkbox checkbox-sm checkbox-primary shrink-0" />
+          <span class="min-w-0 flex-1 text-[15px]">{@node.label}</span>
+          <span class="region-saving text-xs text-primary" role="status">Saving…</span>
+          <span class="shrink-0 font-mono text-xs text-base-content/55">{RegionCatalog.size_label(@node)}</span>
+        </label>
       </div>
       <div :if={@node_open and @children != []}>
         <.region_node

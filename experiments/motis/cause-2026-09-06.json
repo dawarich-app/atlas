@@ -1,0 +1,122 @@
+[
+  {
+    "variation": "earlier_1min",
+    "arrival": "2026-09-07T08:37:00Z",
+    "legs": [
+      {
+        "mode": "WALK",
+        "routeShortName": null,
+        "startTime": "2026-09-07T07:59:00Z",
+        "endTime": "2026-09-07T08:13:00Z",
+        "duration": 840,
+        "distance": 949.0
+      },
+      {
+        "mode": "SUBURBAN",
+        "routeShortName": "S9",
+        "startTime": "2026-09-07T08:13:00Z",
+        "endTime": "2026-09-07T08:35:00Z",
+        "duration": 1320,
+        "distance": null
+      },
+      {
+        "mode": "WALK",
+        "routeShortName": null,
+        "startTime": "2026-09-07T08:35:00Z",
+        "endTime": "2026-09-07T08:37:00Z",
+        "duration": 120,
+        "distance": 86.0
+      }
+    ]
+  },
+  {
+    "variation": "earlier_2min",
+    "arrival": "2026-09-07T08:37:00Z",
+    "legs": [
+      {
+        "mode": "WALK",
+        "routeShortName": null,
+        "startTime": "2026-09-07T07:59:00Z",
+        "endTime": "2026-09-07T08:13:00Z",
+        "duration": 840,
+        "distance": 949.0
+      },
+      {
+        "mode": "SUBURBAN",
+        "routeShortName": "S9",
+        "startTime": "2026-09-07T08:13:00Z",
+        "endTime": "2026-09-07T08:35:00Z",
+        "duration": 1320,
+        "distance": null
+      },
+      {
+        "mode": "WALK",
+        "routeShortName": null,
+        "startTime": "2026-09-07T08:35:00Z",
+        "endTime": "2026-09-07T08:37:00Z",
+        "duration": 120,
+        "distance": 86.0
+      }
+    ]
+  },
+  {
+    "variation": "speed_1_33",
+    "arrival": "2026-09-07T08:37:00Z",
+    "legs": [
+      {
+        "mode": "WALK",
+        "routeShortName": null,
+        "startTime": "2026-09-07T08:01:00Z",
+        "endTime": "2026-09-07T08:13:00Z",
+        "duration": 720,
+        "distance": 949.0
+      },
+      {
+        "mode": "SUBURBAN",
+        "routeShortName": "S9",
+        "startTime": "2026-09-07T08:13:00Z",
+        "endTime": "2026-09-07T08:35:00Z",
+        "duration": 1320,
+        "distance": null
+      },
+      {
+        "mode": "WALK",
+        "routeShortName": null,
+        "startTime": "2026-09-07T08:35:00Z",
+        "endTime": "2026-09-07T08:37:00Z",
+        "duration": 120,
+        "distance": 86.0
+      }
+    ]
+  },
+  {
+    "variation": "speed_1_4",
+    "arrival": "2026-09-07T08:37:00Z",
+    "legs": [
+      {
+        "mode": "WALK",
+        "routeShortName": null,
+        "startTime": "2026-09-07T08:01:00Z",
+        "endTime": "2026-09-07T08:13:00Z",
+        "duration": 720,
+        "distance": 949.0
+      },
+      {
+        "mode": "SUBURBAN",
+        "routeShortName": "S9",
+        "startTime": "2026-09-07T08:13:00Z",
+        "endTime": "2026-09-07T08:35:00Z",
+        "duration": 1320,
+        "distance": null
+      },
+      {
+        "mode": "WALK",
+        "routeShortName": null,
+        "startTime": "2026-09-07T08:35:00Z",
+        "endTime": "2026-09-07T08:37:00Z",
+        "duration": 120,
+        "distance": 86.0
+      }
+    ]
+  }
+]

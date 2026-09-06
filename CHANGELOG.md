@@ -4,6 +4,21 @@ All notable changes to Dawarich Atlas are documented here.
 
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.0] - 2026-09-06
+
+### Added
+- **MOTIS is the default public-transport engine.** Atlas now ships a selectable MOTIS 2.11.2 sidecar alongside OpenTripPlanner, normalizes both engines behind `GET /api/v1/transit`, renders routed transfer geometry, and keeps the selected engine exclusive across the Settings UI, control plane and region-apply lifecycle.
+- The Services view can show the actual dataset coverage and provenance for each sidecar, including the staged OSM and GTFS inputs that will be used at the next apply.
+- Directions draw route labels on the map and preserve a clear, accessible route summary while endpoints or travel mode change.
+- Search and Places are unified into one map-aware workflow: optional category filters, category-only discovery, shareable URL state, full-dataset collection, map clusters and an explicit **Show all** action replace the former first-page-only search. The sidebar keeps 40 ranked suggestions while the map receives every collected match.
+
+### Changed
+- `/api/v1/transit` now defaults to MOTIS for new installations. Existing installations retain their explicitly saved engine selection, and can switch back to OpenTripPlanner in Settings.
+- Search progressively refreshes map markers without dropping existing results; clusters and keyboard interaction remain legible with reduced-motion preferences.
+
+### Fixed
+- Progressive search updates keep existing markers visible while the cluster index refreshes, reuse nearby clusters, and show a soft loading halo without fading counts or points. Reduced-motion preferences use a static ring.
+
 ## [0.4.0] - 2026-09-06
 
 ### Fixed
@@ -121,6 +136,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 - Caddy reverse proxy fronting the stack on port 8484 and serving offline basemap tiles when present.
 - Multi-arch GitHub Actions CI publishing `ghcr.io/dawarich-app/atlas/app` and `ghcr.io/dawarich-app/atlas/atlas-control` on every push to `main`.
 
+[0.5.0]: https://github.com/dawarich-app/atlas/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/dawarich-app/atlas/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/dawarich-app/atlas/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/dawarich-app/atlas/compare/v0.1.1...v0.2.0

@@ -102,7 +102,12 @@ defmodule Atlas.Control.ApplyTimeline do
   # that was never created and raise `ArgumentError`. The atoms below are
   # literals in this module's own source, so they exist the moment the module
   # is loaded. `Map.fetch/2` can then only ever hit or miss, never raise.
-  @service_atoms %{"valhalla" => :valhalla, "overpass" => :overpass, "otp" => :otp}
+  @service_atoms %{
+    "valhalla" => :valhalla,
+    "overpass" => :overpass,
+    "otp" => :otp,
+    "motis" => :motis
+  }
   @service_keys Map.values(@service_atoms)
 
   # The same set as names, seeded at `:apply_start` so `step N of M` is fixed
@@ -110,7 +115,7 @@ defmodule Atlas.Control.ApplyTimeline do
   # `{:apply_restarting, …}` then says which of them were actually restarted;
   # the rest are marked `:skipped` rather than silently dropped, so "why is
   # my Overpass data stale" has a row to answer it.
-  @ingest_services ~w(valhalla overpass otp)
+  @ingest_services ~w(valhalla overpass)
 
   # The only two parser phases whose number is measured rather than invented:
   # both come from a literal `(N%)` in the service's own log
@@ -176,7 +181,11 @@ defmodule Atlas.Control.ApplyTimeline do
 
   @impl true
   def handle_info({:apply_start, %{job_id: job_id, regions: regions}}, _timeline) do
-    timeline = %{start(regions, @ingest_services, now()) | job_id: job_id}
+    timeline = %{
+      start(regions, @ingest_services ++ [Atlas.Settings.transit_backend()], now())
+      | job_id: job_id
+    }
+
     {:noreply, publish(timeline)}
   end
 

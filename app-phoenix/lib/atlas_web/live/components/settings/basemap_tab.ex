@@ -19,6 +19,7 @@ defmodule AtlasWeb.Settings.BasemapTab do
   def basemap_tab(assigns) do
     ~H"""
     <div>
+      <p class="mb-4 text-sm text-base-content/65">Choose a map source. Online maps need an internet connection; downloaded maps use local storage.</p>
       <div class="flex flex-col gap-2.5">
         <.preset_card
           :for={preset <- @presets}
@@ -34,6 +35,7 @@ defmodule AtlasWeb.Settings.BasemapTab do
           <input
             type="text"
             name="tiles_url"
+            aria-label="Custom map style URL"
             value={@tiles_url}
             placeholder="Custom style or pmtiles URL…"
             class="w-full rounded-2xl border-2 border-base-content/10 bg-base-300/40 px-4 py-3 font-mono text-sm text-base-content outline-none transition focus:border-base-content"
@@ -53,7 +55,7 @@ defmodule AtlasWeb.Settings.BasemapTab do
         phx-click="use_env_tiles"
         class="block px-1 py-2.5 text-[13.5px] font-semibold text-base-content/55 transition hover:text-primary"
       >
-        Use .env default
+        Use server default
       </button>
 
       <form phx-change="update_theme" class="mt-2 flex items-center gap-3">
@@ -63,6 +65,7 @@ defmodule AtlasWeb.Settings.BasemapTab do
         <div class="relative flex-1">
           <select
             name="theme"
+            aria-label="Map theme"
             class="w-full appearance-none rounded-2xl border border-base-content/10 bg-base-300/40 px-4 py-3 text-sm text-base-content outline-none"
           >
             <option :for={t <- @themes} value={t} selected={@theme == t}>{theme_label(t)}</option>
@@ -96,7 +99,7 @@ defmodule AtlasWeb.Settings.BasemapTab do
         </div>
         <div class="min-w-0 flex-1">
           <div class="text-[15.5px] font-bold">{@preset.label}</div>
-          <div class="mt-0.5 truncate font-mono text-[11px] text-base-content/55">{@preset.note}</div>
+          <div class="mt-0.5 font-mono text-[11px] text-base-content/55">{@preset.note}</div>
         </div>
         <span
           :if={@active and @download_state == nil}

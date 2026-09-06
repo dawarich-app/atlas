@@ -1,4 +1,7 @@
 import maplibregl from "../../vendor/maplibre-gl"
+import SearchClusters from "./search_clusters"
+import RouteEndpoints from "./route_endpoints"
+import RouteLabels from "./route_labels"
 
 // Hardcoded OSM raster fallback — used when no TILES_URL is configured.
 // Matches the Rails JS controller's OSM_RASTER_FALLBACK byte-for-byte.
@@ -20,6 +23,7 @@ export default {
     const tilesUrl = this.el.dataset.tilesUrl
     const theme = this.el.dataset.theme || "forest-patina"
     const initialCenter = JSON.parse(this.el.dataset.center || "[10.4515, 51.1657]")
+    const initialBounds = this.el.dataset.bounds ? JSON.parse(this.el.dataset.bounds) : null
     const initialZoom = parseFloat(this.el.dataset.zoom || "5")
 
     const style = tilesUrl ? tilesUrl : OSM_RASTER_FALLBACK
@@ -28,7 +32,8 @@ export default {
       container: this.el,
       style: style,
       center: initialCenter,
-      zoom: initialZoom
+      zoom: initialZoom,
+      ...(initialBounds ? {bounds: [[initialBounds[0], initialBounds[1]], [initialBounds[2], initialBounds[3]]]} : {})
     })
 
     this.resizeObserver = new ResizeObserver(() => this.map.resize())
@@ -43,58 +48,50 @@ export default {
       maxWidth: 120,
       unit: "metric"
     }), "bottom-left")
-    this.resultMarkers = []
-
-    this.clearResultMarkers = () => {
-      this.resultMarkers.forEach((m) => m.remove())
-      this.resultMarkers = []
-    }
-
-    // Report the viewport after every pan/zoom so the server can scope search
-    // to what is on screen. `moveend` (not `move`) keeps this to one message
-    // per gesture rather than one per frame.
-    // `eventData` passed to flyTo comes back on the resulting moveend, which is
-    // how a flight we started is told apart from a pan the user made. Both
-    // report their bounds; only a user pan re-runs the search.
-    this.reportViewport = (event) => {
-      const b = this.map.getBounds()
-      this.pushEvent("viewport_changed", {
-        bbox: [b.getWest(), b.getSouth(), b.getEast(), b.getNorth()],
-        programmatic: Boolean(event && event.atlasProgrammatic)
-      })
-    }
-    this.map.on("moveend", this.reportViewport)
-    // The first report is the map announcing where it opened, not a gesture.
-    // Sending it as a pan re-ran a shared ?q= link against the viewer's own
-    // default bounds and replaced the results the link was meant to show.
-    this.map.once("load", () => this.reportViewport({ atlasProgrammatic: true }))
+    this.searchClusters = new SearchClusters(this.map, maplibregl, resultMarker)
 
     this.handleEvent("map:fly_to", ({ lat, lon, zoom }) => {
       this.map.flyTo({ center: [lon, lat], zoom: zoom || 14 }, { atlasProgrammatic: true })
     })
 
-    // One event owns the whole result-marker set. Replacing wholesale (rather
-    // than clear + add) means a pan-triggered refresh cannot race a selection
-    // and leave the map bare.
-    this.handleEvent("map:set_results", ({ points }) => {
-      this.clearResultMarkers()
+    this.handleEvent("map:fit_results", () => this.searchClusters.fitBounds())
 
-      ;(points || []).forEach((p) => {
-        const marker = resultMarker(p).addTo(this.map)
-        this.resultMarkers.push(marker)
-      })
+    this.handleEvent("map:set_results", ({ points, loading = false }) => {
+      this.searchClusters.setPoints(points, loading)
     })
+    this.handleEvent("map:search_loading", ({ loading }) => this.searchClusters.setLoading(loading))
 
+    const reportViewport = () => {
+      const bounds = this.map.getBounds()
+      const west = bounds.getWest(), east = bounds.getEast()
+      // A wrapped view spans the antimeridian; use a valid encompassing box.
+      const bbox = [Math.max(-180, west), Math.max(-90, bounds.getSouth()),
+        Math.min(180, east), Math.min(90, bounds.getNorth())]
+      if (bbox[0] >= bbox[2]) { bbox[0] = -180; bbox[2] = 180 }
+      this.pushEvent("viewport_changed", { bbox })
+    }
+    this.map.on("load", reportViewport)
+    this.map.on("moveend", reportViewport)
 
     this.routeGeoJSON = null
+    this._renderedRoute = null
+    this.map.on("idle", () => {
+      if (this.routeGeoJSON &&
+          (this._renderedRoute !== this.routeGeoJSON || !this.map.getSource("route"))) {
+        this._renderRoute()
+      }
+    })
+    this.routeLabels = new RouteLabels(this.map, maplibregl)
+    this.routeEndpoints = new RouteEndpoints(this.map, maplibregl)
+    this.handleEvent("map:set_route_endpoints", ({points}) => this.routeEndpoints.setPoints(points))
 
     this.handleEvent("map:draw_route", ({ geojson }) => {
       this.routeGeoJSON = geojson
+      this.routeLabels.setRoute(geojson)
       this._renderRoute()
       const coordinates = (geojson.features || []).flatMap((feature) => feature.geometry.coordinates)
       if (coordinates.length > 0) {
-        const bounds = coordinates.reduce((bounds, point) => bounds.extend(point), new maplibregl.LngLatBounds())
-        this.map.fitBounds(bounds, { padding: 60, maxZoom: 16 }, { atlasProgrammatic: true })
+        this.routeEndpoints.fit(coordinates)
       }
     })
 
@@ -133,24 +130,10 @@ export default {
       this._tilesUrl = url || null
       const nextStyle = url ? url : OSM_RASTER_FALLBACK
 
-      // A style swap destroys marker DOM, so the set is rebuilt from the point
-      // payloads each marker carries. Reading the popup's DOM instead loses
-      // everything: getElement() is undefined until a popup has been opened, so
-      // most pins came back with no popup at all and opened ones degraded to a
-      // text blob without the OSM link.
-      const savedPoints = this.resultMarkers.map((m) => m._atlasPoint).filter(Boolean)
-
-      this.clearResultMarkers()
-
-      const onStyle = () => {
-        savedPoints.forEach((p) => {
-          this.resultMarkers.push(resultMarker(p).addTo(this.map))
-        })
-        // Re-add the route source/layer if we had one.
+      // The cluster source restores itself from its current dataset on style.load.
+      this.map.once("style.load", () => {
         if (this.routeGeoJSON) this._renderRoute()
-      }
-
-      this.map.once("styledata", onStyle)
+      })
       this.map.setStyle(nextStyle)
     })
   },
@@ -161,28 +144,50 @@ export default {
 
     if (this.map.getSource("route")) {
       this.map.getSource("route").setData(geojson)
+      this._renderedRoute = geojson
       return
     }
 
     const addRoute = () => {
       this.map.addSource("route", { type: "geojson", data: geojson })
       this.map.addLayer({
+        id: "route-casing", type: "line", source: "route",
+        filter: ["!=", ["get", "mode"], "WALK"],
+        layout: {"line-cap": "round", "line-join": "round"},
+        paint: {"line-color": "#ffffff", "line-width": 9, "line-opacity": 0.8}
+      })
+      this.map.addLayer({
         id: "route-line",
         type: "line",
         source: "route",
-        paint: { "line-color": "#3b82f6", "line-width": 4 }
+        filter: ["!=", ["get", "mode"], "WALK"],
+        layout: {"line-cap": "round", "line-join": "round"},
+        paint: { "line-color": ["coalesce", ["get", "color"], "#2563eb"], "line-width": 6 }
       })
+      this.map.addLayer({
+        id: "route-walk",
+        type: "line",
+        source: "route",
+        filter: ["==", ["get", "mode"], "WALK"],
+        layout: {"line-cap": "round", "line-join": "round"},
+        paint: { "line-color": "#475569", "line-width": 7, "line-dasharray": [0, 1.8] }
+      })
+      this._renderedRoute = geojson
     }
 
     if (this.map.isStyleLoaded()) {
       addRoute()
-    } else {
-      this.map.once("load", addRoute)
     }
+    // isStyleLoaded can be false while raster tiles load after a pan, long
+    // after the one-time map load event. The idle handler retries the latest
+    // route and also restores it after a style change.
   },
 
   destroyed() {
     if (this.resizeObserver) this.resizeObserver.disconnect()
+    if (this.searchClusters) this.searchClusters.destroy()
+    if (this.routeEndpoints) this.routeEndpoints.destroy()
+    if (this.routeLabels) this.routeLabels.destroy()
     if (this.map) this.map.remove()
   }
 }

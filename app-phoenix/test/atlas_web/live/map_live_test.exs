@@ -11,6 +11,8 @@ defmodule AtlasWeb.MapLiveTest do
       &System.put_env(&1, "http://localhost:#{bypass.port}")
     )
 
+    Atlas.Settings.set("transit_backend", "otp")
+
     on_exit(fn ->
       Enum.each(
         ~w[PHOTON_URL PLACEHOLDER_URL LIBPOSTAL_URL VALHALLA_URL OTP_URL],
@@ -42,7 +44,19 @@ defmodule AtlasWeb.MapLiveTest do
            )
   end
 
-  test "changing travel mode preserves endpoints typed into the form", %{conn: conn} do
+  test "changing travel mode preserves endpoints typed into the form", %{
+    conn: conn,
+    bypass: bypass
+  } do
+    Bypass.stub(bypass, "POST", "/route", &Plug.Conn.resp(&1, 200, ~s({"trip":{"legs":[]}})))
+
+    Bypass.stub(
+      bypass,
+      "POST",
+      "/otp/gtfs/v1",
+      &Plug.Conn.resp(&1, 200, ~s({"data":{"planConnection":{"edges":[]}}}))
+    )
+
     {:ok, view, _html} = live(conn, ~p"/")
 
     view
@@ -152,6 +166,7 @@ defmodule AtlasWeb.MapLiveTest do
       view
       |> form("form[phx-submit=search]", %{"q" => "berlin"})
       |> render_submit()
+      |> then(fn _ -> render_async(view) end)
 
     assert html =~ "Berlin"
   end
@@ -167,6 +182,7 @@ defmodule AtlasWeb.MapLiveTest do
       view
       |> form("form[phx-submit=search]", %{"q" => "berlin"})
       |> render_submit()
+      |> then(fn _ -> render_async(view) end)
 
     # Photon is not started in the test env, which is exactly the fresh-instance
     # case: the copy must name the tool, not say "unavailable".
@@ -186,6 +202,7 @@ defmodule AtlasWeb.MapLiveTest do
       view
       |> form("form[phx-submit=search]", %{"q" => "asdfqwerzxcv"})
       |> render_submit()
+      |> then(fn _ -> render_async(view) end)
 
     assert html =~ "No results"
     assert html =~ "asdfqwerzxcv"
@@ -221,6 +238,7 @@ defmodule AtlasWeb.MapLiveTest do
         view
         |> element("form[phx-change=search]")
         |> render_change(%{"q" => "berlin"})
+        |> then(fn _ -> render_async(view) end)
 
       assert html =~ "Berlin"
     end
@@ -251,8 +269,8 @@ defmodule AtlasWeb.MapLiveTest do
     test "clearing the box drops the results instead of leaving them stale", %{conn: conn} do
       {:ok, view, _html} = live(conn, ~p"/")
 
-      assert view |> element("form[phx-change=search]") |> render_change(%{"q" => "berlin"}) =~
-               "Berlin"
+      view |> element("form[phx-change=search]") |> render_change(%{"q" => "berlin"})
+      assert render_async(view) =~ "Berlin"
 
       refute view |> element("form[phx-change=search]") |> render_change(%{"q" => ""}) =~
                "Results"
@@ -264,7 +282,7 @@ defmodule AtlasWeb.MapLiveTest do
       features =
         1..3
         |> Enum.map_join(",", fn i ->
-          ~s({"geometry":{"coordinates":[13.#{i},52.#{i}]},"properties":{"name":"P#{i}","city":"Berlin","osm_id":#{i},"osm_type":"N","osm_key":"place","osm_value":"city"}})
+          ~s({"geometry":{"coordinates":[13.#{i},52.#{i}]},"properties":{"name":"Berlin P#{i}","city":"Berlin","osm_id":#{i},"osm_type":"N","osm_key":"place","osm_value":"city"}})
         end)
 
       Bypass.stub(bypass, "GET", "/api", fn c ->
@@ -276,8 +294,10 @@ defmodule AtlasWeb.MapLiveTest do
       :ok
     end
 
-    defp typed(view, q),
-      do: view |> element("form[phx-change=search]") |> render_change(%{"q" => q})
+    defp typed(view, q) do
+      view |> element("form[phx-change=search]") |> render_change(%{"q" => q})
+      render_async(view)
+    end
 
     test "every result gets a marker, not just the one you click", %{conn: conn} do
       # This is what made the Rails map useful: you see where all the matches
@@ -286,7 +306,7 @@ defmodule AtlasWeb.MapLiveTest do
 
       typed(view, "berlin")
 
-      assert_push_event(view, "map:set_results", %{points: points})
+      assert_push_event(view, "map:set_results", %{points: [_ | _] = points})
       assert length(points) == 3
       assert Enum.all?(points, &(is_number(&1.lat) and is_number(&1.lon) and is_binary(&1.label)))
     end
@@ -358,7 +378,7 @@ defmodule AtlasWeb.MapLiveTest do
 
       refute html =~ "search-results"
       refute html =~ "No results"
-      assert html =~ ~s(value="P1, Berlin")
+      assert html =~ ~s(value="Berlin P1, Berlin")
     end
   end
 
@@ -379,7 +399,8 @@ defmodule AtlasWeb.MapLiveTest do
 
     test "visiting a search URL runs the search", %{conn: conn} do
       # A shared link has to reproduce what the sender saw, not an empty box.
-      {:ok, _view, html} = live(conn, ~p"/?q=berlin")
+      {:ok, view, _html} = live(conn, ~p"/?q=berlin")
+      html = render_async(view)
 
       assert html =~ "Berlin"
       assert html =~ ~s(value="berlin")
@@ -387,6 +408,7 @@ defmodule AtlasWeb.MapLiveTest do
 
     test "visiting a search URL marks the map too", %{conn: conn} do
       {:ok, view, _html} = live(conn, ~p"/?q=berlin")
+      render_async(view)
 
       assert_push_event(view, "map:set_results", %{points: [_ | _]})
     end
@@ -401,6 +423,7 @@ defmodule AtlasWeb.MapLiveTest do
 
     test "clearing the box drops the parameter rather than leaving q=", %{conn: conn} do
       {:ok, view, _html} = live(conn, ~p"/?q=berlin")
+      render_async(view)
 
       view |> element("form[phx-change=search]") |> render_change(%{"q" => ""})
 
@@ -429,6 +452,7 @@ defmodule AtlasWeb.MapLiveTest do
 
     test "picking a result puts its label in the URL", %{conn: conn} do
       {:ok, view, _html} = live(conn, ~p"/?q=berlin")
+      render_async(view)
 
       view |> element(~s(#search-results button[phx-value-id="N:1"])) |> render_click()
 
@@ -441,6 +465,7 @@ defmodule AtlasWeb.MapLiveTest do
       # only thing that proves the guard — an unrelated message would pass
       # whether or not the guard exists.
       {:ok, view, _html} = live(conn, ~p"/?q=berlin")
+      render_async(view)
       assert_push_event(view, "map:set_results", %{points: [_ | _]})
 
       view |> element("form[phx-change=search]") |> render_change(%{"q" => "berlin"})
@@ -454,7 +479,7 @@ defmodule AtlasWeb.MapLiveTest do
       features =
         1..3
         |> Enum.map_join(",", fn i ->
-          ~s({"geometry":{"coordinates":[13.#{i},52.#{i}]},"properties":{"name":"P#{i}","city":"Berlin","osm_id":#{i},"osm_type":"N","osm_key":"place","osm_value":"city"}})
+          ~s({"geometry":{"coordinates":[13.#{i},52.#{i}]},"properties":{"name":"Berlin P#{i}","city":"Berlin","osm_id":#{i},"osm_type":"N","osm_key":"place","osm_value":"city"}})
         end)
 
       Bypass.stub(bypass, "GET", "/api", fn c ->
@@ -468,6 +493,7 @@ defmodule AtlasWeb.MapLiveTest do
 
     defp search(view, q) do
       view |> element("form[phx-change=search]") |> render_change(%{"q" => q})
+      render_async(view)
       view
     end
 
@@ -575,119 +601,59 @@ defmodule AtlasWeb.MapLiveTest do
     end
   end
 
-  describe "viewport scoping" do
+  describe "global search coverage" do
     setup %{bypass: bypass} do
-      test_pid = self()
+      owner = self()
 
-      Bypass.stub(bypass, "GET", "/api", fn c ->
-        c = Plug.Conn.fetch_query_params(c)
-        send(test_pid, {:photon_params, c.query_params})
+      Bypass.stub(bypass, "GET", "/api", fn conn ->
+        conn = Plug.Conn.fetch_query_params(conn)
+        send(owner, {:photon_params, conn.query_params})
 
         Plug.Conn.resp(
-          c,
+          conn,
           200,
-          ~s({"features":[{"geometry":{"coordinates":[13.4,52.5]},"properties":{"name":"Berlin","osm_id":1,"osm_type":"N","osm_key":"place","osm_value":"city"}}]})
+          ~s({"features":[{"geometry":{"coordinates":[13.4,52.5]},"properties":{"name":"Berlin","osm_id":1,"osm_type":"N"}}]})
         )
       end)
 
-      Bypass.stub(bypass, "GET", "/parser", fn c -> Plug.Conn.resp(c, 200, "[]") end)
-      Bypass.stub(bypass, "GET", "/parser/search", fn c -> Plug.Conn.resp(c, 200, "[]") end)
       :ok
     end
 
-    defp change(view, q),
-      do: view |> element("form[phx-change=search]") |> render_change(%{"q" => q})
-
-    test "asks for a viewport-sized page, not the old global handful", %{conn: conn} do
-      {:ok, view, _html} = live(conn, ~p"/")
-      change(view, "berlin")
-
-      assert_receive {:photon_params, %{"limit" => "40"}}
-    end
-
-    test "sends no bbox before the map has reported one", %{conn: conn} do
-      {:ok, view, _html} = live(conn, ~p"/")
-      change(view, "berlin")
-
-      assert_receive {:photon_params, params}
-      refute Map.has_key?(params, "bbox")
-    end
-
-    test "scopes to the reported viewport once the map has moved", %{conn: conn} do
-      {:ok, view, _html} = live(conn, ~p"/")
-
+    test "collects globally even after the map zooms into a city", %{conn: conn} do
+      {:ok, view, _} = live(conn, ~p"/")
       render_hook(view, "viewport_changed", %{"bbox" => [13.0, 52.3, 13.8, 52.7]})
-      change(view, "berlin")
+      search(view, "berlin")
 
-      assert_receive {:photon_params, %{"bbox" => "13.0,52.3,13.8,52.7"}}
+      assert_receive {:photon_params,
+                      %{"limit" => "50", "dedupe" => "false", "bbox" => "-180.0,-90.0,180.0,90.0"}}
+
+      assert render(view) =~ "All matches loaded"
     end
 
-    test "panning re-runs the active query against the new bounds", %{conn: conn} do
-      # This is the whole point: a brand search must answer "which of these can
-      # I see", so moving the map has to re-ask rather than keep stale hits.
-      {:ok, view, _html} = live(conn, ~p"/")
-
-      change(view, "mcdonalds")
-      assert_receive {:photon_params, _first}
-
+    test "zoom and pan preserve the dataset without re-querying Photon", %{conn: conn} do
+      {:ok, view, _} = live(conn, ~p"/")
+      search(view, "berlin")
+      assert_receive {:photon_params, _}
+      assert_push_event(view, "map:set_results", %{points: [_ | _]})
       render_hook(view, "viewport_changed", %{"bbox" => [9.9, 53.4, 10.1, 53.6]})
-
-      assert_receive {:photon_params, %{"bbox" => "9.9,53.4,10.1,53.6", "q" => "mcdonalds"}}
+      refute_receive {:photon_params, _}
+      refute_push_event(view, "map:set_results", %{points: [_ | _]})
+      assert render(view) =~ "All matches loaded"
     end
 
-    test "a viewport refresh re-marks the map from the refreshed results", %{conn: conn} do
-      {:ok, view, _html} = live(conn, ~p"/")
-
-      change(view, "berlin")
+    test "panning cannot resurrect dismissed results", %{conn: conn} do
+      {:ok, view, _} = live(conn, ~p"/")
+      search(view, "berlin")
       assert_receive {:photon_params, _}
-      assert_push_event(view, "map:set_results", %{points: [_ | _]})
-
-      render_hook(view, "viewport_changed", %{"bbox" => [13.0, 52.3, 13.8, 52.7]})
-      assert_receive {:photon_params, _}
-
-      assert_push_event(view, "map:set_results", %{points: [_ | _]})
-    end
-
-    test "a self-induced move does not undo the selection that caused it", %{conn: conn} do
-      # Selecting a result flies the map, and the resulting moveend used to
-      # re-run the query still sitting in the box — restoring the list and every
-      # marker about a second after the selection dismissed them.
-      {:ok, view, _html} = live(conn, ~p"/")
-
-      change(view, "berlin")
-      assert_receive {:photon_params, _}
-
-      view |> element(~s(#search-results button[phx-value-id="N:1"])) |> render_click()
-
-      render_hook(view, "viewport_changed", %{
-        "bbox" => [13.0, 52.3, 13.8, 52.7],
-        "programmatic" => true
-      })
-
-      refute_receive {:photon_params, _}, 200
-      refute render(view) =~ "search-results"
-    end
-
-    test "panning does not resurrect a list the user dismissed", %{conn: conn} do
-      # select_feature and search_dismiss both leave the query in the box on
-      # purpose. Re-querying on the next pan restored all rows and pins — the
-      # same defect as the fly-to, one gesture later.
-      {:ok, view, _html} = live(conn, ~p"/")
-
-      change(view, "berlin")
-      assert_receive {:photon_params, _}
-
       render_hook(view, "search_dismiss", %{})
-      render_hook(view, "viewport_changed", %{"bbox" => [13.0, 52.3, 13.8, 52.7]})
-
-      refute_receive {:photon_params, _}, 200
+      render_hook(view, "viewport_changed", %{"bbox" => [9.9, 53.4, 10.1, 53.6]})
+      refute_receive {:photon_params, _}
       refute render(view) =~ "search-results"
     end
 
-    test "a shared link is not re-scoped to the viewer's default viewport", %{conn: conn} do
-      # The map reports its bounds once on load. Treating that as a pan re-ran
-      # the shared query against wherever the viewer's map happened to open.
-      {:ok, view, _html} = live(conn, ~p"/?q=berlin")
+    test "a shared link keeps the same global result set", %{conn: conn} do
+      {:ok, view, _} = live(conn, ~p"/?q=berlin")
+      render_async(view)
       assert_receive {:photon_params, _}
 
       render_hook(view, "viewport_changed", %{
@@ -695,42 +661,97 @@ defmodule AtlasWeb.MapLiveTest do
         "programmatic" => true
       })
 
-      refute_receive {:photon_params, _}, 200
+      refute_receive {:photon_params, _}
+      assert render(view) =~ "All matches loaded"
     end
+  end
 
-    test "panning still refreshes a list that is on screen", %{conn: conn} do
-      {:ok, view, _html} = live(conn, ~p"/")
+  test "the map receives every match while the sidebar stays bounded", %{
+    conn: conn,
+    bypass: bypass
+  } do
+    features =
+      Enum.map(1..90, fn id ->
+        %{
+          "geometry" => %{"coordinates" => [-89 + 2 * id, 20]},
+          "properties" => %{"osm_id" => id, "osm_type" => "N", "name" => "Branch #{id}"}
+        }
+      end)
 
-      change(view, "berlin")
-      assert_receive {:photon_params, _}
+    Bypass.stub(bypass, "GET", "/api", fn conn ->
+      conn = Plug.Conn.fetch_query_params(conn)
 
-      render_hook(view, "viewport_changed", %{"bbox" => [13.0, 52.3, 13.8, 52.7]})
+      [w, _, e, _] =
+        conn.query_params["bbox"] |> String.split(",") |> Enum.map(&String.to_float/1)
 
-      assert_receive {:photon_params, %{"bbox" => "13.0,52.3,13.8,52.7"}}
-    end
+      matches =
+        features
+        |> Enum.filter(fn f ->
+          [lon, _] = f["geometry"]["coordinates"]
+          lon >= w and lon <= e
+        end)
+        |> Enum.take(50)
 
-    test "a self-induced move still updates the viewport for the next search", %{conn: conn} do
-      # Skipping the re-query must not skip recording the bounds, or the next
-      # typed search would be scoped to where the map used to be.
-      {:ok, view, _html} = live(conn, ~p"/")
+      Plug.Conn.resp(conn, 200, Jason.encode!(%{features: matches}))
+    end)
 
-      render_hook(view, "viewport_changed", %{
-        "bbox" => [9.9, 53.4, 10.1, 53.6],
-        "programmatic" => true
-      })
+    {:ok, view, _} = live(conn, ~p"/?q=branch")
+    html = render_async(view)
+    assert html =~ "All matches loaded"
+    assert has_element?(view, "#search-count strong", "90")
+    assert length(Regex.scan(~r/phx-click="select_result"/, html)) == 40
+    assert_push_event(view, "map:set_results", %{points: [_ | _] = initial, loading: true})
+    assert length(initial) == 50
+    assert_push_event(view, "map:set_results", %{points: [_ | _] = all, loading: false})
+    assert length(all) == 90
+    assert MapSet.size(MapSet.new(Enum.map(all, & &1.id))) == 90
+  end
 
-      change(view, "berlin")
+  test "dismissal cancels loading and ignores late progress", %{conn: conn, bypass: bypass} do
+    owner = self()
 
-      assert_receive {:photon_params, %{"bbox" => "9.9,53.4,10.1,53.6"}}
-    end
+    Bypass.stub(bypass, "GET", "/api", fn conn ->
+      send(owner, {:held_search, self()})
 
-    test "panning with no active query does not query Photon at all", %{conn: conn} do
-      {:ok, view, _html} = live(conn, ~p"/")
+      receive do
+        :finish -> Plug.Conn.resp(conn, 200, ~s({"features":[]}))
+      end
+    end)
 
-      render_hook(view, "viewport_changed", %{"bbox" => [9.9, 53.4, 10.1, 53.6]})
+    {:ok, view, _} = live(conn, ~p"/?q=held")
+    assert_receive {:held_search, held}
+    old_id = :sys.get_state(view.pid).socket.assigns.search_request_id
+    # Cancelling the HTTP client deliberately aborts this held Cowboy request.
+    # Bypass otherwise turns that expected socket shutdown into an on_exit failure.
+    Bypass.pass(bypass)
+    render_hook(view, "search_dismiss", %{})
+    send(view.pid, {:search_progress, old_id, %{features: [%{id: "stale"}]}})
+    send(held, :finish)
+    html = render_async(view)
+    refute html =~ "Searching all installed data"
+    refute html =~ "search-results"
+    assert_push_event(view, "map:set_results", %{points: []})
+  end
 
-      refute_receive {:photon_params, _}, 200
-    end
+  test "a dismissed query can be submitted again without changing its text", %{
+    conn: conn,
+    bypass: bypass
+  } do
+    Bypass.stub(bypass, "GET", "/api", fn conn ->
+      Plug.Conn.resp(
+        conn,
+        200,
+        ~s({"features":[{"geometry":{"coordinates":[13.4,52.5]},"properties":{"osm_id":1,"osm_type":"N","name":"Berlin"}}]})
+      )
+    end)
+
+    {:ok, view, _} = live(conn, ~p"/?q=berlin")
+    render_async(view)
+    render_hook(view, "search_dismiss", %{})
+    refute has_element?(view, "#search-results")
+    search(view, "berlin")
+    assert has_element?(view, "#search-results")
+    assert has_element?(view, "#search-count", "All matches loaded")
   end
 
   test "status_changed handler does not crash the LiveView", %{conn: conn} do

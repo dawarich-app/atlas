@@ -3,8 +3,9 @@ defmodule AtlasWeb.MapLive do
 
   alias Atlas.Geometry.Coord
   alias Atlas.Maps
+  alias Atlas.Maps.{Discovery, Poi.Catalog}
   alias Atlas.Settings
-  alias AtlasWeb.SearchMarkers
+  alias AtlasWeb.{RouteDetails, RouteEndpoint, SearchMarkers}
 
   alias Atlas.Control.{
     ApplyTimeline,
@@ -34,11 +35,22 @@ defmodule AtlasWeb.MapLive do
        active_tab: "search",
        search_query: "",
        search_results: [],
+       search_loading: false,
+       search_complete: false,
+       search_request_id: nil,
+       search_count: 0,
        directions: nil,
+       route_request_key: nil,
        mode: "auto",
        route_from: "",
        route_to: "",
-       places: [],
+       route_endpoints: %{"from" => RouteEndpoint.new(), "to" => RouteEndpoint.new()},
+       route_focus: nil,
+       categories: [],
+       search_scope: "all",
+       search_bbox: nil,
+       search_area_changed: false,
+       selected_place: false,
        route_options: %{
          "avoid_tolls" => false,
          "avoid_highways" => false,
@@ -46,11 +58,14 @@ defmodule AtlasWeb.MapLive do
        },
        service_status: refresh_service_status(),
        pending_services: %{},
+       transit_switching: nil,
+       transit_backend: Settings.transit_backend(),
        tiles_download: Safe.call(fn -> TilesDownloader.status() end, nil),
        basemap_confirm: nil,
        apply_status: Safe.call(fn -> RegionApplier.status() end, nil),
        timeline: Safe.call(fn -> ApplyTimeline.current() end, nil),
        service_logs: nil,
+       service_coverage: nil,
        upstream_status: "ok",
        search_status: "ok",
        search_active: -1,
@@ -63,7 +78,7 @@ defmodule AtlasWeb.MapLive do
   @impl true
   def handle_event("select_tab", %{"tab" => tab}, socket)
       when tab in ~w(search route places settings) do
-    {:noreply, assign(socket, active_tab: tab)}
+    {:noreply, assign(socket, active_tab: if(tab == "places", do: "search", else: tab))}
   end
 
   # The URL is the single source of truth for the query: the event patches it,
@@ -71,31 +86,98 @@ defmodule AtlasWeb.MapLive do
   # the back button alike, instead of three that can disagree.
   @impl true
   def handle_event("search", %{"q" => q}, socket) do
-    {:noreply, push_patch(socket, to: search_path(socket, q), replace: true)}
+    if q == socket.assigns.search_query and not socket.assigns.search_loading and
+         (not socket.assigns.search_searched or not socket.assigns.search_complete) do
+      {:noreply, run_search(socket, q)}
+    else
+      {:noreply, push_patch(socket, to: search_path(socket, q), replace: true)}
+    end
   end
 
-  # The map reports its viewport after every pan/zoom. Re-running the active
-  # query against the new bounds is what makes a brand search ("McDonald's")
-  # answer "which ones can I see" instead of "the global top N".
-  #
-  # A move we caused ourselves is exempt. Picking a result flies the map, and
-  # treating that flight as a pan re-ran the query still sitting in the box,
-  # restoring the list and every marker a second after the selection dismissed
-  # them. The bounds are still recorded, so the next typed search is scoped to
-  # where the map now is.
-  def handle_event("viewport_changed", %{"bbox" => [_w, _s, _e, _n] = bbox} = params, socket) do
-    socket = assign(socket, viewport: bbox)
+  # Zoom changes only cluster presentation. Never replace a complete dataset
+  # with a new ranked subset just because the map moved.
+  def handle_event("viewport_changed", %{"bbox" => [_w, _s, _e, _n] = bbox}, socket) do
+    case Discovery.bbox(Enum.join(bbox, ",")) do
+      nil ->
+        {:noreply, socket}
 
-    # `search_results != []` is the dismissal test. Both `select_feature` and
-    # `search_dismiss` leave the query in the box deliberately, so re-querying
-    # on the query alone resurrected a list the user had just dismissed — the
-    # fly-to defect one gesture later. A list on screen still refreshes.
-    if params["programmatic"] != true and socket.assigns.search_results != [] and
-         searchable?(socket.assigns.search_query) do
-      {:noreply, run_search(socket, socket.assigns.search_query)}
+      bbox ->
+        socket =
+          assign(socket,
+            viewport: bbox,
+            search_area_changed:
+              socket.assigns.search_scope == "area" and
+                area_changed?(socket.assigns.search_bbox, bbox)
+          )
+
+        if socket.assigns.search_scope == "area" and is_nil(socket.assigns.search_bbox) do
+          {:noreply, patch_discovery(socket, %{"bbox" => Enum.join(bbox, ",")})}
+        else
+          {:noreply, socket}
+        end
+    end
+  end
+
+  def handle_event("toggle_category", %{"id" => id}, socket) do
+    if Catalog.find_item(id) do
+      categories = socket.assigns.categories
+
+      categories =
+        if id in categories, do: List.delete(categories, id), else: Enum.sort([id | categories])
+
+      changes = %{"categories" => Enum.join(categories, ",")}
+      changes = if socket.assigns.selected_place, do: Map.put(changes, "q", ""), else: changes
+      {:noreply, patch_discovery(socket, changes)}
     else
       {:noreply, socket}
     end
+  end
+
+  def handle_event("choose_category", %{"id" => id}, socket) do
+    if Catalog.find_item(id) do
+      categories = Enum.sort(Enum.uniq([id | socket.assigns.categories]))
+
+      {:noreply,
+       patch_discovery(socket, %{"categories" => Enum.join(categories, ","), "q" => ""})}
+    else
+      {:noreply, socket}
+    end
+  end
+
+  def handle_event("clear_categories", _, socket) do
+    {:noreply, patch_discovery(socket, %{"categories" => ""})}
+  end
+
+  def handle_event("search_scope", %{"scope" => "all"}, socket) do
+    {:noreply, patch_discovery(socket, %{"scope" => "", "bbox" => ""})}
+  end
+
+  def handle_event("search_scope", %{"scope" => "area"}, socket), do: search_here(socket)
+  def handle_event("search_here", _, socket), do: search_here(socket)
+
+  def handle_event("search_reset", _, socket) do
+    socket =
+      socket
+      |> cancel_search()
+      |> assign(
+        search_query: "",
+        search_results: [],
+        search_count: 0,
+        search_searched: false,
+        search_active: -1,
+        selected_place: false
+      )
+      |> push_results([])
+
+    {:noreply,
+     patch_discovery(socket, %{"q" => "", "categories" => "", "scope" => "", "bbox" => ""})}
+  end
+
+  def handle_event("search_retry", _, socket),
+    do: {:noreply, run_search(socket, socket.assigns.search_query)}
+
+  def handle_event("show_search_results", _params, socket) do
+    {:noreply, push_event(socket, "map:fit_results", %{})}
   end
 
   def handle_event("search_move", %{"dir" => dir}, socket) when dir in [1, -1] do
@@ -123,7 +205,8 @@ defmodule AtlasWeb.MapLive do
   def handle_event("search_dismiss", _params, socket) do
     {:noreply,
      socket
-     |> assign(search_results: [], search_active: -1, search_searched: false)
+     |> cancel_search()
+     |> assign(search_results: [], search_active: -1, search_searched: false, search_count: 0)
      |> push_results([])}
   end
 
@@ -143,28 +226,75 @@ defmodule AtlasWeb.MapLive do
 
   @impl true
   def handle_event("set_mode", %{"mode" => mode}, socket) do
-    {:noreply, assign(socket, mode: mode)}
+    {:noreply, socket |> assign(mode: mode) |> maybe_route()}
   end
 
   @impl true
-  def handle_event("route_changed", %{"from" => from, "to" => to}, socket) do
-    {:noreply, assign(socket, route_from: from, route_to: to)}
+  def handle_event("route_changed", %{"from" => from, "to" => to} = params, socket) do
+    socket = socket |> sync_route_inputs(from, to) |> maybe_route()
+    field = List.first(params["_target"] || [])
+    {:noreply, if(field in ~w(from to), do: assign(socket, route_focus: field), else: socket)}
+  end
+
+  def handle_event("route_focus", %{"field" => field}, socket) when field in ~w(from to) do
+    {:noreply, assign(socket, route_focus: field)}
+  end
+
+  def handle_event("route_retry", %{"field" => field}, socket) when field in ~w(from to) do
+    {:noreply, socket |> search_endpoint(field) |> assign(route_focus: field)}
+  end
+
+  def handle_event("route_dismiss", _, socket), do: {:noreply, assign(socket, route_focus: nil)}
+
+  def handle_event("route_move", %{"field" => field, "query" => query, "dir" => dir}, socket)
+      when field in ~w(from to) and dir in [1, -1] do
+    endpoint = socket.assigns.route_endpoints[field]
+
+    if endpoint.query == query do
+      endpoint = %{endpoint | active: move_active(endpoint.active, dir, length(endpoint.results))}
+      {:noreply, socket |> put_endpoint(field, endpoint) |> assign(route_focus: field)}
+    else
+      {:noreply, socket}
+    end
+  end
+
+  def handle_event("route_select", %{"field" => field, "query" => query} = params, socket)
+      when field in ~w(from to) do
+    endpoint = socket.assigns.route_endpoints[field]
+
+    index =
+      case Integer.parse(to_string(params["index"] || endpoint.active)) do
+        {index, ""} when index >= 0 -> index
+        _ -> -1
+      end
+
+    place = if index >= 0 and endpoint.query == query, do: Enum.at(endpoint.results, index)
+
+    {:noreply,
+     if(place, do: set_endpoint(socket, field, RouteEndpoint.select(place)), else: socket)}
   end
 
   def handle_event("route", %{"from" => from, "to" => to} = params, socket) do
     mode = Map.get(params, "mode", socket.assigns.mode)
-    socket = socket |> clear_flash() |> assign(route_from: from, route_to: to, mode: mode)
 
-    with {:ok, from_coords} <- Coord.parse_latlon(from),
-         {:ok, to_coords} <- Coord.parse_latlon(to),
+    socket =
+      socket
+      |> clear_flash()
+      |> sync_route_inputs(from, to)
+      |> assign(mode: mode)
+      |> then(&assign(&1, route_request_key: route_request_key(&1)))
+
+    with {:ok, from_coords} <- resolve_endpoint(socket, "from", from),
+         {:ok, to_coords} <- resolve_endpoint(socket, "to", to),
          {:ok, result} <- plan_route(mode, from_coords, to_coords, socket.assigns.route_options) do
       socket = assign(socket, upstream_status: result.upstream_status)
+      features = RouteDetails.prepare(result.features, mode)
 
-      case route_legs(result.features) do
+      case RouteDetails.legs(features) do
         [_ | _] = legs ->
           {:noreply,
            socket
-           |> assign(directions: result.features)
+           |> assign(directions: features)
            |> push_event("map:draw_route", %{geojson: Coord.legs_to_geojson(legs)})}
 
         [] ->
@@ -176,9 +306,15 @@ defmodule AtlasWeb.MapLive do
            |> put_flash(:info, "No route found for this trip.")}
       end
     else
-      :error ->
+      {:error, {:endpoint, field}} ->
         {:noreply,
-         socket |> clear_route() |> put_flash(:error, "Could not parse from/to as lat,lon")}
+         socket
+         |> clear_route()
+         |> assign(route_focus: field)
+         |> put_flash(
+           :error,
+           "Choose a #{String.capitalize(field)} search result or enter valid coordinates (latitude, longitude)."
+         )}
 
       {:error, :invalid_mode} ->
         {:noreply,
@@ -213,13 +349,19 @@ defmodule AtlasWeb.MapLive do
   def handle_event("point_picked", %{"field" => field, "lat" => lat, "lon" => lon}, socket)
       when field in ~w(from to) do
     value = "#{Coord.format(lat)},#{Coord.format(lon)}"
-    key = if field == "from", do: :route_from, else: :route_to
-    {:noreply, assign(socket, key, value)}
+    {:noreply, set_endpoint(socket, field, RouteEndpoint.new(value))}
   end
 
   @impl true
   def handle_event("swap_route", _params, socket) do
-    {:noreply, push_event(socket, "map:swap_route", %{})}
+    endpoints = socket.assigns.route_endpoints
+
+    {:noreply,
+     socket
+     |> set_endpoint("from", endpoints["to"], false)
+     |> set_endpoint("to", endpoints["from"], false)
+     |> push_route_endpoints()
+     |> maybe_route()}
   end
 
   @impl true
@@ -228,12 +370,7 @@ defmodule AtlasWeb.MapLive do
     options =
       Map.update(socket.assigns.route_options, option, true, fn current -> not current end)
 
-    {:noreply, assign(socket, route_options: options)}
-  end
-
-  @impl true
-  def handle_event("places_clear", _params, socket) do
-    {:noreply, assign(socket, places: [])}
+    {:noreply, socket |> assign(route_options: options) |> maybe_route()}
   end
 
   @impl true
@@ -326,6 +463,28 @@ defmodule AtlasWeb.MapLive do
   end
 
   @impl true
+  def handle_event("discard_settings_changes", _params, socket) do
+    {:ok, _} = RegionSelection.discard_changes()
+    send_update(AtlasWeb.SettingsPanel, id: "settings-panel", pending_services: %{})
+    {:noreply, assign(socket, pending_services: %{})}
+  end
+
+  @impl true
+  def handle_event("open_service_coverage", %{"name" => name}, socket)
+      when name in ~w(photon libpostal placeholder valhalla overpass otp motis whosonfirst) do
+    {:noreply,
+     socket
+     |> cancel_async(:service_coverage)
+     |> assign(service_coverage: %{name: name, loading: true, result: nil})
+     |> start_async(:service_coverage, fn -> Atlas.Control.ServiceCoverage.read(name) end)}
+  end
+
+  @impl true
+  def handle_event("close_service_coverage", _params, socket) do
+    {:noreply, socket |> cancel_async(:service_coverage) |> assign(service_coverage: nil)}
+  end
+
+  @impl true
   def handle_event("open_logs", %{"name" => name}, socket) do
     if previous = socket.assigns.service_logs do
       Phoenix.PubSub.unsubscribe(Atlas.PubSub, "logs:#{previous.name}")
@@ -366,6 +525,22 @@ defmodule AtlasWeb.MapLive do
   end
 
   @impl true
+  def handle_event("select_transit", %{"name" => name}, socket) when name in ~w(otp motis) do
+    if not is_nil(socket.assigns.transit_switching) or
+         (name == socket.assigns.transit_backend and
+            match?(%{enabled?: true}, Safe.snapshot(name))) do
+      {:noreply, socket}
+    else
+      {:noreply,
+       socket
+       |> assign(
+         transit_switching: name,
+         pending_services: Map.drop(socket.assigns.pending_services, ~w(otp motis))
+       )
+       |> start_async(:transit_switch, fn -> Atlas.Control.DockerCompose.select_transit(name) end)}
+    end
+  end
+
   def handle_event("toggle_service", %{"name" => name}, socket) do
     current = match?(%{enabled?: true}, Safe.snapshot(name))
     pending = socket.assigns.pending_services
@@ -428,7 +603,12 @@ defmodule AtlasWeb.MapLive do
     {region_result, region_names} =
       case RegionSelection.active_names() do
         [] ->
-          {:no_region, []}
+          if RegionSelection.pending_change?() do
+            RegionSelection.mark_applied!()
+            {:selection_cleared, []}
+          else
+            {:no_region, []}
+          end
 
         names ->
           if Safe.call(fn -> RegionSelection.pending_change?() end, true) do
@@ -440,6 +620,7 @@ defmodule AtlasWeb.MapLive do
       end
 
     socket = assign(socket, pending_services: %{}, service_status: refresh_service_status())
+    send_update(AtlasWeb.SettingsPanel, id: "settings-panel", pending_services: %{})
 
     case AtlasWeb.MapLive.ApplyFlash.message(map_size(pending), region_result, region_names) do
       {:info, message} ->
@@ -462,22 +643,47 @@ defmodule AtlasWeb.MapLive do
 
   @impl true
   def handle_params(params, _uri, socket) do
-    socket = assign(socket, url_params: Map.drop(params, ["q"]))
     q = Map.get(params, "q", "")
+    categories = Discovery.category_ids(params["categories"])
+    scope = if params["scope"] == "area", do: "area", else: "all"
+    bbox = if scope == "area", do: Discovery.bbox(params["bbox"]), else: nil
 
-    # The dead render is a throwaway that the connected mount immediately
-    # replaces, so searching there bought nothing and cost a second Photon
-    # round trip for every visit to a shared ?q= link.
-    if q == socket.assigns.search_query or not connected?(socket) do
-      {:noreply, assign(socket, search_query: q)}
-    else
+    changed =
+      q != socket.assigns.search_query or categories != socket.assigns.categories or
+        scope != socket.assigns.search_scope or bbox != socket.assigns.search_bbox
+
+    socket =
+      assign(socket,
+        url_params: Map.drop(params, ["q"]),
+        categories: categories,
+        search_scope: scope,
+        search_bbox: bbox,
+        search_area_changed: scope == "area" and area_changed?(bbox, socket.assigns.viewport)
+      )
+
+    if changed and connected?(socket) do
       {:noreply, run_search(socket, q)}
+    else
+      {:noreply, assign(socket, search_query: q)}
     end
   end
 
   @impl true
   def handle_info(:status_changed, socket) do
-    {:noreply, assign(socket, service_status: refresh_service_status())}
+    backend = Settings.transit_backend()
+    changed = backend != socket.assigns.transit_backend
+    socket = assign(socket, service_status: refresh_service_status(), transit_backend: backend)
+
+    socket =
+      if changed and socket.assigns.mode == "transit", do: clear_route(socket), else: socket
+
+    socket =
+      if socket.assigns.mode == "transit" and
+           match?(%{status: :ready}, socket.assigns.service_status[backend]),
+         do: maybe_route(socket),
+         else: socket
+
+    {:noreply, socket}
   end
 
   def handle_info({:log_line, line}, socket) do
@@ -565,18 +771,46 @@ defmodule AtlasWeb.MapLive do
     {:noreply, assign(socket, :timeline, timeline)}
   end
 
+  def handle_info({:search_progress, id, result}, %{assigns: %{search_request_id: id}} = socket) do
+    {:noreply, apply_search_result(socket, result)}
+  end
+
   def handle_info(_other, socket), do: {:noreply, socket}
 
   # Rails used the same two-character floor: one letter matches most of the
   # planet, so it costs a Photon round trip per keystroke to return noise.
   @min_query_length 2
 
-  # 40, not 8: the list is scoped to the viewport, so a brand search wants every
-  # visible branch rather than the global top handful.
-  @search_limit 40
+  @search_list_limit 40
 
   # Keeps whatever else is in the URL (a `tab`, say) and drops `q` entirely when
   # the box is empty, so a cleared search leaves `/` rather than `/?q=`.
+  defp search_here(%{assigns: %{viewport: nil}} = socket), do: {:noreply, socket}
+
+  defp search_here(socket) do
+    {:noreply,
+     patch_discovery(socket, %{
+       "scope" => "area",
+       "bbox" => Enum.join(socket.assigns.viewport, ",")
+     })}
+  end
+
+  defp area_changed?(nil, _), do: false
+  defp area_changed?(_, nil), do: false
+
+  defp area_changed?(before, after_bbox) do
+    Enum.zip(before, after_bbox) |> Enum.any?(fn {a, b} -> abs(a - b) > 0.00001 end)
+  end
+
+  defp patch_discovery(socket, changes) do
+    params =
+      socket.assigns.url_params |> Map.put("q", socket.assigns.search_query) |> Map.merge(changes)
+
+    params = Map.reject(params, fn {_key, value} -> value in [nil, ""] end)
+    path = if params == %{}, do: ~p"/", else: ~p"/?#{params}"
+    push_patch(socket, to: path, replace: true)
+  end
+
   defp search_path(socket, q) do
     params =
       socket.assigns
@@ -590,14 +824,17 @@ defmodule AtlasWeb.MapLive do
   defp searchable?(_), do: false
 
   defp run_search(socket, q) do
-    if searchable?(q) do
+    if (searchable?(q) or (String.trim(q) == "" and socket.assigns.categories != [])) and
+         (socket.assigns.search_scope == "all" or not is_nil(socket.assigns.search_bbox)) do
       dispatch_search(socket, q)
     else
       # The markers go with the list. Escape cleared them; backspacing did not,
       # so emptying the box left every pin stranded on the map.
       socket
+      |> cancel_search()
       |> assign(
         search_query: q,
+        search_count: 0,
         search_results: [],
         search_active: -1,
         search_searched: false
@@ -607,39 +844,255 @@ defmodule AtlasWeb.MapLive do
   end
 
   defp dispatch_search(socket, q) do
-    params = %{
-      query: String.trim(q),
-      limit: @search_limit,
-      lang: nil,
-      lat: nil,
-      lon: nil,
-      bbox: socket.assigns.viewport
-    }
+    owner = self()
+    request_id = make_ref()
+    categories = socket.assigns.categories
 
-    case Maps.Search.autocomplete(params) do
-      {:ok, result} ->
-        socket
-        |> assign(
-          search_query: q,
-          search_results: result.features,
-          search_status: result.upstream_status,
-          upstream_status: result.upstream_status,
-          search_active: -1,
-          search_searched: true
-        )
-        |> push_results(result.features)
+    opts =
+      if socket.assigns.search_scope == "area", do: [bbox: socket.assigns.search_bbox], else: []
 
-      {:error, _e} ->
-        socket
-        |> assign(
-          search_query: q,
-          search_results: [],
-          search_status: "unavailable",
-          upstream_status: "unavailable",
-          search_active: -1,
-          search_searched: true
+    socket
+    |> cancel_search()
+    |> assign(
+      search_query: q,
+      search_results: [],
+      search_count: 0,
+      search_status: "ok",
+      search_active: -1,
+      search_searched: true,
+      search_loading: true,
+      search_complete: false,
+      search_request_id: request_id,
+      selected_place: socket.assigns.selected_place and q == socket.assigns.search_query
+    )
+    |> push_results([])
+    |> start_async(:map_search, fn ->
+      Discovery.run(
+        q,
+        categories,
+        Keyword.put(opts, :on_progress, fn result ->
+          send(owner, {:search_progress, request_id, result})
+        end)
+      )
+    end)
+  end
+
+  defp cancel_search(socket) do
+    socket
+    |> cancel_async(:map_search)
+    |> assign(search_request_id: nil, search_loading: false, search_complete: false)
+    |> push_event("map:search_loading", %{loading: false})
+  end
+
+  defp apply_search_result(socket, result) do
+    socket
+    |> assign(
+      search_results: Enum.take(result.suggestions, @search_list_limit),
+      search_count: length(result.features),
+      search_complete: result.complete,
+      search_status:
+        if(result.features == [] and not result.complete, do: "unavailable", else: "ok")
+    )
+    |> push_results(result.features)
+  end
+
+  @impl true
+  def handle_async(:transit_switch, {:ok, {:ok, _}}, socket) do
+    {:noreply,
+     socket
+     |> assign(
+       transit_switching: nil,
+       transit_backend: Settings.transit_backend(),
+       service_status: refresh_service_status()
+     )
+     |> put_flash(:info, "Transit engine selected. Routes are available when its graph is ready.")}
+  end
+
+  def handle_async(:transit_switch, result, socket) do
+    detail =
+      case result do
+        {:ok, {:error, _, message}} -> String.slice(message, 0, 240)
+        _ -> "Service control is unavailable"
+      end
+
+    {:noreply,
+     socket
+     |> assign(transit_switching: nil)
+     |> put_flash(:error, "Could not switch transit engine: " <> detail)}
+  end
+
+  def handle_async(:service_coverage, {:ok, result}, socket) do
+    case socket.assigns.service_coverage do
+      nil ->
+        {:noreply, socket}
+
+      coverage ->
+        {:noreply, assign(socket, service_coverage: %{coverage | loading: false, result: result})}
+    end
+  end
+
+  def handle_async(:service_coverage, {:exit, _reason}, socket) do
+    handle_async(
+      :service_coverage,
+      {:ok, %{entries: [], note: "Dataset metadata is currently unavailable."}},
+      socket
+    )
+  end
+
+  def handle_async(:map_search, {:ok, result}, socket) do
+    {:noreply, socket |> assign(search_loading: false) |> apply_search_result(result)}
+  end
+
+  def handle_async(:map_search, {:exit, _reason}, socket) do
+    {:noreply,
+     socket
+     |> assign(search_loading: false, search_complete: false, search_status: "unavailable")
+     |> push_event("map:search_loading", %{loading: false})}
+  end
+
+  def handle_async({:route_search, field}, {:ok, {query, result}}, socket) do
+    endpoint = socket.assigns.route_endpoints[field]
+
+    if endpoint.query == query and endpoint.status == :loading do
+      endpoint =
+        case result do
+          {:ok, results} -> %{endpoint | results: results, status: :ready}
+          {:error, _} -> %{endpoint | results: [], status: :error}
+        end
+
+      {:noreply, put_endpoint(socket, field, endpoint)}
+    else
+      {:noreply, socket}
+    end
+  end
+
+  def handle_async({:route_search, field}, {:exit, reason}, socket) do
+    endpoint = socket.assigns.route_endpoints[field]
+
+    if endpoint.status == :loading and reason != {:shutdown, :cancel} do
+      {:noreply, put_endpoint(socket, field, %{endpoint | status: :error})}
+    else
+      {:noreply, socket}
+    end
+  end
+
+  defp sync_route_inputs(socket, from, to) do
+    previous_points = route_points(socket)
+
+    socket =
+      Enum.reduce([{"from", from}, {"to", to}], socket, fn {field, query}, socket ->
+        if socket.assigns.route_endpoints[field].query == query do
+          socket
+        else
+          endpoint = RouteEndpoint.new(query)
+
+          socket =
+            socket
+            |> cancel_async({:route_search, field})
+            |> invalidate_route()
+            |> put_endpoint(field, endpoint)
+
+          search_endpoint(socket, field)
+        end
+      end)
+
+    if route_points(socket) != previous_points, do: push_route_endpoints(socket), else: socket
+  end
+
+  defp search_endpoint(socket, field) do
+    endpoint = socket.assigns.route_endpoints[field]
+    query = endpoint.query
+
+    if endpoint.coords == nil and endpoint.status != :invalid and
+         String.length(String.trim(query)) >= 2 do
+      viewport = socket.assigns.viewport
+
+      socket
+      |> cancel_async({:route_search, field})
+      |> put_endpoint(field, %{endpoint | status: :loading, results: [], active: -1})
+      |> start_async({:route_search, field}, fn ->
+        {query, RouteEndpoint.search(query, viewport)}
+      end)
+    else
+      socket
+    end
+  end
+
+  defp put_endpoint(socket, field, endpoint) do
+    key = if field == "from", do: :route_from, else: :route_to
+
+    socket
+    |> assign(key, endpoint.query)
+    |> assign(route_endpoints: Map.put(socket.assigns.route_endpoints, field, endpoint))
+  end
+
+  defp set_endpoint(socket, field, endpoint, notify_map \\ true) do
+    socket =
+      socket
+      |> cancel_async({:route_search, field})
+      |> invalidate_route()
+      |> put_endpoint(field, %{
+        endpoint
+        | results: [],
+          active: -1,
+          status: if(endpoint.coords, do: :selected, else: :idle)
+      })
+      |> assign(route_focus: nil)
+      |> search_endpoint(field)
+      |> push_event("route:endpoint", %{field: field, value: endpoint.query})
+
+    if notify_map, do: socket |> push_route_endpoints() |> maybe_route(), else: socket
+  end
+
+  defp push_route_endpoints(socket) do
+    push_event(socket, "map:set_route_endpoints", %{points: route_points(socket)})
+  end
+
+  defp route_points(socket) do
+    for field <- ~w(from to),
+        endpoint = socket.assigns.route_endpoints[field],
+        coords = endpoint.coords,
+        not is_nil(coords) do
+      %{field: field, lat: coords.lat, lon: coords.lon, label: endpoint.query}
+    end
+  end
+
+  defp invalidate_route(socket) do
+    socket = assign(socket, route_request_key: nil)
+    if socket.assigns.directions, do: clear_route(socket), else: socket
+  end
+
+  defp route_request_key(socket) do
+    from = socket.assigns.route_endpoints["from"].coords
+    to = socket.assigns.route_endpoints["to"].coords
+
+    if from && to,
+      do:
+        {from, to, socket.assigns.mode, socket.assigns.route_options,
+         socket.assigns.transit_backend}
+  end
+
+  defp maybe_route(socket) do
+    key = route_request_key(socket)
+
+    if key && key != socket.assigns.route_request_key do
+      {:noreply, socket} =
+        handle_event(
+          "route",
+          %{"from" => socket.assigns.route_from, "to" => socket.assigns.route_to},
+          socket
         )
-        |> push_results([])
+
+      socket
+    else
+      socket
+    end
+  end
+
+  defp resolve_endpoint(socket, field, value) do
+    case RouteEndpoint.resolve(socket.assigns.route_endpoints[field], value) do
+      {:ok, coords} -> {:ok, coords}
+      :error -> {:error, {:endpoint, field}}
     end
   end
 
@@ -648,14 +1101,20 @@ defmodule AtlasWeb.MapLive do
   # Replacing wholesale also removes the clear-then-add ordering that let a
   # pan-triggered refresh wipe the pin a user had just dropped.
   defp push_results(socket, features) do
-    push_event(socket, "map:set_results", %{points: SearchMarkers.points(features)})
+    push_event(socket, "map:set_results", %{
+      points: SearchMarkers.points(features),
+      loading: socket.assigns.search_loading
+    })
   end
 
   defp select_feature(socket, feature) do
     coords = feature.coords
 
     socket
+    |> cancel_search()
     |> assign(
+      search_count: 0,
+      selected_place: true,
       search_query: feature.label || "",
       search_results: [],
       search_active: -1,
@@ -676,7 +1135,7 @@ defmodule AtlasWeb.MapLive do
   defp move_active(-1, -1, count), do: count - 1
   defp move_active(current, dir, count), do: Integer.mod(current + dir, count)
 
-  # Transit goes to OTP; everything else (auto/bicycle/pedestrian) to Valhalla.
+  # Transit goes to the selected engine; everything else (auto/bicycle/pedestrian) to Valhalla.
   # Valhalla.route/2 raises on an unknown costing, so transit must never reach it.
   defp plan_route("transit", from, to, _options) do
     Maps.Transit.plan(from: from, to: to)
@@ -705,15 +1164,6 @@ defmodule AtlasWeb.MapLive do
   end
 
   defp costing_options(_), do: %{}
-
-  # Valhalla results carry a flat `legs` list; OTP transit results carry
-  # `itineraries`, each with its own `legs`. Draw the first itinerary.
-  defp route_legs(%{legs: legs}) when is_list(legs), do: legs
-
-  defp route_legs(%{itineraries: [itinerary | _]}) when is_map(itinerary),
-    do: Map.get(itinerary, :legs, [])
-
-  defp route_legs(_), do: []
 
   defp refresh_service_status do
     Seeder.known_services()
@@ -757,30 +1207,40 @@ defmodule AtlasWeb.MapLive do
       />
     <% end %>
 
-    <div class="fixed inset-0 p-2 sm:p-3 bg-base-200 flex flex-col md:flex-row gap-2 sm:gap-3">
+    <div id="atlas-workspace" data-settings-open={to_string(@active_tab == "settings")} class="fixed inset-0 p-2 sm:p-3 bg-base-200 flex flex-col md:flex-row gap-2 sm:gap-3">
       <AtlasWeb.SidePanel.side_panel
         active_tab={@active_tab}
         search_query={@search_query}
         search_results={@search_results}
+        search_loading={@search_loading}
+        search_complete={@search_complete}
+        search_count={@search_count}
         search_status={@search_status}
         search_active={@search_active}
         search_searched={@search_searched}
         directions={@directions}
         mode={@mode}
+        route_endpoints={@route_endpoints}
+        route_focus={@route_focus}
         route_from={@route_from}
         route_to={@route_to}
         route_options={@route_options}
-        places={@places}
+        categories={@categories}
+        scope={@search_scope}
+        area_changed={@search_area_changed}
+        viewport_ready={not is_nil(@viewport)}
+        search_service={if String.trim(@search_query) == "" and @categories != [], do: "overpass", else: "photon"}
         tiles_url={@tiles_url}
         theme={@theme}
         service_status={@service_status}
         pending_services={@pending_services}
+        transit_switching={@transit_switching}
         tiles_download={@tiles_download}
         basemap_confirm={@basemap_confirm}
         timeline={@timeline}
       />
 
-      <div class="relative flex-1 min-w-0 min-h-0 rounded-2xl border border-base-300 bg-base-100 overflow-hidden">
+      <div id="map-frame" class="relative flex-1 min-w-0 min-h-0 rounded-2xl border border-base-300 bg-base-100 overflow-hidden">
         <div
           id="map"
           phx-hook="Map"
@@ -789,11 +1249,14 @@ defmodule AtlasWeb.MapLive do
           data-tiles-url={@tiles_url}
           data-theme={@theme}
           data-center="[10.4515, 51.1657]"
+          data-bounds={if @search_bbox, do: Jason.encode!(@search_bbox)}
           data-zoom="5"
         >
         </div>
       </div>
     </div>
+
+    <AtlasWeb.Settings.CoverageModal.coverage_modal :if={@service_coverage} coverage={@service_coverage} />
 
     <AtlasWeb.Settings.LogsModal.logs_modal
       :if={@service_logs}

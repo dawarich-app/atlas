@@ -20,6 +20,7 @@ defmodule Atlas.Control do
     ],
     exports: [
       Service,
+      ServiceCoverage,
       RegionSelection,
       Parser,
       Registry,

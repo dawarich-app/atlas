@@ -1,0 +1,19 @@
+server:
+  host: 0.0.0.0
+  port: 8080
+  web_folder: /ui
+  n_threads: 4
+osm: /input/otp/region.osm.pbf
+street_routing: true
+osr_footpath: true
+geocoding: false
+reverse_geocoding: false
+timetable:
+  first_day: 2026-08-04
+  num_days: 131
+  with_shapes: true
+  datasets:
+    vbb:
+      path: /input/gtfs/vbb.gtfs.zip
+logging:
+  log_level: info

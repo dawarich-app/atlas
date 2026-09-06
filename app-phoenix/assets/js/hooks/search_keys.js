@@ -29,6 +29,7 @@ export default {
           }
           break
         case "Escape":
+          event.preventDefault()
           this.pushEvent("search_dismiss", {})
           break
       }

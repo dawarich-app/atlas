@@ -213,6 +213,9 @@ defmodule AtlasWeb.CoreComponents do
   end
 
   def input(assigns) do
+    {input_class, rest} = Map.pop(assigns.rest, :class, "w-full input")
+    assigns = assign(assigns, input_class: input_class, rest: rest)
+
     ~H"""
     <fieldset class="fieldset">
       <label>
@@ -222,7 +225,7 @@ defmodule AtlasWeb.CoreComponents do
           name={@name}
           id={@id}
           value={Phoenix.HTML.Form.normalize_value(@type, @value)}
-          class={["w-full input", @errors != [] && "input-error"]}
+          class={[@input_class, @errors != [] && "input-error"]}
           {@rest}
         />
       </label>

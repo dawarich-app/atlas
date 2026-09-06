@@ -4,6 +4,7 @@ defmodule AtlasWeb.Settings.ServicesTab do
   """
 
   use Phoenix.Component
+  alias Phoenix.LiveView.JS
 
   import AtlasWeb.IconHelpers
   import AtlasWeb.Settings.Atoms
@@ -11,13 +12,14 @@ defmodule AtlasWeb.Settings.ServicesTab do
   alias Atlas.Control.ServiceFormatting, as: SF
 
   @categories [
-    {"geocoding", "Geocoding", "search"},
+    {"geocoding", "Address search", "search"},
     {"routing", "Routing", "route"},
-    {"pois", "POIs", "map-pin"},
-    {"transit", "Transit", "clock"},
+    {"pois", "Places", "map-pin"},
+    {"transit", "Public transport", "clock"},
     {"data-setup", "Data setup", "server"}
   ]
 
+  attr :transit_switching, :string, default: nil
   attr :known_services, :list, required: true
   attr :service_status, :map, required: true
   attr :pending_services, :map, default: %{}
@@ -31,6 +33,7 @@ defmodule AtlasWeb.Settings.ServicesTab do
 
     assigns =
       assigns
+      |> assign(:transit_backend, Atlas.Settings.transit_backend())
       |> assign(:categories, @categories)
       |> assign(:installing, installing)
       |> assign(:install_avg, install_avg(installing))
@@ -46,6 +49,8 @@ defmodule AtlasWeb.Settings.ServicesTab do
         label={label}
         cat_icon={cat_icon}
         services={services_in(@known_services, profile)}
+        transit_backend={@transit_backend}
+        transit_switching={@transit_switching}
         service_status={@service_status}
         pending_services={@pending_services}
         open={MapSet.member?(@open_cats, profile)}
@@ -57,6 +62,8 @@ defmodule AtlasWeb.Settings.ServicesTab do
     """
   end
 
+  attr :transit_backend, :string, required: true
+  attr :transit_switching, :string, default: nil
   attr :profile, :string, required: true
   attr :label, :string, required: true
   attr :cat_icon, :string, required: true
@@ -95,8 +102,10 @@ defmodule AtlasWeb.Settings.ServicesTab do
       </div>
 
       <div :if={@open} class="flex flex-col gap-1.5 pb-2">
+        <.transit_picker :if={@profile == "transit"} transit_backend={@transit_backend} transit_switching={@transit_switching} />
         <.service_row
           :for={svc <- @services}
+          :if={@profile != "transit" or svc.name == @transit_backend}
           svc={svc}
           snapshot={@service_status[svc.name]}
           pending={Map.fetch(@pending_services, svc.name)}
@@ -106,6 +115,26 @@ defmodule AtlasWeb.Settings.ServicesTab do
         />
       </div>
     </div>
+    """
+  end
+
+  attr :transit_backend, :string, required: true
+  attr :transit_switching, :string, default: nil
+
+  def transit_picker(assigns) do
+    ~H"""
+        <fieldset disabled={@transit_switching != nil} class="px-3 py-3">
+          <legend class="text-sm font-semibold">Transit engine</legend>
+          <div class="flex gap-4 py-2">
+            <label :for={{name, label} <- [{"otp", "OpenTripPlanner"}, {"motis", "MOTIS"}]} class="flex cursor-pointer items-center gap-2">
+              <input type="radio" name="transit_engine" value={name} checked={@transit_backend == name}
+                phx-click="select_transit" phx-value-name={name} class="radio radio-sm radio-primary" />
+              {label}
+            </label>
+          </div>
+          <p class="text-sm text-base-content/65">Changes apply immediately. Selecting an engine stops the other one and starts the selected engine with your installed transit data.</p>
+          <p :if={@transit_switching} role="status" class="mt-2 text-sm text-primary">Switching to {String.upcase(@transit_switching)}…</p>
+        </fieldset>
     """
   end
 
@@ -140,7 +169,10 @@ defmodule AtlasWeb.Settings.ServicesTab do
     ]}>
       <div class="flex items-center gap-2.5">
         <.status_dot status={@status} pulse={@installing} glow={@running} />
-        <span class="font-mono text-[15px] font-semibold">{@svc.name}</span>
+        <div class="min-w-0 flex-1">
+          <div class="text-sm font-semibold">{service_title(@svc.name)}</div>
+          <div class="font-mono text-xs text-base-content/60">{@svc.name}</div>
+        </div>
         <span class={["font-mono text-[11.5px] uppercase tracking-[0.05em]", status_text(@status)]}>
           {if @installing, do: "#{SF.progress_pct(@snapshot)}%", else: SF.status_label(@snapshot)}
         </span>
@@ -174,14 +206,21 @@ defmodule AtlasWeb.Settings.ServicesTab do
             type="checkbox"
             class="toggle toggle-sm toggle-primary"
             phx-click="toggle_service"
+            aria-label={"Enable " <> service_title(@svc.name)}
             phx-value-name={@svc.name}
             checked={@enabled}
           />
         </div>
       </div>
 
+      <button type="button" phx-click={JS.push_focus() |> JS.push("open_service_coverage", value: %{name: @svc.name})}
+        aria-label={"Regions and data for " <> @svc.name}
+        class="mt-2 text-sm font-semibold text-primary underline-offset-4 hover:underline">
+        Regions and data
+      </button>
+
       <div :if={@info_open} class="mt-2.5 text-[13px] leading-relaxed text-base-content/70">
-        {info_blurb(@snapshot, @svc)}
+        {service_description(@svc.name)}
       </div>
 
       <div :if={@installing} class="mt-3">
@@ -191,9 +230,9 @@ defmodule AtlasWeb.Settings.ServicesTab do
         </div>
       </div>
 
-      <div :if={@running} class="mt-2 flex gap-3.5 font-mono text-[11.5px] text-base-content/55">
-        <span>disk {SF.disk_label(@snapshot)}</span>
-        <span>updated {updated_label(@snapshot)}</span>
+      <div :if={@running} class="mt-2 flex flex-wrap gap-x-3.5 gap-y-1 font-mono text-[11.5px] text-base-content/55">
+        <span>Storage: {if SF.disk_label(@snapshot) == "—", do: "unavailable", else: SF.disk_label(@snapshot)}</span>
+        <span>Last status: {updated_label(@snapshot)} UTC</span>
       </div>
 
       <div class="mt-2.5 border-t border-base-content/[0.07] pt-2.5">
@@ -285,8 +324,39 @@ defmodule AtlasWeb.Settings.ServicesTab do
   defp status_text(status) when status in [:error, :unhealthy], do: "text-error"
   defp status_text(_), do: "text-base-content/55"
 
-  defp info_blurb(%{last_log: log}, _svc) when is_binary(log) and log != "", do: log
-  defp info_blurb(_snap, svc), do: "#{svc.name} · profile #{svc.profile}"
+  defp service_title("photon"), do: "Address and place search"
+  defp service_title("libpostal"), do: "Address parsing"
+  defp service_title("placeholder"), do: "City and region search"
+  defp service_title("valhalla"), do: "Walking, cycling and driving"
+  defp service_title("overpass"), do: "Places and categories"
+  defp service_title("otp"), do: "OpenTripPlanner"
+  defp service_title("motis"), do: "MOTIS"
+  defp service_title("whosonfirst"), do: "Administrative place data"
+  defp service_title(name), do: name
+
+  defp service_description("photon"),
+    do: "Finds addresses and named places in the installed search dataset."
+
+  defp service_description("libpostal"),
+    do: "Splits and normalizes addresses to help interpret search queries."
+
+  defp service_description("placeholder"),
+    do: "Looks up cities and administrative regions using Who’s on First data."
+
+  defp service_description("valhalla"),
+    do: "Builds walking, cycling and driving routes within the installed road network."
+
+  defp service_description("overpass"),
+    do: "Finds OpenStreetMap places by category and tags within its configured coverage."
+
+  defp service_description(name) when name in ~w(otp motis),
+    do:
+      "Combines public transport timetables with walking connections. Coverage depends on the installed transit feeds and street data."
+
+  defp service_description("whosonfirst"),
+    do: "Prepares administrative place data used by city and region search."
+
+  defp service_description(name), do: service_title(name)
 
   defp updated_label(%{last_seen_at: %DateTime{} = dt}),
     do: Calendar.strftime(dt, "%Y-%m-%d %H:%M")

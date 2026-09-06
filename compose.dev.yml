@@ -69,6 +69,8 @@ services:
       VALHALLA_MATCH_TIMEOUT: ${VALHALLA_MATCH_TIMEOUT:-}
       OVERPASS_URL: http://overpass:80
       OTP_URL: http://otp:8080
+      MOTIS_URL: http://motis:8080
+      TRANSIT_BACKEND: ${TRANSIT_BACKEND:-motis}
       TILES_URL: ${TILES_URL:-}
       TILES_THEME: ${TILES_THEME:-atlas-light}
       DEFAULT_LAT: ${DEFAULT_LAT:-51.1657}
@@ -95,6 +97,7 @@ services:
       - ./data/osm:/work/data/osm
       - ./data/gtfs:/work/data/gtfs
       - ./data/otp:/work/data/otp
+      - ./data/motis:/work/data/motis
       - ./data/valhalla:/work/data/valhalla
       - ./data/tiles:/work/data/tiles
     # Match the docker socket's group so the `nobody` user can talk to it.
@@ -197,4 +200,19 @@ services:
     volumes:
       - ./data/otp:/var/opentripplanner
       - ./data/osm:/osm:ro
+    restart: unless-stopped
+
+  motis:
+    image: ghcr.io/motis-project/motis:2.11.2@sha256:6055f51eec43eeed28524037ca0161b96efe9cd05728eaa9ac04c20c2826d330
+    container_name: apo-motis
+    profiles: [motis]
+    user: "${PUID:-65534}:${PGID:-65534}"
+    entrypoint: ["/bin/sh", "/scripts/start.sh"]
+    environment:
+      MOTIS_THREADS: ${MOTIS_THREADS:-4}
+    mem_limit: ${MOTIS_MEMORY:-4g}
+    volumes:
+      - ./scripts/motis/start.sh:/scripts/start.sh:ro
+      - ./data/otp:/input:ro
+      - ./data/motis:/data
     restart: unless-stopped

@@ -70,6 +70,20 @@ defmodule Atlas.Control.RegionSelection do
     end
   end
 
+  @doc "Restore the last submitted selection without touching installed datasets."
+  def discard_changes do
+    Repo.transaction(fn ->
+      names = applied_names()
+      clear()
+
+      names
+      |> Enum.with_index()
+      |> Enum.each(fn {name, position} ->
+        Repo.insert!(%__MODULE__{region_name: name, active: true, position: position})
+      end)
+    end)
+  end
+
   @doc "True when the active selection differs from the last applied one."
   def pending_change? do
     Enum.sort(active_names()) != Enum.sort(applied_names())

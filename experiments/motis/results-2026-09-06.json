@@ -1,0 +1,975 @@
+{
+  "recorded_at": "2026-09-06T17:31:09.690388+00:00",
+  "search_window_seconds": 3600,
+  "timed_requests_per_case_engine": 5,
+  "warmups_per_case_engine": 1,
+  "metadata": {
+    "recorded_at": "2026-09-06T17:33:27.766860+00:00",
+    "engines": {
+      "atlas-motis-experiment": {
+        "image": "ghcr.io/motis-project/motis:2.11.2@sha256:6055f51eec43eeed28524037ca0161b96efe9cd05728eaa9ac04c20c2826d330",
+        "started_at": "2026-09-06T17:26:52.384972145Z",
+        "memory_limit_bytes": 4294967296,
+        "nano_cpus": 4000000000,
+        "stats": {
+          "BlockIO": "111MB / 0B",
+          "CPUPerc": "0.00%",
+          "Container": "atlas-motis-experiment",
+          "ID": "ce27625a984d",
+          "MemPerc": "15.59%",
+          "MemUsage": "638.7MiB / 4GiB",
+          "Name": "atlas-motis-experiment",
+          "NetIO": "89kB / 11.9MB",
+          "PIDs": "5"
+        }
+      },
+      "apo-otp": {
+        "image": "opentripplanner/opentripplanner:2.10.0_2026-05-18T08-51",
+        "started_at": "2026-09-06T12:34:06.227175462Z",
+        "memory_limit_bytes": 0,
+        "nano_cpus": 0,
+        "stats": {
+          "BlockIO": "1.86GB / 3.86MB",
+          "CPUPerc": "0.14%",
+          "Container": "apo-otp",
+          "ID": "c44b4f1e1224",
+          "MemPerc": "25.41%",
+          "MemUsage": "3.98GiB / 15.66GiB",
+          "Name": "apo-otp",
+          "NetIO": "196kB / 1.79MB",
+          "PIDs": "78"
+        }
+      }
+    },
+    "inputs": {
+      "otp/region.osm.pbf": {
+        "bytes": 98908382,
+        "sha256": "4910845507b4075a10c09bfcbe7b112c124b3914c5f2abf115e70e9eafe679fa"
+      },
+      "gtfs/vbb.gtfs.zip": {
+        "bytes": 75376540,
+        "sha256": "356ac3a130dc492d306eb22a6e9bb3bd9ea74e1789dae98208c9ac010d2d6eed"
+      }
+    },
+    "import": {
+      "Status": "exited",
+      "Running": false,
+      "Paused": false,
+      "Restarting": false,
+      "OOMKilled": false,
+      "Dead": false,
+      "Pid": 0,
+      "ExitCode": 0,
+      "Error": "",
+      "StartedAt": "2026-09-06T17:26:02.807728272Z",
+      "FinishedAt": "2026-09-06T17:26:14.875432298Z"
+    }
+  },
+  "rows": [
+    {
+      "case": {
+        "id": "park_schoeneweide",
+        "origin": [
+          52.4884438,
+          13.4703145
+        ],
+        "destination": [
+          52.4548738,
+          13.5092508
+        ]
+      },
+      "engine": "motis",
+      "median_ms": 44.594,
+      "max_ms": 50.973,
+      "samples": [
+        {
+          "http_status": 200,
+          "ms": 36.66,
+          "transit_count": 20,
+          "error": null
+        },
+        {
+          "http_status": 200,
+          "ms": 36.007,
+          "transit_count": 20,
+          "error": null
+        },
+        {
+          "http_status": 200,
+          "ms": 50.973,
+          "transit_count": 20,
+          "error": null
+        },
+        {
+          "http_status": 200,
+          "ms": 44.594,
+          "transit_count": 20,
+          "error": null
+        },
+        {
+          "http_status": 200,
+          "ms": 46.775,
+          "transit_count": 20,
+          "error": null
+        }
+      ],
+      "warmup": {
+        "http_status": 200,
+        "ms": 65.47699999999999,
+        "transit_count": 20,
+        "error": null
+      },
+      "transit_alternatives": 20,
+      "validated_leg_geometries": 78,
+      "shortest_duration_s": 1320,
+      "shortest_lines": [
+        "265",
+        "S9"
+      ],
+      "earliest_arrival": "2026-09-07T08:26:00Z",
+      "latest_departure": "2026-09-07T09:01:00Z"
+    },
+    {
+      "case": {
+        "id": "park_schoeneweide",
+        "origin": [
+          52.4884438,
+          13.4703145
+        ],
+        "destination": [
+          52.4548738,
+          13.5092508
+        ]
+      },
+      "engine": "otp",
+      "median_ms": 184.306,
+      "max_ms": 240.94199999999998,
+      "samples": [
+        {
+          "http_status": 200,
+          "ms": 157.32,
+          "transit_count": 18,
+          "error": null
+        },
+        {
+          "http_status": 200,
+          "ms": 181.312,
+          "transit_count": 18,
+          "error": null
+        },
+        {
+          "http_status": 200,
+          "ms": 240.94199999999998,
+          "transit_count": 18,
+          "error": null
+        },
+        {
+          "http_status": 200,
+          "ms": 184.306,
+          "transit_count": 18,
+          "error": null
+        },
+        {
+          "http_status": 200,
+          "ms": 203.239,
+          "transit_count": 18,
+          "error": null
+        }
+      ],
+      "warmup": {
+        "http_status": 200,
+        "ms": 170.246,
+        "transit_count": 18,
+        "error": null
+      },
+      "transit_alternatives": 18,
+      "validated_leg_geometries": 58,
+      "shortest_duration_s": 1441,
+      "shortest_lines": [
+        "S9"
+      ],
+      "earliest_arrival": "2026-09-07T08:27:13+00:00",
+      "latest_departure": "2026-09-07T08:58:08+00:00"
+    },
+    {
+      "case": {
+        "id": "alex_hbf",
+        "origin": [
+          52.5219,
+          13.4132
+        ],
+        "destination": [
+          52.5251,
+          13.3694
+        ]
+      },
+      "engine": "motis",
+      "median_ms": 49.028,
+      "max_ms": 78.548,
+      "samples": [
+        {
+          "http_status": 200,
+          "ms": 78.548,
+          "transit_count": 24,
+          "error": null
+        },
+        {
+          "http_status": 200,
+          "ms": 54.051,
+          "transit_count": 24,
+          "error": null
+        },
+        {
+          "http_status": 200,
+          "ms": 48.815999999999995,
+          "transit_count": 24,
+          "error": null
+        },
+        {
+          "http_status": 200,
+          "ms": 47.074999999999996,
+          "transit_count": 24,
+          "error": null
+        },
+        {
+          "http_status": 200,
+          "ms": 49.028,
+          "transit_count": 24,
+          "error": null
+        }
+      ],
+      "warmup": {
+        "http_status": 200,
+        "ms": 61.008,
+        "transit_count": 24,
+        "error": null
+      },
+      "transit_alternatives": 24,
+      "validated_leg_geometries": 72,
+      "shortest_duration_s": 720,
+      "shortest_lines": [
+        "U5"
+      ],
+      "earliest_arrival": "2026-09-07T08:13:00Z",
+      "latest_departure": "2026-09-07T08:59:00Z"
+    },
+    {
+      "case": {
+        "id": "alex_hbf",
+        "origin": [
+          52.5219,
+          13.4132
+        ],
+        "destination": [
+          52.5251,
+          13.3694
+        ]
+      },
+      "engine": "otp",
+      "median_ms": 281.023,
+      "max_ms": 312.614,
+      "samples": [
+        {
+          "http_status": 200,
+          "ms": 312.614,
+          "transit_count": 19,
+          "error": null
+        },
+        {
+          "http_status": 200,
+          "ms": 268.82800000000003,
+          "transit_count": 19,
+          "error": null
+        },
+        {
+          "http_status": 200,
+          "ms": 257.954,
+          "transit_count": 19,
+          "error": null
+        },
+        {
+          "http_status": 200,
+          "ms": 291.404,
+          "transit_count": 19,
+          "error": null
+        },
+        {
+          "http_status": 200,
+          "ms": 281.023,
+          "transit_count": 19,
+          "error": null
+        }
+      ],
+      "warmup": {
+        "http_status": 200,
+        "ms": 253.11499999999998,
+        "transit_count": 19,
+        "error": null
+      },
+      "transit_alternatives": 19,
+      "validated_leg_geometries": 57,
+      "shortest_duration_s": 892,
+      "shortest_lines": [
+        "S3"
+      ],
+      "earliest_arrival": "2026-09-07T08:15:59+00:00",
+      "latest_departure": "2026-09-07T08:58:37+00:00"
+    },
+    {
+      "case": {
+        "id": "park_zoo",
+        "origin": [
+          52.4884438,
+          13.4703145
+        ],
+        "destination": [
+          52.5073,
+          13.3324
+        ]
+      },
+      "engine": "motis",
+      "median_ms": 99.78399999999999,
+      "max_ms": 108.67599999999999,
+      "samples": [
+        {
+          "http_status": 200,
+          "ms": 108.67599999999999,
+          "transit_count": 21,
+          "error": null
+        },
+        {
+          "http_status": 200,
+          "ms": 99.78399999999999,
+          "transit_count": 21,
+          "error": null
+        },
+        {
+          "http_status": 200,
+          "ms": 97.774,
+          "transit_count": 21,
+          "error": null
+        },
+        {
+          "http_status": 200,
+          "ms": 92.792,
+          "transit_count": 21,
+          "error": null
+        },
+        {
+          "http_status": 200,
+          "ms": 107.379,
+          "transit_count": 21,
+          "error": null
+        }
+      ],
+      "warmup": {
+        "http_status": 200,
+        "ms": 103.206,
+        "transit_count": 21,
+        "error": null
+      },
+      "transit_alternatives": 21,
+      "validated_leg_geometries": 111,
+      "shortest_duration_s": 2280,
+      "shortest_lines": [
+        "S9"
+      ],
+      "earliest_arrival": "2026-09-07T08:45:00Z",
+      "latest_departure": "2026-09-07T08:59:00Z"
+    },
+    {
+      "case": {
+        "id": "park_zoo",
+        "origin": [
+          52.4884438,
+          13.4703145
+        ],
+        "destination": [
+          52.5073,
+          13.3324
+        ]
+      },
+      "engine": "otp",
+      "median_ms": 331.779,
+      "max_ms": 379.759,
+      "samples": [
+        {
+          "http_status": 200,
+          "ms": 379.759,
+          "transit_count": 15,
+          "error": null
+        },
+        {
+          "http_status": 200,
+          "ms": 366.65500000000003,
+          "transit_count": 15,
+          "error": null
+        },
+        {
+          "http_status": 200,
+          "ms": 331.779,
+          "transit_count": 15,
+          "error": null
+        },
+        {
+          "http_status": 200,
+          "ms": 294.405,
+          "transit_count": 15,
+          "error": null
+        },
+        {
+          "http_status": 200,
+          "ms": 300.144,
+          "transit_count": 15,
+          "error": null
+        }
+      ],
+      "warmup": {
+        "http_status": 200,
+        "ms": 382.596,
+        "transit_count": 15,
+        "error": null
+      },
+      "transit_alternatives": 15,
+      "validated_leg_geometries": 69,
+      "shortest_duration_s": 2220,
+      "shortest_lines": [
+        "S9"
+      ],
+      "earliest_arrival": "2026-09-07T08:38:06+00:00",
+      "latest_departure": "2026-09-07T08:51:25+00:00"
+    },
+    {
+      "case": {
+        "id": "night",
+        "origin": [
+          52.4884438,
+          13.4703145
+        ],
+        "destination": [
+          52.5073,
+          13.3324
+        ],
+        "time": "2026-09-08T00:00:00Z"
+      },
+      "engine": "motis",
+      "median_ms": 31.817999999999998,
+      "max_ms": 32.635,
+      "samples": [
+        {
+          "http_status": 200,
+          "ms": 31.832,
+          "transit_count": 5,
+          "error": null
+        },
+        {
+          "http_status": 200,
+          "ms": 31.817999999999998,
+          "transit_count": 5,
+          "error": null
+        },
+        {
+          "http_status": 200,
+          "ms": 32.635,
+          "transit_count": 5,
+          "error": null
+        },
+        {
+          "http_status": 200,
+          "ms": 30.499,
+          "transit_count": 5,
+          "error": null
+        },
+        {
+          "http_status": 200,
+          "ms": 30.788,
+          "transit_count": 5,
+          "error": null
+        }
+      ],
+      "warmup": {
+        "http_status": 200,
+        "ms": 36.759,
+        "transit_count": 5,
+        "error": null
+      },
+      "transit_alternatives": 5,
+      "validated_leg_geometries": 25,
+      "shortest_duration_s": 3300,
+      "shortest_lines": [
+        "N65",
+        "N2"
+      ],
+      "earliest_arrival": "2026-09-08T00:59:00Z",
+      "latest_departure": "2026-09-08T01:03:00Z"
+    },
+    {
+      "case": {
+        "id": "night",
+        "origin": [
+          52.4884438,
+          13.4703145
+        ],
+        "destination": [
+          52.5073,
+          13.3324
+        ],
+        "time": "2026-09-08T00:00:00Z"
+      },
+      "engine": "otp",
+      "median_ms": 335.804,
+      "max_ms": 377.978,
+      "samples": [
+        {
+          "http_status": 200,
+          "ms": 352.234,
+          "transit_count": 8,
+          "error": null
+        },
+        {
+          "http_status": 200,
+          "ms": 377.978,
+          "transit_count": 8,
+          "error": null
+        },
+        {
+          "http_status": 200,
+          "ms": 335.804,
+          "transit_count": 8,
+          "error": null
+        },
+        {
+          "http_status": 200,
+          "ms": 302.79,
+          "transit_count": 8,
+          "error": null
+        },
+        {
+          "http_status": 200,
+          "ms": 272.889,
+          "transit_count": 8,
+          "error": null
+        }
+      ],
+      "warmup": {
+        "http_status": 200,
+        "ms": 374.15999999999997,
+        "transit_count": 8,
+        "error": null
+      },
+      "transit_alternatives": 8,
+      "validated_leg_geometries": 32,
+      "shortest_duration_s": 3251,
+      "shortest_lines": [
+        "N60",
+        "N1"
+      ],
+      "earliest_arrival": "2026-09-08T00:57:53+00:00",
+      "latest_departure": "2026-09-08T00:55:52+00:00"
+    },
+    {
+      "case": {
+        "id": "arrive_by",
+        "origin": [
+          52.4884438,
+          13.4703145
+        ],
+        "destination": [
+          52.5073,
+          13.3324
+        ],
+        "arrive_by": true
+      },
+      "engine": "motis",
+      "median_ms": 11.074,
+      "max_ms": 12.033999999999999,
+      "samples": [
+        {
+          "http_status": 200,
+          "ms": 11.298,
+          "transit_count": 1,
+          "error": null
+        },
+        {
+          "http_status": 200,
+          "ms": 11.074,
+          "transit_count": 1,
+          "error": null
+        },
+        {
+          "http_status": 200,
+          "ms": 10.866999999999999,
+          "transit_count": 1,
+          "error": null
+        },
+        {
+          "http_status": 200,
+          "ms": 11.056,
+          "transit_count": 1,
+          "error": null
+        },
+        {
+          "http_status": 200,
+          "ms": 12.033999999999999,
+          "transit_count": 1,
+          "error": null
+        }
+      ],
+      "warmup": {
+        "http_status": 200,
+        "ms": 11.293,
+        "transit_count": 1,
+        "error": null
+      },
+      "transit_alternatives": 1,
+      "validated_leg_geometries": 3,
+      "shortest_duration_s": 2280,
+      "shortest_lines": [
+        "S9"
+      ],
+      "earliest_arrival": "2026-09-07T07:57:00Z",
+      "latest_departure": "2026-09-07T07:19:00Z"
+    },
+    {
+      "case": {
+        "id": "arrive_by",
+        "origin": [
+          52.4884438,
+          13.4703145
+        ],
+        "destination": [
+          52.5073,
+          13.3324
+        ],
+        "arrive_by": true
+      },
+      "engine": "otp",
+      "median_ms": 347.536,
+      "max_ms": 390.168,
+      "samples": [
+        {
+          "http_status": 200,
+          "ms": 355.907,
+          "transit_count": 12,
+          "error": null
+        },
+        {
+          "http_status": 200,
+          "ms": 347.536,
+          "transit_count": 12,
+          "error": null
+        },
+        {
+          "http_status": 200,
+          "ms": 390.168,
+          "transit_count": 12,
+          "error": null
+        },
+        {
+          "http_status": 200,
+          "ms": 313.97,
+          "transit_count": 12,
+          "error": null
+        },
+        {
+          "http_status": 200,
+          "ms": 327.949,
+          "transit_count": 12,
+          "error": null
+        }
+      ],
+      "warmup": {
+        "http_status": 200,
+        "ms": 327.668,
+        "transit_count": 12,
+        "error": null
+      },
+      "transit_alternatives": 12,
+      "validated_leg_geometries": 54,
+      "shortest_duration_s": 2220,
+      "shortest_lines": [
+        "S9"
+      ],
+      "earliest_arrival": "2026-09-07T07:15:36+00:00",
+      "latest_departure": "2026-09-07T07:21:06+00:00"
+    },
+    {
+      "case": {
+        "id": "outside_region",
+        "origin": [
+          48.137,
+          11.575
+        ],
+        "destination": [
+          52.5251,
+          13.3694
+        ],
+        "negative": true
+      },
+      "engine": "motis",
+      "median_ms": 4.622,
+      "max_ms": 5.413,
+      "samples": [
+        {
+          "http_status": 200,
+          "ms": 4.622,
+          "transit_count": 0,
+          "error": null
+        },
+        {
+          "http_status": 200,
+          "ms": 4.42,
+          "transit_count": 0,
+          "error": null
+        },
+        {
+          "http_status": 200,
+          "ms": 4.644,
+          "transit_count": 0,
+          "error": null
+        },
+        {
+          "http_status": 200,
+          "ms": 4.257000000000001,
+          "transit_count": 0,
+          "error": null
+        },
+        {
+          "http_status": 200,
+          "ms": 5.413,
+          "transit_count": 0,
+          "error": null
+        }
+      ],
+      "warmup": {
+        "http_status": 200,
+        "ms": 4.458,
+        "transit_count": 0,
+        "error": null
+      },
+      "transit_alternatives": 0,
+      "validated_leg_geometries": 0,
+      "shortest_duration_s": null,
+      "shortest_lines": [],
+      "earliest_arrival": null,
+      "latest_departure": null
+    },
+    {
+      "case": {
+        "id": "outside_region",
+        "origin": [
+          48.137,
+          11.575
+        ],
+        "destination": [
+          52.5251,
+          13.3694
+        ],
+        "negative": true
+      },
+      "engine": "otp",
+      "median_ms": 30.205,
+      "max_ms": 36.867,
+      "samples": [
+        {
+          "http_status": 200,
+          "ms": 30.205,
+          "transit_count": 0,
+          "error": null
+        },
+        {
+          "http_status": 200,
+          "ms": 31.611,
+          "transit_count": 0,
+          "error": null
+        },
+        {
+          "http_status": 200,
+          "ms": 36.867,
+          "transit_count": 0,
+          "error": null
+        },
+        {
+          "http_status": 200,
+          "ms": 27.022000000000002,
+          "transit_count": 0,
+          "error": null
+        },
+        {
+          "http_status": 200,
+          "ms": 26.731,
+          "transit_count": 0,
+          "error": null
+        }
+      ],
+      "warmup": {
+        "http_status": 200,
+        "ms": 33.154999999999994,
+        "transit_count": 0,
+        "error": null
+      },
+      "transit_alternatives": 0,
+      "validated_leg_geometries": 0,
+      "shortest_duration_s": null,
+      "shortest_lines": [],
+      "earliest_arrival": null,
+      "latest_departure": null
+    },
+    {
+      "case": {
+        "id": "expired_timetable",
+        "origin": [
+          52.4884438,
+          13.4703145
+        ],
+        "destination": [
+          52.5073,
+          13.3324
+        ],
+        "time": "2027-01-15T08:00:00Z",
+        "negative": true
+      },
+      "engine": "motis",
+      "median_ms": 0.7290000000000001,
+      "max_ms": 1.036,
+      "samples": [
+        {
+          "http_status": 400,
+          "ms": 0.674,
+          "transit_count": 0,
+          "error": "query time 2027-01-15 08:00 is outside of loaded timetable window [2026-08-03 00:00, 2026-12-13 00:00["
+        },
+        {
+          "http_status": 400,
+          "ms": 0.605,
+          "transit_count": 0,
+          "error": "query time 2027-01-15 08:00 is outside of loaded timetable window [2026-08-03 00:00, 2026-12-13 00:00["
+        },
+        {
+          "http_status": 400,
+          "ms": 1.036,
+          "transit_count": 0,
+          "error": "query time 2027-01-15 08:00 is outside of loaded timetable window [2026-08-03 00:00, 2026-12-13 00:00["
+        },
+        {
+          "http_status": 400,
+          "ms": 0.924,
+          "transit_count": 0,
+          "error": "query time 2027-01-15 08:00 is outside of loaded timetable window [2026-08-03 00:00, 2026-12-13 00:00["
+        },
+        {
+          "http_status": 400,
+          "ms": 0.7290000000000001,
+          "transit_count": 0,
+          "error": "query time 2027-01-15 08:00 is outside of loaded timetable window [2026-08-03 00:00, 2026-12-13 00:00["
+        }
+      ],
+      "warmup": {
+        "http_status": 400,
+        "ms": 0.9319999999999999,
+        "transit_count": 0,
+        "error": "query time 2027-01-15 08:00 is outside of loaded timetable window [2026-08-03 00:00, 2026-12-13 00:00["
+      },
+      "transit_alternatives": 0,
+      "validated_leg_geometries": 0,
+      "shortest_duration_s": null,
+      "shortest_lines": [],
+      "earliest_arrival": null,
+      "latest_departure": null
+    },
+    {
+      "case": {
+        "id": "expired_timetable",
+        "origin": [
+          52.4884438,
+          13.4703145
+        ],
+        "destination": [
+          52.5073,
+          13.3324
+        ],
+        "time": "2027-01-15T08:00:00Z",
+        "negative": true
+      },
+      "engine": "otp",
+      "median_ms": 146.642,
+      "max_ms": 163.585,
+      "samples": [
+        {
+          "http_status": 200,
+          "ms": 143.38600000000002,
+          "transit_count": 0,
+          "error": null
+        },
+        {
+          "http_status": 200,
+          "ms": 118.252,
+          "transit_count": 0,
+          "error": null
+        },
+        {
+          "http_status": 200,
+          "ms": 148.26600000000002,
+          "transit_count": 0,
+          "error": null
+        },
+        {
+          "http_status": 200,
+          "ms": 163.585,
+          "transit_count": 0,
+          "error": null
+        },
+        {
+          "http_status": 200,
+          "ms": 146.642,
+          "transit_count": 0,
+          "error": null
+        }
+      ],
+      "warmup": {
+        "http_status": 200,
+        "ms": 133.94,
+        "transit_count": 0,
+        "error": null
+      },
+      "transit_alternatives": 0,
+      "validated_leg_geometries": 0,
+      "shortest_duration_s": null,
+      "shortest_lines": [],
+      "earliest_arrival": null,
+      "latest_departure": null
+    }
+  ],
+  "direct_smoke": [
+    {
+      "mode": "WALK",
+      "http_status": 200,
+      "ms": 19.48,
+      "count": 1,
+      "duration_s": [
+        4183
+      ],
+      "geometry_valid": true
+    },
+    {
+      "mode": "BIKE",
+      "http_status": 200,
+      "ms": 26.207,
+      "count": 1,
+      "duration_s": [
+        1396
+      ],
+      "geometry_valid": true
+    },
+    {
+      "mode": "CAR",
+      "http_status": 200,
+      "ms": 693.49,
+      "count": 1,
+      "duration_s": [
+        562
+      ],
+      "geometry_valid": true
+    }
+  ]
+}

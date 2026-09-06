@@ -44,7 +44,7 @@ export DOCKER_CONFIG="${DOCKER_CONFIG:-$DATA_DIR/.docker}"
 usable_dirs() {
   for d in "$DATA_DIR" "$DB_DIR" "$SECRET_DIR" "$WORK_DATA_DIR/osm" \
            "$WORK_DATA_DIR/gtfs" "$WORK_DATA_DIR/otp" "$WORK_DATA_DIR/tiles" \
-           "$WORK_DATA_DIR/valhalla"; do
+           "$WORK_DATA_DIR/valhalla" "$WORK_DATA_DIR/motis"; do
     [ -d "$d" ] && echo "$d"
   done | awk '!seen[$0]++'
 }

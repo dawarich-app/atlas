@@ -15,6 +15,16 @@ defmodule Atlas.Control.DockerCompose do
 
   require Logger
 
+  import Ecto.Query
+  alias Atlas.Control.{Service, ServiceState}
+  alias Atlas.{Repo, Settings}
+
+  def select_transit(name) when name in ~w(otp motis),
+    do: GenServer.call(__MODULE__, {:select_transit, name}, :timer.minutes(15))
+
+  def enforce_transit_selection,
+    do: GenServer.call(__MODULE__, :enforce_transit, :timer.minutes(3))
+
   @type runner :: (String.t(), [String.t()] ->
                      {Collectable.t(), exit_status :: non_neg_integer()})
   @type result :: {:ok, String.t()} | {:error, non_neg_integer(), String.t()}
@@ -98,16 +108,84 @@ defmodule Atlas.Control.DockerCompose do
   end
 
   @impl true
-  def handle_call({:compose, args}, _from, %{runner: runner} = state) do
-    full_args = ["compose"] ++ project_args(state) ++ env_file_args(state) ++ args
+  def handle_call({:select_transit, name}, _from, state) do
+    other = other_transit(name)
 
-    reply =
-      case runner.("docker", full_args) do
-        {output, 0} -> {:ok, output}
-        {output, code} -> {:error, code, output}
+    result =
+      with {:ok, _} <- run(state, ["stop", other]),
+           {:ok, output} <- run(state, ["ps", "-q", "--status", "running", other]),
+           :ok <- stopped(output) do
+        {:ok, _} =
+          Repo.transaction(fn ->
+            Repo.update_all(from(s in Service, where: s.name in ["otp", "motis"]),
+              set: [enabled: false]
+            )
+
+            {:ok, _} = Settings.set("transit_backend", name)
+            Repo.update_all(from(s in Service, where: s.name == ^name), set: [enabled: true])
+          end)
+
+        sync_transit(other, false, :ok)
+        sync_transit(name, true, :ok)
+        result = run(state, ["up", "-d", name])
+        sync_transit(name, true, result)
+        result
       end
 
+    {:reply, result, state}
+  end
+
+  def handle_call(:enforce_transit, _from, state) do
+    other = other_transit(Settings.transit_backend())
+    Repo.update_all(from(s in Service, where: s.name == ^other), set: [enabled: false])
+    result = run(state, ["stop", other])
+    sync_transit(other, false, result)
+    {:reply, result, state}
+  end
+
+  def handle_call({:compose, [op | rest] = args}, _from, state) when op in ["up", "restart"] do
+    name = List.last(rest)
+
+    reply =
+      if name in ~w(otp motis), do: start_selected(state, name, args), else: run(state, args)
+
     {:reply, reply, state}
+  end
+
+  def handle_call({:compose, args}, _from, state), do: {:reply, run(state, args), state}
+
+  defp start_selected(state, name, args) do
+    if name == Settings.transit_backend() do
+      with {:ok, _} <- run(state, ["stop", other_transit(name)]),
+           {:ok, output} <- run(state, ["ps", "-q", "--status", "running", other_transit(name)]),
+           :ok <- stopped(output) do
+        run(state, args)
+      end
+    else
+      {:error, 1, "#{name} is not the selected transit engine"}
+    end
+  end
+
+  defp run(state, args) do
+    full_args = ["compose"] ++ project_args(state) ++ env_file_args(state) ++ args
+
+    case state.runner.("docker", full_args) do
+      {output, 0} -> {:ok, output}
+      {output, code} -> {:error, code, output}
+    end
+  end
+
+  defp other_transit("otp"), do: "motis"
+  defp other_transit("motis"), do: "otp"
+
+  defp stopped(output) do
+    if String.trim(output) == "",
+      do: :ok,
+      else: {:error, 1, "Previous transit engine is still running"}
+  end
+
+  defp sync_transit(name, enabled, result) do
+    ServiceState.transit_state(name, enabled, result)
   end
 
   @doc """
