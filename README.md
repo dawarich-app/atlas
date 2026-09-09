@@ -6,7 +6,7 @@ Atlas is the maps engine that powers Dawarich, packaged so it stands on its own 
 
 Map search loads matches across the installed Photon dataset and groups them into
 numbered clusters. Zoom or click a cluster to explore; **Show all** fits the full
-result set. See [search behavior and limits](docs/search.md).
+result set. See [search behavior and limits](https://atlas.dawarich.app/docs/search).
 
 ## Screenshots
 
@@ -80,6 +80,11 @@ Every operational topic has a dedicated page on the website. The README is inten
 |---|---|
 | What it is, capability list, response envelope | [Introduction](https://atlas.dawarich.app/docs/) |
 | Clone → boot → data layers, admin panel auth, offline basemap | [Quickstart](https://atlas.dawarich.app/docs/quickstart) |
+| First-run features, data selection and installation progress | [Setup wizard](https://atlas.dawarich.app/docs/setup-wizard) |
+| Search areas, category filters, clusters and completeness | [Search and places](https://atlas.dawarich.app/docs/search) |
+| Endpoints, journey times and transport details | [Directions](https://atlas.dawarich.app/docs/directions) |
+| MOTIS / OTP selection and GTFS / GTFS-RT sources | [Transit engines](https://atlas.dawarich.app/docs/transit-engines) · [Transport data](https://atlas.dawarich.app/docs/transport-data) |
+| Version upgrades, backups and rollback | [Upgrading](https://atlas.dawarich.app/docs/upgrading) |
 | Design principles, tech stack, topology, Go sidecar, Nominatim decision | [Architecture](https://atlas.dawarich.app/docs/architecture) |
 | Region presets, multi-region auto-merge, scaling tables (Germany / France / USA / planet) | [Regions](https://atlas.dawarich.app/docs/regions) |
 | Compose profiles, graceful degradation, ports | [Compose profiles](https://atlas.dawarich.app/docs/compose-profiles) |
@@ -109,7 +114,7 @@ image. A dated version at the top of `CHANGELOG.md` triggers the release workflo
 it verifies the version against `mix.exs` and runs Phoenix and deployment tests
 before tagging. An `Unreleased` section does not publish anything.
 
-See [upgrading and rolling back](docs/upgrading.md) before moving an existing
+See [upgrading and rolling back](https://atlas.dawarich.app/docs/upgrading) before moving an existing
 installation to 0.5.1. Update the checkout as well as the image: Compose and
 the Placeholder startup script are part of the release.
 

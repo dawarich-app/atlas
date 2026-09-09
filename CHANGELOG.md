@@ -28,7 +28,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 ### Notes
 - City filtering matches address attributes, not an administrative boundary; use **This map area** for places without a city address. Photon does not guarantee exhaustive ranked results.
 - Configuring a realtime endpoint does not confirm live coverage or feed health. Journeys display the status provided by the routing engine. Service badges currently derive readiness from logs and can lag actual API availability.
-- Upgrade the checkout as well as the app image to receive the MOTIS startup changes; see [the upgrade guide](https://github.com/dawarich-app/atlas/blob/v0.5.1/docs/upgrading.md).
+- Upgrade the checkout as well as the app image to receive the MOTIS startup changes; see [the upgrade guide](https://atlas.dawarich.app/docs/upgrading).
 
 ## [0.5.0] - 2026-09-06
 
