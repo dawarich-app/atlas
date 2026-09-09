@@ -1,5 +1,25 @@
 # Upgrading Atlas
 
+## Upgrade from 0.5.0 to 0.5.1
+
+1. Stop the app while backing up `.env`, Compose overrides and the complete
+   `data/app/` directory, including SQLite WAL files and the signing secret.
+   Keep a record of your previous checkout and image for rollback.
+2. Fetch and check out `v0.5.1`, preserving local configuration. Update both the
+   checkout and image: this release changes `scripts/motis/start.sh`.
+3. To pin the release, set `APP_IMAGE=ghcr.io/dawarich-app/atlas/app:0.5.1` in
+   `.env`. Run `docker compose pull app` and `docker compose up -d app`.
+4. Existing installations keep their selected transit engine and regional
+   timetables. **Settings → Setup wizard** is optional. Connecting a source
+   edits configuration; **Download & apply** downloads the selected timetables
+   and rebuilds the selected transit engine, which can interrupt routing.
+5. Review provider coverage and license information before applying a source
+   selection. Daily updates and realtime endpoints are optional. Applying
+   managed sources replaces the timetable selection, not street data.
+6. Check `/api/v1/version`, a local search and a route. No manual schema
+   migration or regional re-download is required just to upgrade the app.
+
+
 ## Upgrade from 0.4.0 to 0.5.0
 
 1. Back up `data/app/atlas.sqlite3` and your `.env` before changing the checkout.

@@ -4,6 +4,32 @@ All notable changes to Dawarich Atlas are documented here.
 
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.1] - 2026-09-09
+
+### Added
+- A first-run setup wizard selects features, regions and a single transit engine, shows installation progress, and supports resuming or retrying setup. Missing timetable coverage is an explicit warning rather than a navigation blocker.
+- Transport data settings connect GTFS providers or custom sources, starting with VBB for Berlin and Brandenburg. Optional GTFS-RT endpoints and daily timetable updates can be configured; existing regional timetables remain in use until a source selection is applied.
+- Directions now shows departure and arrival times, waits, transfers, destination names, platforms when supplied, and scheduled versus realtime status. A departure-time control uses the browser's local timezone.
+- Place cards and map popups offer **Start here** and **Route here**. Search results include addresses, and an optional **City in address** filter makes city matching explicit.
+
+### Changed
+- Regional PBF and GTFS downloads share a bounded pool of three parallel downloads, reuse duplicate sources and report progress independently. Address search can start while regional datasets are prepared.
+- Map workspace state is preserved within the browser tab across navigation and refresh. Mobile Directions collapses the address form after routing so the result summary is immediately visible.
+- Settings identifies region extract providers and download estimates, shows the effective basemap, and distinguishes existing timetable files from managed sources and disabled realtime configuration.
+
+### Fixed
+- Recovery from unavailable APIs opens the embedded Services settings instead of a broken legacy admin page. Returning to the map preserves the previous tab and route; returning from transport sources preserves the setup step.
+- Search markers and route overlays no longer mix when switching between Search and Directions. Selecting a place keeps a path back to the results.
+- Incomplete ranked search results explain the limit and suggest a smaller area instead of offering an ineffective retry. Network failures still offer retry.
+- Route options match the selected travel mode and remain expanded during updates. Transit labels no longer expose technical mode names or START/END placeholders.
+- Multi-region presets sum the sizes of all known extracts rather than inheriting only the first region's size. Setup timetable badges reflect the selected sources.
+- Setup review remains scrollable, Back remains available, and installation details stay open during progress updates.
+
+### Notes
+- City filtering matches address attributes, not an administrative boundary; use **This map area** for places without a city address. Photon does not guarantee exhaustive ranked results.
+- Configuring a realtime endpoint does not confirm live coverage or feed health. Journeys display the status provided by the routing engine. Service badges currently derive readiness from logs and can lag actual API availability.
+- Upgrade the checkout as well as the app image to receive the MOTIS startup changes; see [the upgrade guide](https://github.com/dawarich-app/atlas/blob/v0.5.1/docs/upgrading.md).
+
 ## [0.5.0] - 2026-09-06
 
 ### Added
@@ -136,6 +162,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 - Caddy reverse proxy fronting the stack on port 8484 and serving offline basemap tiles when present.
 - Multi-arch GitHub Actions CI publishing `ghcr.io/dawarich-app/atlas/app` and `ghcr.io/dawarich-app/atlas/atlas-control` on every push to `main`.
 
+[0.5.1]: https://github.com/dawarich-app/atlas/compare/v0.5.0...v0.5.1
 [0.5.0]: https://github.com/dawarich-app/atlas/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/dawarich-app/atlas/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/dawarich-app/atlas/compare/v0.2.0...v0.3.0
