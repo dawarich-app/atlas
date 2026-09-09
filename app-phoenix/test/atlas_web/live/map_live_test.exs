@@ -262,7 +262,7 @@ defmodule AtlasWeb.MapLiveTest do
         |> element("form[phx-change=search]")
         |> render_change(%{"q" => "b"})
 
-      refute html =~ "Berlin"
+      refute has_element?(view, "#search-results")
       refute html =~ "No results"
     end
 
@@ -357,18 +357,20 @@ defmodule AtlasWeb.MapLiveTest do
       assert_push_event(view, "map:set_results", %{points: []})
     end
 
-    test "selecting a result narrows the map to that one", %{conn: conn} do
+    test "selecting a result focuses its location and preserves the result list", %{conn: conn} do
       {:ok, view, _html} = live(conn, ~p"/")
       typed(view, "berlin")
       assert_push_event(view, "map:set_results", %{points: [first | _]})
 
       view |> element(~s(#search-results button[phx-value-id="N:1"])) |> render_click()
 
-      assert_push_event(view, "map:set_results", %{points: [only]})
-      assert only.label == first.label
+      assert_push_event(view, "map:fly_to", %{lat: lat, lon: lon})
+      assert {lat, lon} == {first.lat, first.lon}
+      view |> element("button[phx-click=back_to_results]") |> render_click()
+      assert has_element?(view, "#search-results")
     end
 
-    test "selecting puts the label in the box and dismisses the list", %{conn: conn} do
+    test "selecting shows an actionable place card while keeping the search query", %{conn: conn} do
       # Rails did both on commit; leaving the list open under a chosen result
       # makes the next keystroke ambiguous.
       {:ok, view, _html} = live(conn, ~p"/")
@@ -378,7 +380,9 @@ defmodule AtlasWeb.MapLiveTest do
 
       refute html =~ "search-results"
       refute html =~ "No results"
-      assert html =~ ~s(value="Berlin P1, Berlin")
+      assert html =~ ~s(value="berlin")
+      assert has_element?(view, "section[aria-label=\"Selected place\"]", "Berlin P1, Berlin")
+      assert has_element?(view, "button[phx-click=route_place][phx-value-field=to]", "Route here")
     end
   end
 
@@ -434,10 +438,10 @@ defmodule AtlasWeb.MapLiveTest do
       # The box shows "b", so the URL should too — but Photon is never asked.
       {:ok, view, _html} = live(conn, ~p"/")
 
-      html = view |> element("form[phx-change=search]") |> render_change(%{"q" => "b"})
+      view |> element("form[phx-change=search]") |> render_change(%{"q" => "b"})
 
       assert_patch(view, "/?q=b")
-      refute html =~ "Berlin"
+      refute has_element?(view, "#search-results")
     end
 
     test "other query parameters survive a search", %{conn: conn} do
@@ -450,13 +454,14 @@ defmodule AtlasWeb.MapLiveTest do
       assert path =~ "tab=settings"
     end
 
-    test "picking a result puts its label in the URL", %{conn: conn} do
+    test "picking a result keeps the original query for returning to results", %{conn: conn} do
       {:ok, view, _html} = live(conn, ~p"/?q=berlin")
       render_async(view)
 
       view |> element(~s(#search-results button[phx-value-id="N:1"])) |> render_click()
 
-      assert_patch(view, "/?q=Berlin")
+      assert has_element?(view, ~s(#search-input[value="berlin"]))
+      assert has_element?(view, "button[phx-click=back_to_results]")
     end
 
     test "an unchanged query does not re-run the search", %{conn: conn} do

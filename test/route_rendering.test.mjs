@@ -12,7 +12,7 @@ test('a route arriving after map load while tiles are busy renders the latest da
     addLayer(layer){layers.push(layer)},
     once(){assert.fail('Must not wait for the already-fired map load event')}
   }
-  const context = {map, routeGeoJSON:{features:['old']}}
+  const context = {map, activeTab:'route', routeGeoJSON:{features:['old']}}
   MapHook._renderRoute.call(context)
   assert.equal(sources.size,0)
   context.routeGeoJSON = {features:['new']}
@@ -27,4 +27,20 @@ test('a route arriving after map load while tiles are busy renders the latest da
   sources.clear()
   MapHook._renderRoute.call(context)
   assert.deepEqual(sources.get('route').data,{features:['new']})
+})
+
+
+test('Search hides the route without discarding geometry needed by Directions', () => {
+  let displayed
+  const route = {type:'FeatureCollection', features:[{type:'Feature', geometry:{type:'LineString', coordinates:[[13.37,52.51],[13.41,52.52]]}}]}
+  const context = {
+    activeTab:'search', routeGeoJSON:route,
+    map:{isStyleLoaded:()=>true, getSource:()=>({setData(data){displayed=data}})}
+  }
+  MapHook._renderRoute.call(context)
+  assert.deepEqual(displayed.features, [])
+  assert.equal(context.routeGeoJSON, route)
+  context.activeTab = 'route'
+  MapHook._renderRoute.call(context)
+  assert.equal(displayed, route)
 })

@@ -27,6 +27,38 @@ defmodule Atlas.Maps.SearchAllTest do
     end
   end
 
+  test "city filter excludes a matching street name in another city" do
+    berlin = put_in(feature(1, 13.4, 52.5), ["properties", "city"], "Berlin")
+
+    other =
+      feature(2, 14.5, 52.3)
+      |> put_in(["properties", "city"], "Frankfurt (Oder)")
+      |> put_in(["properties", "street"], "Berliner Straße")
+
+    result =
+      SearchAll.run("McDonald's",
+        city: "Berlin",
+        fetch: fn opts ->
+          assert opts[:query] == "McDonald's, Berlin"
+          {:ok, %{"features" => [berlin, other]}}
+        end
+      )
+
+    assert Enum.map(result.features, & &1.id) == ["N:1"]
+  end
+
+  test "ranked fallback is distinguishable from a failed upstream request" do
+    fallback =
+      SearchAll.run("missing",
+        page_size: 1,
+        fetch: fn _ -> {:ok, %{"features" => [feature(1, 13.4, 52.5)]}} end
+      )
+
+    assert fallback.issues == [:ranked_results]
+    failed = SearchAll.run("missing", fetch: fn _ -> {:error, :timeout} end)
+    assert failed.issues == [:upstream]
+  end
+
   test "collects every match beyond the upstream cap across the entire dataset" do
     features = Enum.map(1..137, &feature(&1, -170 + &1 * 2, -40 + rem(&1, 70)))
     result = SearchAll.run("McDonald's", fetch: dataset_fetch(features), page_size: 5)

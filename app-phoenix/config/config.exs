@@ -65,7 +65,8 @@ config :atlas, Oban,
     Oban.Plugins.Pruner,
     {Oban.Plugins.Cron,
      crontab: [
-       {"* * * * *", Atlas.Control.Jobs.AutoUpdateScan}
+       {"* * * * *", Atlas.Control.Jobs.AutoUpdateScan},
+       {"0 3 * * *", Atlas.Control.Jobs.RefreshTransitSources}
      ]}
   ]
 

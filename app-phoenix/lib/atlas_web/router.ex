@@ -50,6 +50,8 @@ defmodule AtlasWeb.Router do
   scope "/", AtlasWeb do
     pipe_through :browser
     live "/", MapLive, :index
+    live "/setup", SetupLive, :index
+    live "/transport-data", TransitSourcesLive, :index
     get "/static_map", StaticMapController, :show
   end
 

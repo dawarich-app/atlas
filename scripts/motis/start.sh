@@ -7,7 +7,7 @@ if [ ! -s /input/region.osm.pbf ]; then
   exit 1
 fi
 set -- /input/*.gtfs.zip
-if [ ! -f "$1" ]; then
+if [ ! -f "$1" ] && [ ! -f /input/motis-datasets.yml ]; then
   echo 'MOTIS error: no GTFS timetable. Select a region with transit feeds.' >&2
   exit 1
 fi
@@ -27,8 +27,11 @@ timetable:
   first_day: $(date -u +%Y-%m-%d)
   num_days: 365
   with_shapes: true
-  datasets:
 EOF
+if [ -f /input/motis-datasets.yml ]; then
+  cat /input/motis-datasets.yml >> /data/config.yml
+else
+  printf '  datasets:\n' >> /data/config.yml
 index=0
 for feed in /input/*.gtfs.zip; do
   index=$((index + 1))
@@ -37,6 +40,7 @@ for feed in /input/*.gtfs.zip; do
 '*) echo 'MOTIS error: unsupported GTFS filename' >&2; exit 1;; esac
   printf '    feed%s:\n      path: "%s"\n' "$index" "$feed" >> /data/config.yml
 done
+fi
 printf 'logging:\n  log_level: info\n' >> /data/config.yml
 echo 'MOTIS importing street network and timetables'
 /motis import --config /data/config.yml --data /data

@@ -483,20 +483,20 @@ defmodule Atlas.Control.ApplyTimeline do
     item = %Item{
       label: label,
       source: raw[:source],
-      state: :running,
+      state: Map.get(raw, :state, :running),
       measure: %Measure{kind: :bytes, current: raw[:current] || 0, total: raw[:total]}
     }
 
     %{stage | items: merge_item(items, item)}
   end
 
-  # A new label means the previous file finished: the applier downloads
-  # sequentially, so anything still "running" when a new one starts is done.
+  # Concurrent files finish independently; only explicit completion or the
+  # end of the download stage can finish a row.
   defp merge_item(items, %Item{label: label} = item) do
     if Enum.any?(items, &(&1.label == label)) do
       replace_item(items, item)
     else
-      Enum.map(items, &finish_item/1) ++ [item]
+      items ++ [item]
     end
   end
 

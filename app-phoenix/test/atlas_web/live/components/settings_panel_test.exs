@@ -395,7 +395,7 @@ defmodule AtlasWeb.SettingsPanelTest do
     RegionSelection.clear()
 
     {:ok, view, _} = open_settings(conn)
-    view |> element("button[phx-click=select_tab][phx-value-tab=settings]") |> render_click()
+    view |> element("button[aria-label=Settings]") |> render_click()
     assert has_element?(view, "#atlas-workspace[data-settings-open=true]")
     assert render(view) =~ "Existing datasets are kept"
 
@@ -408,7 +408,7 @@ defmodule AtlasWeb.SettingsPanelTest do
     assert has_element?(view, "button[phx-click=apply_selection][disabled]")
     refute render(view) =~ "Pending changes"
 
-    view |> element("header button[phx-click=select_tab][phx-value-tab=search]") |> render_click()
+    view |> element("header button[phx-click=back_to_map]") |> render_click()
     assert has_element?(view, "#atlas-workspace[data-settings-open=false]")
     assert has_element?(view, "#map[phx-hook=Map]")
   end

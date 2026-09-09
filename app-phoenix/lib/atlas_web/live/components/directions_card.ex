@@ -11,8 +11,14 @@ defmodule AtlasWeb.DirectionsCard do
   import AtlasWeb.IconHelpers
   import AtlasWeb.Settings.Atoms
 
+  attr :options_open, :boolean, default: false
+  attr :form_open, :boolean, default: true
+  attr :departure, :string, default: ""
   attr :id, :string, required: true
   attr :directions, :any, required: true
+  attr :service_status, :map, default: %{}
+  attr :transit_backend, :string, default: "motis"
+  attr :transit_switching, :string, default: nil
   attr :mode, :string, required: true
   attr :route_from, :string, default: ""
   attr :route_to, :string, default: ""
@@ -25,7 +31,7 @@ defmodule AtlasWeb.DirectionsCard do
       assign(
         assigns,
         :transit_engine,
-        if(Atlas.Settings.transit_backend() == "motis", do: "MOTIS", else: "OpenTripPlanner")
+        if(assigns.transit_backend == "motis", do: "MOTIS", else: "OpenTripPlanner")
       )
 
     ~H"""
@@ -43,10 +49,15 @@ defmodule AtlasWeb.DirectionsCard do
             <.mode_button mode={@mode} value="transit" icon_name="train-front" label="Transit" />
           </div>
         </div>
+        <AtlasWeb.DirectionsStatus.directions_status services={@service_status} backend={@transit_backend} switching={@transit_switching} />
       </header>
 
       <div class="flex flex-col gap-4 px-4 py-4 overflow-y-auto flex-1 min-h-0">
-        <form phx-submit="route" phx-change="route_changed" phx-click-away="route_dismiss" class="grid grid-cols-[1fr_auto] items-stretch gap-2">
+        <div :if={@directions} class="flex items-center justify-between gap-2 md:hidden">
+          <p class="font-semibold text-sm">{RouteDetails.label(@mode)} · {RouteDetails.duration(@directions)}</p>
+          <button phx-click="toggle_route_form" class="btn btn-ghost btn-sm">{if @form_open, do: "Hide addresses", else: "Edit addresses"}</button>
+        </div>
+        <form phx-submit="route" phx-change="route_changed" phx-click-away="route_dismiss" class={["grid-cols-[1fr_auto] items-stretch gap-2 md:grid", if(@form_open or is_nil(@directions), do: "grid", else: "hidden")]}>
           <input type="hidden" name="mode" value={@mode} />
           <div class="flex min-w-0 flex-col gap-2">
             <.endpoint field="from" label="From" value={@route_from}
@@ -74,17 +85,21 @@ defmodule AtlasWeb.DirectionsCard do
           </button>
         </form>
 
-        <details>
-          <summary class="flex cursor-pointer select-none items-center gap-2 font-mono text-[11px] uppercase tracking-[0.2em] text-base-content/55 [&::-webkit-details-marker]:hidden">
-            {icon("sliders-horizontal", class: "w-3.5 h-3.5")}
-            <span>Options</span>
-          </summary>
-          <div class="mt-3 flex flex-col gap-2.5 pl-1">
-            <.route_option options={@route_options} option="avoid_tolls" label="Avoid tolls" />
-            <.route_option options={@route_options} option="avoid_highways" label="Avoid highways" />
-            <.route_option options={@route_options} option="avoid_ferries" label="Avoid ferries" />
+        <div>
+          <button type="button" phx-click="toggle_route_options" aria-expanded={to_string(@options_open)} class="text-xs font-semibold text-base-content/65">
+            {if @mode == "transit", do: "Departure time", else: "Options"}
+          </button>
+          <div :if={@options_open} class="mt-3 flex flex-col gap-2.5">
+            <.route_option :if={@mode == "auto"} options={@route_options} option="avoid_tolls" label="Avoid tolls" />
+            <.route_option :if={@mode == "auto"} options={@route_options} option="avoid_highways" label="Avoid highways" />
+            <.route_option :if={@mode != "transit"} options={@route_options} option="avoid_ferries" label="Avoid ferries" />
+            <div :if={@mode == "transit"}>
+              <label for="route-departure" class="text-xs">Depart at (your local time)</label>
+              <input id="route-departure" type="datetime-local" aria-label="Depart at" phx-hook="DepartureTime" data-value={@departure} class="input input-sm w-full" />
+              <button phx-click="route_departure" phx-value-departure="" class="link text-sm mt-2">Leave now</button>
+            </div>
           </div>
-        </details>
+        </div>
 
         <div :if={@directions} class="rounded-2xl bg-primary/[0.05] px-3.5 py-3">
           <p class="text-[15px] font-semibold">{RouteDetails.label(@directions[:route_mode] || @mode)} · {RouteDetails.duration(@directions)}</p>
@@ -93,21 +108,46 @@ defmodule AtlasWeb.DirectionsCard do
               No public transport connection returned. This alternative is walking only.
             </p>
             <p class="mt-1 text-xs text-base-content/65">{@transit_engine} · Dots: walk · Colours and labels: transport</p>
+            <p :if={itinerary[:start_time] && itinerary[:end_time]} class="mt-2 text-sm">
+              <.clock_time id="trip-start" value={itinerary[:start_time]} /> → <.clock_time id="trip-end" value={itinerary[:end_time]} />
+            </p>
+            <p :if={itinerary[:transfers]} class="text-xs text-base-content/65">{itinerary.transfers} transfers</p>
             <ol class="mt-3 space-y-2 text-sm">
-              <li :for={leg <- itinerary.legs} class="flex items-start gap-2.5">
+              <li :for={{leg, index} <- Enum.with_index(itinerary.legs)} class="flex items-start gap-2.5">
                 <span :if={leg.mode == "WALK"} aria-hidden="true" class="atlas-walk-key">•••</span>
                 <span :if={leg.route_label} class="atlas-route-badge" style={"background-color: #{leg.color}"}>{leg.route_label}</span>
                 <div>
+                <p :if={RouteDetails.wait_before(itinerary.legs, index) >= 60} class="mb-1 text-xs text-base-content/65">Wait {RouteDetails.minutes(RouteDetails.wait_before(itinerary.legs, index))}</p>
                 <span class="font-semibold">{RouteDetails.label(leg.mode)}</span>
                 <span class="text-base-content/60"> · {RouteDetails.minutes(leg.duration)}</span>
-                <p :if={leg.to[:name]} class="text-xs text-base-content/65">To {leg.to.name}</p>
+                <p :if={leg[:start_time] && leg[:end_time]} class="text-xs mt-1">
+                  <.clock_time id={"leg-#{index}-start"} value={leg[:start_time]} /> → <.clock_time id={"leg-#{index}-end"} value={leg[:end_time]} />
+                </p>
+                <p class="text-xs text-base-content/65">From {RouteDetails.place_name(leg[:from], @route_from)}</p>
+                <p class="text-xs text-base-content/65">To {RouteDetails.place_name(leg[:to], @route_to)}</p>
+                <p :if={leg[:headsign]} class="text-xs">Towards {leg.headsign}</p>
+                <p :if={leg.mode != "WALK" && get_in(leg, [:from, :track])} class="text-xs">Platform / track {leg.from.track}</p>
+                <p :if={leg.mode != "WALK"} class="text-xs text-base-content/65">{RouteDetails.time_status(leg)}</p>
+                <p :if={leg[:cancelled]} class="text-xs text-error font-semibold">Cancelled — choose another connection</p>
                 </div>
               </li>
             </ol>
           <% end %>
         </div>
+        <button :if={@directions} phx-click="clear_route" class="link text-xs text-left">Clear route</button>
       </div>
     </div>
+    """
+  end
+
+  attr :id, :string, required: true
+  attr :value, :any, required: true
+
+  defp clock_time(assigns) do
+    assigns = assign(assigns, :iso, RouteDetails.timestamp(assigns.value))
+
+    ~H"""
+    <time :if={@iso} id={@id} datetime={@iso} phx-hook="LocalTime" data-compact="true">{@iso}</time>
     """
   end
 

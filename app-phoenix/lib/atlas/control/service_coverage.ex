@@ -172,6 +172,22 @@ defmodule Atlas.Control.ServiceCoverage do
   defp find_source_region(_, _), do: nil
 
   defp transit_entries(dir) do
+    case File.read(Path.join(dir, "atlas-sources.json")) do
+      {:ok, json} ->
+        for s <- Jason.decode!(json),
+            do: %{
+              label: s["name"],
+              kind: "Transit timetable",
+              source: s["coverage"] || s["id"],
+              evidence: "Connected source staged on disk; graph build required"
+            }
+
+      {:error, :enoent} ->
+        legacy_transit_entries(dir)
+    end
+  end
+
+  defp legacy_transit_entries(dir) do
     Path.wildcard(Path.join(dir, "*.zip"))
     |> Enum.map(
       &%{
@@ -184,11 +200,19 @@ defmodule Atlas.Control.ServiceCoverage do
   end
 
   @doc "Remember the regions used to prepare inputs, including merged PBFs without region headers."
-  def record_inputs(dir, entries) do
+  def record_inputs(dir, entries, services \\ nil) do
     regions = Enum.map(entries, &%{label: &1.label, source: Enum.join(&1.pbf_urls, ", ")})
 
+    paths =
+      ["osm/current.osm.pbf"] ++
+        if(is_nil(services) or "valhalla" in services, do: ["valhalla/region.osm.pbf"], else: []) ++
+        if(is_nil(services) or Enum.any?(~w(otp motis), &(&1 in services)),
+          do: ["otp/region.osm.pbf"],
+          else: []
+        )
+
     Enum.reduce_while(
-      ~w(valhalla/region.osm.pbf otp/region.osm.pbf osm/current.osm.pbf),
+      paths,
       :ok,
       fn relative, :ok ->
         path = Path.join(dir, relative)

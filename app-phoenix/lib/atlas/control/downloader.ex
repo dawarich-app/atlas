@@ -14,15 +14,15 @@ defmodule Atlas.Control.Downloader do
 
   @progress_step_bytes 1_000_000
 
-  def fetch(url, dest, progress_fun) when is_function(progress_fun, 2) do
+  def fetch(url, dest, progress_fun, opts \\ []) when is_function(progress_fun, 2) do
     if File.exists?(dest) do
       {:ok, :cached}
     else
-      do_fetch(url, dest, progress_fun)
+      do_fetch(url, dest, progress_fun, opts)
     end
   end
 
-  defp do_fetch(url, dest, progress_fun) do
+  defp do_fetch(url, dest, progress_fun, opts) do
     partial = dest <> ".partial"
     File.mkdir_p!(Path.dirname(dest))
     file = File.open!(partial, [:write, :binary])
@@ -30,6 +30,7 @@ defmodule Atlas.Control.Downloader do
 
     result =
       Req.get(url,
+        headers: Keyword.get(opts, :headers, %{}),
         retry: false,
         raw: true,
         into: fn {:data, chunk}, {req, resp} ->

@@ -143,7 +143,7 @@ defmodule AtlasWeb.SettingsPanel do
       <header class="shrink-0 px-4 pt-4 pb-3">
         <div class="flex items-center justify-between gap-3">
           <h2 class="font-display text-3xl font-extrabold leading-none tracking-tight">Settings</h2>
-          <button type="button" phx-click="select_tab" phx-value-tab="search" class="btn btn-ghost btn-sm">
+          <button type="button" phx-click="back_to_map" class="btn btn-ghost btn-sm">
             Back to map
           </button>
         </div>
@@ -156,6 +156,8 @@ defmodule AtlasWeb.SettingsPanel do
           </span>
           <span class="text-base-content/65">{disk_summary(@service_status)}</span>
         </div>
+        <.link navigate={~p"/setup"} class="btn btn-outline btn-sm mt-3">Setup wizard</.link>
+        <.link navigate={~p"/transport-data"} class="btn btn-outline btn-sm mt-3">Transport data</.link>
         <nav class="mt-4 flex flex-wrap gap-2" aria-label="Settings sections">
           <.tab_pill :for={{id, lbl} <- tabs()} id={id} label={lbl} active={@settings_tab} target={@myself} />
         </nav>

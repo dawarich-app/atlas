@@ -19,6 +19,8 @@ defmodule Atlas.Control do
       Ecto.Query
     ],
     exports: [
+      TransitSources,
+      Onboarding,
       Service,
       ServiceCoverage,
       RegionSelection,

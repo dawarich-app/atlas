@@ -2,6 +2,22 @@ defmodule AtlasWeb.RouteDetailsTest do
   use ExUnit.Case, async: true
   alias AtlasWeb.RouteDetails
 
+  test "itinerary times support both MOTIS ISO and OTP milliseconds" do
+    assert RouteDetails.timestamp("2026-09-09T08:00:00Z") == "2026-09-09T08:00:00Z"
+    {:ok, dt, _} = DateTime.from_iso8601("2026-09-09T08:00:00Z")
+    assert RouteDetails.timestamp(DateTime.to_unix(dt, :millisecond)) =~ "2026-09-09T08:00:00"
+    assert RouteDetails.timestamp(nil) == nil
+    assert RouteDetails.place_name(%{name: "END"}, "Alexanderplatz") == "Alexanderplatz"
+    assert RouteDetails.label("REGIONAL_RAIL") == "Regional rail"
+
+    assert RouteDetails.wait_before(
+             [%{end_time: "2026-09-09T08:00:00Z"}, %{start_time: "2026-09-09T08:04:00Z"}],
+             1
+           ) == 240
+
+    assert RouteDetails.time_status(%{realtime: false}) == "Scheduled"
+  end
+
   test "prefers the quickest transit connection over a walking-only result" do
     walk = %{duration: 100, legs: [%{mode: "WALK"}]}
     bus = %{duration: 900, legs: [%{mode: "WALK"}, %{mode: "BUS", route_name: "166"}]}

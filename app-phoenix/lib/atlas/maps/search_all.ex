@@ -19,6 +19,8 @@ defmodule Atlas.Maps.SearchAll do
       places: %{},
       suggestions: [],
       complete: true,
+      issues: MapSet.new(),
+      city: Keyword.get(opts, :city, ""),
       requests: 0,
       deadline: System.monotonic_time(:millisecond) + Keyword.get(opts, :timeout, 60_000),
       max_requests: Keyword.get(opts, :max_requests, 4096),
@@ -41,13 +43,18 @@ defmodule Atlas.Maps.SearchAll do
   defp collect(state) do
     if state.requests >= state.max_requests or
          System.monotonic_time(:millisecond) >= state.deadline do
-      result(%{state | complete: false})
+      result(incomplete(state, :limit))
     else
       {batch, pending} =
         Enum.split(state.queue, min(state.concurrency, state.max_requests - state.requests))
 
       fetch = state.fetch
-      query = state.query
+
+      query =
+        if state.city in [nil, ""],
+          do: state.query,
+          else: Enum.join([state.query, state.city], ", ")
+
       page_size = state.page_size
       osm_tags = state.osm_tags
 
@@ -77,7 +84,12 @@ defmodule Atlas.Maps.SearchAll do
 
   defp consume({{bbox, depth}, {:ok, {:ok, %{"features" => features}}}}, state)
        when is_list(features) do
-    matches = Enum.filter(features, &SearchMatch.matches?(state.match, &1))
+    matches =
+      Enum.filter(
+        features,
+        &(SearchMatch.matches?(state.match, &1) and SearchMatch.in_city?(&1, state.city))
+      )
+
     places = Enum.reduce(matches, state.places, &add_feature/2)
 
     suggestions =
@@ -94,13 +106,16 @@ defmodule Atlas.Maps.SearchAll do
       # A full page of unrelated fallback suggestions must not trigger a scan
       # of every address in the dataset. Photon ranks results rather than
       # exposing an exact match count: retain an honest incomplete flag.
-      matches == [] -> %{state | complete: false}
-      depth >= state.max_depth -> %{state | complete: false}
+      matches == [] -> incomplete(state, :ranked_results)
+      depth >= state.max_depth -> incomplete(state, :limit)
       true -> %{state | queue: state.queue ++ Enum.map(split(bbox), &{&1, depth + 1})}
     end
   end
 
-  defp consume(_failure, state), do: %{state | complete: false}
+  defp consume(_failure, state), do: incomplete(state, :upstream)
+
+  defp incomplete(state, reason),
+    do: %{state | complete: false, issues: MapSet.put(state.issues, reason)}
 
   defp add_feature(feature, places) do
     case Place.from_photon_feature(feature) do
@@ -127,6 +142,7 @@ defmodule Atlas.Maps.SearchAll do
     %{
       features: state.places |> Map.values() |> Enum.sort_by(&{&1.label, &1.id}),
       complete: state.complete,
+      issues: state.issues |> MapSet.to_list() |> Enum.sort(),
       suggestions: state.suggestions,
       requests: state.requests
     }

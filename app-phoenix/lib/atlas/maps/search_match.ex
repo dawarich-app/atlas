@@ -31,6 +31,15 @@ defmodule Atlas.Maps.SearchMatch do
 
   def matches?(_query, _feature), do: false
 
+  def in_city?(_feature, city) when city in [nil, ""], do: true
+
+  def in_city?(%{"properties" => props}, city) when is_binary(city) do
+    wanted = tokens(city)
+    Enum.any?(~w(city district locality), fn key -> tokens(props[key] || "") == wanted end)
+  end
+
+  def in_city?(_, _), do: false
+
   defp field_tokens(props, keys) do
     keys
     |> Enum.map(&Map.get(props, &1, ""))

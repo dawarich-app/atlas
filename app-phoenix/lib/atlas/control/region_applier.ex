@@ -3,8 +3,9 @@ defmodule Atlas.Control.RegionApplier do
   Serializes the "apply selected regions" workflow, mirroring the Go sidecar's
   `runApplyRegions` (atlas-control/internal/server/server.go) stage for stage:
 
-    1. download each region's PBFs into `osm/sources/` (skip when present)
-    2. download GTFS bundles into `gtfs/` (failure is non-fatal)
+    1. download PBFs into `osm/sources/` and GTFS into `gtfs/` using a shared
+       pool of up to three downloads (skip when present)
+    2. wait for all downloads; GTFS failures are non-fatal
     3. materialise `osm/current.osm.pbf` — relative symlink for one source,
        `osmium merge` via `.partial` + rename for several
     4. stage OTP inputs (`otp/region.osm.pbf` + GTFS zips, drop `graph.obj`)
@@ -41,7 +42,7 @@ defmodule Atlas.Control.RegionApplier do
 
   require Logger
 
-  alias Atlas.Control.OtpBuildConfig
+  alias Atlas.Control.{OtpBuildConfig, TransitSourceFiles, TransitSources}
 
   @topic "control:apply"
   @ingest_services ~w(valhalla overpass)
@@ -54,6 +55,9 @@ defmodule Atlas.Control.RegionApplier do
     :enabled?,
     :catalog_find,
     :data_dir,
+    services: nil,
+    transit_sources: nil,
+    transit_only: false,
     current: nil,
     last_failure: nil
   ]
@@ -68,8 +72,8 @@ defmodule Atlas.Control.RegionApplier do
   `{:error, {:region_not_found, name}}` / `{:error, :busy}` without starting
   a job. The pipeline runs in a `Task`; progress arrives on `topic/0`.
   """
-  def start(regions) when is_list(regions) do
-    GenServer.call(__MODULE__, {:apply, regions})
+  def start(regions, opts \\ []) when is_list(regions) do
+    GenServer.call(__MODULE__, {:apply, regions, opts})
   end
 
   @doc """
@@ -107,7 +111,7 @@ defmodule Atlas.Control.RegionApplier do
   end
 
   @impl true
-  def handle_call({:apply, regions}, _from, state) do
+  def handle_call({:apply, regions, opts}, _from, state) do
     cond do
       state.current != nil ->
         {:reply, {:error, :busy}, state}
@@ -121,12 +125,23 @@ defmodule Atlas.Control.RegionApplier do
         broadcast({:apply_start, %{job_id: job_id, regions: regions}})
         Logger.info("region apply started: #{Enum.join(regions, ", ")} (job #{job_id})")
 
+        sources = if TransitSources.configured?(), do: TransitSources.enabled(), else: nil
         parent = self()
 
         Task.start(fn ->
           result =
             try do
-              run_pipeline(state, job_id, regions, entries)
+              run_pipeline(
+                %{
+                  state
+                  | services: Keyword.get(opts, :services),
+                    transit_sources: sources,
+                    transit_only: Keyword.get(opts, :transit_only, false)
+                },
+                job_id,
+                regions,
+                entries
+              )
             rescue
               e -> {:error, :unexpected, e}
             catch
@@ -172,6 +187,16 @@ defmodule Atlas.Control.RegionApplier do
 
   ## Pipeline (runs inside the Task)
 
+  defp run_pipeline(%{transit_only: true} = state, job_id, _regions, _entries) do
+    :ok = prepare_transit_sources(state, job_id)
+
+    if File.exists?(Path.join(state.data_dir, "otp/region.osm.pbf")) do
+      restart_services(state, job_id, [Atlas.Settings.transit_backend()])
+    else
+      :ok
+    end
+  end
+
   defp run_pipeline(state, job_id, _regions, entries) do
     osm_dir = Path.join(state.data_dir, "osm")
     sources_dir = Path.join(osm_dir, "sources")
@@ -180,12 +205,16 @@ defmodule Atlas.Control.RegionApplier do
     File.mkdir_p!(gtfs_dir)
     Enum.each([osm_dir, sources_dir, gtfs_dir], &sweep_partials/1)
 
-    with {:ok, sources} <- download_pbfs(state, job_id, entries, sources_dir),
-         :ok <- download_gtfs(state, job_id, entries, gtfs_dir),
+    with {:ok, sources} <- download_sources(state, job_id, entries, sources_dir, gtfs_dir),
          :ok <- materialize_current(state, job_id, osm_dir, sources_dir, sources),
-         :ok <- stage_valhalla(state, job_id, osm_dir),
-         :ok <- stage_otp(state, job_id, osm_dir, gtfs_dir, entries),
-         :ok <- Atlas.Control.ServiceCoverage.record_inputs(state.data_dir, entries) do
+         :ok <-
+           for_services(state, ["valhalla"], fn -> stage_valhalla(state, job_id, osm_dir) end),
+         :ok <-
+           for_services(state, ~w(motis otp), fn ->
+             stage_transit(state, job_id, osm_dir, gtfs_dir, entries)
+           end),
+         :ok <-
+           Atlas.Control.ServiceCoverage.record_inputs(state.data_dir, entries, state.services) do
       # Convert last: it only feeds overpass, and it is the one stage that can
       # take hours. Everything valhalla and OTP need is already on disk, so a
       # failed conversion still fails the apply (loudly — see #28) but does not
@@ -201,67 +230,111 @@ defmodule Atlas.Control.RegionApplier do
     end
   end
 
-  defp download_pbfs(state, job_id, entries, sources_dir) do
-    pairs = for entry <- entries, url <- entry.pbf_urls, do: {entry, url}
+  defp for_services(state, names, fun) do
+    if is_nil(state.services) or Enum.any?(names, &(&1 in state.services)), do: fun.(), else: :ok
+  end
 
-    Enum.reduce_while(pairs, {:ok, []}, fn {entry, url}, {:ok, acc} ->
-      case download_pbf(state, job_id, entry, url, sources_dir) do
-        {:ok, file} -> {:cont, {:ok, if(file in acc, do: acc, else: acc ++ [file])}}
-        {:error, _phase, _reason} = error -> {:halt, error}
+  # One shared pool for map extracts and timetables. Drain it before returning
+  # an error: retries must never race unfinished writers from an earlier job.
+  defp download_sources(state, job_id, entries, sources_dir, gtfs_dir) do
+    pbfs =
+      for entry <- entries,
+          url <- entry.pbf_urls,
+          do: {:pbf, entry, url, Path.join(sources_dir, Path.basename(url))}
+
+    feeds =
+      if is_nil(state.transit_sources) and
+           (is_nil(state.services) or Enum.any?(~w(motis otp), &(&1 in state.services))) do
+        for entry <- entries,
+            entry.gtfs_url not in [nil, ""],
+            do:
+              {:gtfs, entry, entry.gtfs_url,
+               Path.join(gtfs_dir, entry.gtfs_name || Path.basename(entry.gtfs_url))}
+      else
+        []
       end
+
+    jobs = Enum.uniq_by(pbfs ++ feeds, fn {_, _, url, dest} -> {url, dest} end)
+    destinations = Enum.map(jobs, &elem(&1, 3))
+
+    if length(destinations) != length(Enum.uniq(destinations)) do
+      {:error, :downloading, "Different sources use the same destination filename"}
+    else
+      results =
+        jobs
+        |> Task.async_stream(&download_source(state, job_id, &1),
+          max_concurrency: 3,
+          timeout: :infinity,
+          ordered: true
+        )
+        |> Enum.to_list()
+
+      collect_downloads(results)
+    end
+  end
+
+  defp collect_downloads(results) do
+    Enum.reduce_while(results, {:ok, []}, fn
+      {:ok, {:ok, :pbf, file}}, {:ok, files} -> {:cont, {:ok, files ++ [file]}}
+      {:ok, {:ok, :gtfs, _}}, acc -> {:cont, acc}
+      {:ok, {:error, _, _} = error}, _ -> {:halt, error}
+      {:exit, reason}, _ -> {:halt, {:error, :downloading, reason}}
     end)
   end
 
-  defp download_pbf(state, job_id, entry, url, sources_dir) do
-    file = Path.basename(url)
-    dest = Path.join(sources_dir, file)
-
-    item = fn current, total ->
-      %{label: file, source: url, current: current, total: total}
-    end
-
-    progress_fun = fn bytes, total ->
-      fraction = if total && total > 0, do: bytes / total, else: nil
+  defp download_source(state, job_id, {kind, entry, url, dest}) do
+    report = fn current, total, status ->
+      fraction = if total && total > 0, do: current / total, else: nil
 
       progress(state, job_id, :downloading, %{
         region: entry.name,
         progress: fraction,
-        item: item.(bytes, total)
+        item: %{
+          label: Path.basename(dest),
+          source: url,
+          current: current,
+          total: total,
+          state: status
+        }
       })
     end
 
-    progress(state, job_id, :downloading, %{
-      region: entry.name,
-      progress: nil,
-      item: item.(0, nil)
-    })
+    report.(0, nil, :running)
 
-    case state.downloader.(url, dest, progress_fun) do
-      {:ok, _} -> {:ok, file}
-      {:error, reason} -> {:error, :downloading, {url, reason}}
+    result =
+      fetch_source(state, url, dest, fn current, total -> report.(current, total, :running) end)
+
+    case result do
+      {:ok, _} ->
+        size =
+          case File.stat(dest) do
+            {:ok, stat} -> stat.size
+            _ -> nil
+          end
+
+        report.(size || 0, size, :done)
+        {:ok, kind, Path.basename(dest)}
+
+      {:error, reason} ->
+        report.(0, nil, :error)
+        download_error(kind, url, reason)
     end
   end
 
-  defp download_gtfs(state, job_id, entries, gtfs_dir) do
-    entries
-    |> Enum.filter(& &1.gtfs_url)
-    |> Enum.each(&download_gtfs_entry(state, job_id, &1, gtfs_dir))
-
-    :ok
+  defp fetch_source(state, url, dest, report) do
+    state.downloader.(url, dest, report)
+  rescue
+    error -> {:error, Exception.message(error)}
+  catch
+    :exit, reason -> {:error, reason}
   end
 
-  defp download_gtfs_entry(state, job_id, entry, gtfs_dir) do
-    file = entry.gtfs_name || Path.basename(entry.gtfs_url)
-    dest = Path.join(gtfs_dir, file)
-    progress(state, job_id, :downloading, %{region: entry.name, progress: nil})
-
-    # Non-fatal, mirroring the Go sidecar: the rest of the apply continues
-    # without transit if a GTFS feed is unavailable.
-    case state.downloader.(entry.gtfs_url, dest, fn _, _ -> :ok end) do
-      {:ok, _} -> :ok
-      {:error, _reason} -> :ok
-    end
+  defp download_error(:gtfs, url, reason) do
+    Logger.warning("timetable download failed: #{url}: #{inspect(reason)}")
+    {:ok, :gtfs, nil}
   end
+
+  defp download_error(:pbf, url, reason), do: {:error, :downloading, {url, reason}}
 
   defp materialize_current(state, job_id, osm_dir, sources_dir, sources) do
     progress(state, job_id, :merging, %{region: nil, progress: nil})
@@ -287,6 +360,13 @@ defmodule Atlas.Control.RegionApplier do
             {:error, :merging, {code, output}}
         end
     end
+  end
+
+  defp convert_for_overpass(%{services: services} = state, job_id, osm_dir)
+       when is_list(services) do
+    if "overpass" in services,
+      do: convert_for_overpass(%{state | services: nil}, job_id, osm_dir),
+      else: :ok
   end
 
   defp convert_for_overpass(state, job_id, osm_dir) do
@@ -390,13 +470,29 @@ defmodule Atlas.Control.RegionApplier do
 
     case File.cp(current, pbf_dst) do
       :ok ->
-        stage_otp_gtfs(gtfs_dir, otp_dir)
+        if is_nil(state.transit_sources), do: stage_otp_gtfs(gtfs_dir, otp_dir)
         File.rm(Path.join(otp_dir, "graph.obj"))
         stage_otp_build_config(otp_dir, entries)
 
       {:error, reason} ->
         {:error, :staging, {:copy, reason}}
     end
+  end
+
+  defp stage_transit(state, job_id, osm_dir, gtfs_dir, entries) do
+    with :ok <- stage_otp(state, job_id, osm_dir, gtfs_dir, entries),
+         do: prepare_transit_sources(state, job_id)
+  end
+
+  defp prepare_transit_sources(%{transit_sources: nil}, _job_id), do: :ok
+
+  defp prepare_transit_sources(state, job_id) do
+    usable =
+      TransitSourceFiles.prepare(state.transit_sources, state.data_dir, fn label ->
+        progress(state, job_id, :downloading, %{region: label, progress: nil})
+      end)
+
+    TransitSourceFiles.stage(usable, state.data_dir)
   end
 
   # Whether OTP got a time zone is otherwise invisible: an ambiguous set writes
@@ -464,7 +560,11 @@ defmodule Atlas.Control.RegionApplier do
   defp restart_services(state, job_id, services) do
     progress(state, job_id, :restarting, %{region: nil, progress: nil})
 
-    enabled = Enum.filter(services, state.enabled?)
+    enabled =
+      Enum.filter(services, fn name ->
+        state.enabled?.(name) and (is_nil(state.services) or name in state.services)
+      end)
+
     broadcast({:apply_restarting, enabled})
 
     case state.restart.(enabled) do

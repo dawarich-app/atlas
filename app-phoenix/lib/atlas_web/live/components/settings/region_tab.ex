@@ -36,6 +36,7 @@ defmodule AtlasWeb.Settings.RegionTab do
     <div>
       <ApplyTimelineComponent.timeline timeline={@timeline} />
 
+      <p class="mb-3 text-xs text-base-content/65">Extracts from different providers can have different boundaries. Sizes are catalog estimates of source downloads, not installed storage. See Services → Regions and data for files already installed.</p>
       <.selected_tray selection={@selection} by_name={@by_name} />
 
       <div :if={@regions == []} class="text-sm text-base-content/60">No region presets found.</div>
@@ -191,7 +192,7 @@ defmodule AtlasWeb.Settings.RegionTab do
         <label class="region-choice flex min-w-0 flex-1 cursor-pointer items-center gap-2.5 rounded-xl p-2 has-[:checked]:bg-primary/10">
           <input id={"region-select-" <> @node.name} type="checkbox" checked={@selected} phx-click="toggle_region" phx-value-name={@node.name}
             aria-label={"Select " <> @node.label} class="checkbox checkbox-sm checkbox-primary shrink-0" />
-          <span class="min-w-0 flex-1 text-[15px]">{@node.label}</span>
+          <span class="min-w-0 flex-1 text-[15px]">{@node.label}<span class="block text-xs text-base-content/60">{RegionCatalog.source_label(@node)}</span></span>
           <span class="region-saving text-xs text-primary" role="status">Saving…</span>
           <span class="shrink-0 font-mono text-xs text-base-content/55">{RegionCatalog.size_label(@node)}</span>
         </label>

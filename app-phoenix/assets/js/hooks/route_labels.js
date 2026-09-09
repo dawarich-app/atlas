@@ -8,7 +8,7 @@ export default class RouteLabels {
 
   setRoute(geojson) {
     const active = new Set()
-    for (const [index, feature] of (geojson.features || []).entries()) {
+    for (const [index, feature] of (geojson?.features || []).entries()) {
       const {route_label: label, color} = feature.properties || {}
       if (!label || feature.geometry?.type !== "LineString") continue
       const position = lineMidpoint(feature.geometry.coordinates)

@@ -1,0 +1,18 @@
+[
+  {
+    "id": "vbb",
+    "name": "VBB · Berlin and Brandenburg",
+    "coverage": "Berlin and Brandenburg, Germany",
+    "regions": ["berlin", "gf:europe/germany/brandenburg"],
+    "country": "de",
+    "url": "https://www.vbb.de/fileadmin/user_upload/VBB/Dokumente/API-Datensaetze/gtfs-mastscharf/GTFS.zip",
+    "realtime_url": "https://production.gtfsrt.vbb.de/data",
+    "license": "CC BY 4.0",
+    "license_url": "https://creativecommons.org/licenses/by/4.0/",
+    "attribution": "Verkehrsverbund Berlin-Brandenburg GmbH (VBB)",
+    "website": "https://unternehmen.vbb.de/digitale-services/datensaetze/",
+    "commercial": true,
+    "notice": "VBB reports incomplete realtime coverage since 4 June 2026. Some journeys may only have scheduled times.",
+    "checked_at": "2026-09-09"
+  }
+]

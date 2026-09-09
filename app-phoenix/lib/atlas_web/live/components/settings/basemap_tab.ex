@@ -17,8 +17,11 @@ defmodule AtlasWeb.Settings.BasemapTab do
   attr :theme, :string, required: true
 
   def basemap_tab(assigns) do
+    assigns = assign(assigns, :current_source, current_source(assigns.tiles_url, assigns.presets))
+
     ~H"""
     <div>
+      <p class="mb-2 text-sm" role="status"><strong>Current map:</strong> {@current_source}</p>
       <p class="mb-4 text-sm text-base-content/65">Choose a map source. Online maps need an internet connection; downloaded maps use local storage.</p>
       <div class="flex flex-col gap-2.5">
         <.preset_card
@@ -159,6 +162,22 @@ defmodule AtlasWeb.Settings.BasemapTab do
       </div>
     </div>
     """
+  end
+
+  defp current_source(url, _presets) when url in [nil, ""],
+    do: "OpenStreetMap · online · server default"
+
+  defp current_source(url, presets) do
+    case Enum.find(presets, &active?(&1, url)) do
+      nil ->
+        if(String.starts_with?(url, "/"),
+          do: "Local map · " <> url,
+          else: "Custom / server map · " <> url
+        )
+
+      preset ->
+        preset.label <> if(preset.download, do: " · downloaded", else: " · online")
+    end
   end
 
   defp active?(preset, tiles_url) when is_binary(tiles_url) and tiles_url != "" do

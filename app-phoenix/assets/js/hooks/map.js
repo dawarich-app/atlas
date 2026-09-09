@@ -48,7 +48,24 @@ export default {
       maxWidth: 120,
       unit: "metric"
     }), "bottom-left")
-    this.searchClusters = new SearchClusters(this.map, maplibregl, resultMarker)
+    this.activeTab = "search"
+    this.searchPoints = []
+    this.endpointPoints = []
+    this.searchClusters = new SearchClusters(this.map, maplibregl, point => resultMarker(point, (field) => {
+      this.pushEvent("route_place", {id: point.id, field})
+    }))
+    this.handleEvent("map:restore_view", ({bbox}) => this.map.fitBounds([[bbox[0], bbox[1]], [bbox[2], bbox[3]]], {duration: 0}))
+    this.handleEvent("map:active_tab", ({tab}) => {
+      this.activeTab = tab
+      this.searchClusters.setPoints(tab === "search" ? this.searchPoints : [], this.searchLoading)
+      this.routeEndpoints.setPoints(tab === "route" ? this.endpointPoints : [])
+      this.routeLabels.setRoute(tab === "route" ? this.routeGeoJSON : null)
+      this._renderedRoute = null
+      this._renderRoute()
+      if (tab === "route" && this.routeGeoJSON) {
+        this.routeEndpoints.fit(this.routeGeoJSON.features.flatMap(f => f.geometry.coordinates))
+      }
+    })
 
     this.handleEvent("map:fly_to", ({ lat, lon, zoom }) => {
       this.map.flyTo({ center: [lon, lat], zoom: zoom || 14 }, { atlasProgrammatic: true })
@@ -57,7 +74,9 @@ export default {
     this.handleEvent("map:fit_results", () => this.searchClusters.fitBounds())
 
     this.handleEvent("map:set_results", ({ points, loading = false }) => {
-      this.searchClusters.setPoints(points, loading)
+      this.searchPoints = points
+      this.searchLoading = loading
+      if (this.activeTab === "search") this.searchClusters.setPoints(points, loading)
     })
     this.handleEvent("map:search_loading", ({ loading }) => this.searchClusters.setLoading(loading))
 
@@ -83,14 +102,17 @@ export default {
     })
     this.routeLabels = new RouteLabels(this.map, maplibregl)
     this.routeEndpoints = new RouteEndpoints(this.map, maplibregl)
-    this.handleEvent("map:set_route_endpoints", ({points}) => this.routeEndpoints.setPoints(points))
+    this.handleEvent("map:set_route_endpoints", ({points}) => {
+      this.endpointPoints = points
+      this.routeEndpoints.setPoints(this.activeTab === "route" ? points : [])
+    })
 
     this.handleEvent("map:draw_route", ({ geojson }) => {
       this.routeGeoJSON = geojson
-      this.routeLabels.setRoute(geojson)
+      this.routeLabels.setRoute(this.activeTab === "route" ? geojson : null)
       this._renderRoute()
       const coordinates = (geojson.features || []).flatMap((feature) => feature.geometry.coordinates)
-      if (coordinates.length > 0) {
+      if (coordinates.length > 0 && this.activeTab === "route") {
         this.routeEndpoints.fit(coordinates)
       }
     })
@@ -139,12 +161,12 @@ export default {
   },
 
   _renderRoute() {
-    const geojson = this.routeGeoJSON
+    const geojson = this.activeTab === "route" ? this.routeGeoJSON : {type: "FeatureCollection", features: []}
     if (!geojson) return
 
     if (this.map.getSource("route")) {
       this.map.getSource("route").setData(geojson)
-      this._renderedRoute = geojson
+      this._renderedRoute = this.routeGeoJSON
       return
     }
 
@@ -172,7 +194,7 @@ export default {
         layout: {"line-cap": "round", "line-join": "round"},
         paint: { "line-color": "#475569", "line-width": 7, "line-dasharray": [0, 1.8] }
       })
-      this._renderedRoute = geojson
+      this._renderedRoute = this.routeGeoJSON
     }
 
     if (this.map.isStyleLoaded()) {
@@ -198,13 +220,19 @@ export default {
 // One builder for both paths, so a marker rebuilt after a style swap is
 // identical to the one first drawn — same pin, same popup, same OSM link.
 // `_atlasPoint` is what makes that rebuild possible without reading DOM.
-function resultMarker(p) {
+function resultMarker(p, routePlace) {
   const marker = new maplibregl.Marker({ element: resultPin(p.label) })
     .setLngLat([p.lon, p.lat])
     .setPopup(
       new maplibregl.Popup({ offset: 14, maxWidth: "320px", className: "apo-poi-popup" })
         .setHTML(resultPopupHTML(p))
     )
+  marker.getPopup().on("open", () => {
+    const popup = marker.getPopup().getElement()
+    for (const button of popup.querySelectorAll("[data-route-field]")) {
+      button.onclick = () => { marker.getPopup().remove(); routePlace(button.dataset.routeField) }
+    }
+  })
   marker._atlasPoint = p
   return marker
 }
@@ -266,6 +294,10 @@ function resultPopupHTML(p) {
         </div>
       </header>
       <div class="apo-popup-rows">${rows.join("")}</div>
+      <div class="apo-popup-actions">
+        <button type="button" class="apo-popup-secondary" data-route-field="to">Route here</button>
+        <button type="button" class="apo-popup-secondary" data-route-field="from">Start here</button>
+      </div>
       ${footer}
     </div>
   `

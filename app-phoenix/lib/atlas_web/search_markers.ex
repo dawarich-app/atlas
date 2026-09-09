@@ -55,7 +55,7 @@ defmodule AtlasWeb.SearchMarkers do
 
   defp placeable?(_), do: false
 
-  defp address_line(address) when is_map(address) do
+  def address_line(address) when is_map(address) do
     street = join_present([address[:street], address[:house_number]], " ")
     town = join_present([address[:postcode], address[:city]], " ")
 
@@ -65,7 +65,7 @@ defmodule AtlasWeb.SearchMarkers do
     end
   end
 
-  defp address_line(_), do: nil
+  def address_line(_), do: nil
 
   # State and country only. City and postcode already appear in the address
   # line, and a popup that says "Berlin" twice reads like a rendering bug.

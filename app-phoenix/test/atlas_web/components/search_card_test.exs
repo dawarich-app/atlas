@@ -37,7 +37,8 @@ defmodule AtlasWeb.SearchCardTest do
     end
 
     test "points at the place where it can be installed" do
-      assert card(%{snapshot: nil}) =~ "/admin/services"
+      assert card(%{snapshot: nil}) =~ ~s(phx-click="open_services")
+      refute card(%{snapshot: nil}) =~ "/admin/services"
     end
 
     test "names whichever service was passed, not a hardcoded one" do

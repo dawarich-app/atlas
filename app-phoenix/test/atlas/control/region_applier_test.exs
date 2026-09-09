@@ -88,6 +88,124 @@ defmodule Atlas.Control.RegionApplierTest do
     {:ok, tmp: tmp}
   end
 
+  test "transport-only refresh stages matching feeds and restarts only the chosen engine", %{
+    tmp: tmp
+  } do
+    bypass = Bypass.open()
+
+    files =
+      for name <- ~w(agency.txt stops.txt routes.txt trips.txt stop_times.txt calendar.txt),
+          do: {String.to_charlist(name), "header\nvalue\n"}
+
+    {:ok, {_, body}} = :zip.create(~c"gtfs.zip", files, [:memory])
+    Bypass.expect_once(bypass, "GET", "/feed.zip", fn conn -> Plug.Conn.resp(conn, 200, body) end)
+
+    assert :ok =
+             Atlas.Control.TransitSources.add(%{
+               "name" => "Test transit",
+               "url" => "http://localhost:#{bypass.port}/feed.zip"
+             })
+
+    File.mkdir_p!(Path.join(tmp, "otp"))
+    File.write!(Path.join(tmp, "otp/region.osm.pbf"), "existing street data")
+    start_applier(tmp, downloader: fn _, _, _ -> flunk("must not download street data") end)
+    assert {:ok, job_id} = RegionApplier.start([], services: ["motis"], transit_only: true)
+    assert_receive {:apply_done, %{job_id: ^job_id}}, 2_000
+    assert_receive {:restart, ["motis"]}
+    refute_received {:merge, _, _, _}
+    refute_received {:convert, _, _, _}
+    assert File.read!(Path.join(tmp, "otp/region.osm.pbf")) == "existing street data"
+    assert File.read!(Path.join(tmp, "otp/motis-datasets.yml")) =~ "custom-"
+    refute Atlas.Control.TransitSources.pending?()
+  end
+
+  test "wizard routing install leaves transit inputs and Overpass untouched", %{tmp: tmp} do
+    File.mkdir_p!(Path.join(tmp, "otp"))
+    File.write!(Path.join(tmp, "otp/region.osm.pbf"), "existing transit data")
+    start_applier(tmp)
+    assert {:ok, job_id} = RegionApplier.start(["berlin"], services: ["photon", "valhalla"])
+    assert_receive {:apply_done, %{job_id: ^job_id}}, 2_000
+    assert_receive {:restart, ["valhalla"]}
+    refute_received {:convert, _, _, _}
+    assert File.read!(Path.join(tmp, "otp/region.osm.pbf")) == "existing transit data"
+    refute File.exists?(Path.join(tmp, "otp/region.osm.pbf.regions.json"))
+    refute File.exists?(Path.join(tmp, "gtfs/vbb.gtfs.zip"))
+  end
+
+  test "map and timetable downloads share a pool of at most three workers", %{tmp: tmp} do
+    parent = self()
+
+    start_applier(tmp,
+      downloader: fn url, dest, report ->
+        send(parent, {:fetch_started, self(), url})
+        receive do: (:finish -> :ok)
+        File.write!(dest, "download")
+        report.(8, 8)
+        {:ok, dest}
+      end
+    )
+
+    assert {:ok, job_id} = RegionApplier.start(["berlin", "bayern", "kent"])
+
+    workers =
+      for _ <- 1..3 do
+        assert_receive {:fetch_started, pid, _url}, 2_000
+        pid
+      end
+
+    refute_receive {:fetch_started, _, _}, 50
+    refute_received {:merge, _, _, _}
+    send(hd(workers), :finish)
+    assert_receive {:fetch_started, feed_worker, "http://example.test/vbb.zip"}, 2_000
+    refute_received {:merge, _, _, _}
+    Enum.each(tl(workers) ++ [feed_worker], &send(&1, :finish))
+    assert_receive {:apply_done, %{job_id: ^job_id}}, 2_000
+    assert File.exists?(Path.join(tmp, "gtfs/vbb.gtfs.zip"))
+  end
+
+  test "duplicate sources are fetched once even when regions are repeated", %{tmp: tmp} do
+    parent = self()
+
+    start_applier(tmp,
+      downloader: fn url, dest, _ ->
+        send(parent, {:fetched, url})
+        File.write!(dest, "download")
+        {:ok, dest}
+      end
+    )
+
+    assert {:ok, job_id} = RegionApplier.start(["berlin", "berlin"])
+    assert_receive {:apply_done, %{job_id: ^job_id}}, 2_000
+    assert_received {:fetched, "http://example.test/berlin-latest.osm.pbf"}
+    assert_received {:fetched, "http://example.test/vbb.zip"}
+    refute_received {:fetched, _}
+  end
+
+  test "a failed download waits for active writers before allowing retry", %{tmp: tmp} do
+    parent = self()
+
+    start_applier(tmp,
+      downloader: fn url, dest, _ ->
+        if String.contains?(url, "berlin") do
+          {:error, :unavailable}
+        else
+          send(parent, {:writer, self()})
+          receive do: (:finish -> :ok)
+          File.write!(dest, "download")
+          {:ok, dest}
+        end
+      end
+    )
+
+    assert {:ok, job_id} = RegionApplier.start(["berlin", "bayern"], services: ["valhalla"])
+    assert_receive {:writer, writer}, 2_000
+    assert {:error, :busy} = RegionApplier.start(["berlin"])
+    refute_received {:apply_error, _}
+    send(writer, :finish)
+    assert_receive {:apply_error, %{job_id: ^job_id}}, 2_000
+    refute_received {:merge, _, _, _}
+  end
+
   describe "overpass source conversion" do
     test "a failed convert removes the orphaned .partial", %{tmp: tmp} do
       start_applier(tmp,

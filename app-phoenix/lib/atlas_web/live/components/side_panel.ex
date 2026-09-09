@@ -12,6 +12,12 @@ defmodule AtlasWeb.SidePanel do
   attr :active_tab, :string, required: true
   attr :search_query, :string, required: true
   attr :search_results, :list, required: true
+  attr :selected_place, :any, default: false
+  attr :search_city, :string, default: ""
+  attr :search_issues, :list, default: []
+  attr :route_options_open, :boolean, default: false
+  attr :route_form_open, :boolean, default: true
+  attr :route_departure, :string, default: ""
   attr :search_loading, :boolean, default: false
   attr :search_complete, :boolean, default: false
   attr :search_count, :integer, default: 0
@@ -33,6 +39,7 @@ defmodule AtlasWeb.SidePanel do
   attr :tiles_url, :string, required: true
   attr :theme, :string, required: true
   attr :service_status, :map, required: true
+  attr :transit_backend, :string, default: "motis"
   attr :transit_switching, :string, default: nil
   attr :pending_services, :map, default: %{}
   attr :tiles_download, :any, default: nil
@@ -71,6 +78,9 @@ defmodule AtlasWeb.SidePanel do
             <AtlasWeb.SearchCard.search_card
               id="search-card"
               query={@search_query}
+              selected_place={@selected_place}
+              city={@search_city}
+              issues={@search_issues}
               results={@search_results}
               loading={@search_loading}
               complete={@search_complete}
@@ -89,6 +99,9 @@ defmodule AtlasWeb.SidePanel do
           <div class={tab_visible_class(@active_tab, "route")}>
             <AtlasWeb.DirectionsCard.directions_card
               id="directions-card"
+              service_status={@service_status}
+              transit_backend={@transit_backend}
+              transit_switching={@transit_switching}
               directions={@directions}
               mode={@mode}
               route_endpoints={@route_endpoints}
@@ -96,6 +109,9 @@ defmodule AtlasWeb.SidePanel do
               route_from={@route_from}
               route_to={@route_to}
               route_options={@route_options}
+              options_open={@route_options_open}
+              form_open={@route_form_open}
+              departure={@route_departure}
             />
           </div>
           <div class={tab_visible_class(@active_tab, "settings")}>

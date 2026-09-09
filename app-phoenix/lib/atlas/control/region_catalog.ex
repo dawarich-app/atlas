@@ -131,8 +131,20 @@ defmodule Atlas.Control.RegionCatalog do
 
   defp reparent(e, _rename), do: e
 
-  defp primary_url(%__MODULE__{pbf_urls: [u | _]}), do: u
+  defp primary_url(%__MODULE__{pbf_urls: [u]}), do: u
   defp primary_url(_), do: nil
+
+  defp enrich_from_baked(%__MODULE__{pbf_urls: [_, _ | _] = urls} = curated, baked_by_url) do
+    sizes =
+      Enum.map(Enum.uniq(urls), fn url ->
+        case baked_by_url[url] do
+          %{pbf_bytes: bytes} when is_integer(bytes) -> bytes
+          _ -> nil
+        end
+      end)
+
+    %{curated | pbf_bytes: if(Enum.all?(sizes, &is_integer/1), do: Enum.sum(sizes), else: nil)}
+  end
 
   defp enrich_from_baked(%__MODULE__{} = curated, baked_by_url) do
     case Map.get(baked_by_url, primary_url(curated)) do
@@ -254,8 +266,29 @@ defmodule Atlas.Control.RegionCatalog do
   def size_label(%__MODULE__{pbf_bytes: bytes}) when is_integer(bytes),
     do: format_bytes(bytes)
 
+  def size_label(%__MODULE__{pbf_bytes: nil, pbf_urls: [_, _ | _]}), do: "Size not confirmed"
+
   def size_label(%__MODULE__{pbf_bytes: nil, kind: kind, name: name}),
     do: kind_size(kind) || size_hint(name)
+
+  @doc "Identify different extracts without presenting a preset name as a coverage guarantee."
+  def source_label(%{pbf_urls: urls}) when is_list(urls) do
+    source =
+      urls
+      |> Enum.map(fn url ->
+        case URI.parse(url).host do
+          "download.geofabrik.de" -> "Geofabrik"
+          "download.bbbike.org" -> "BBBike city extract"
+          host -> host || "Custom extract"
+        end
+      end)
+      |> Enum.uniq()
+      |> Enum.join(" + ")
+
+    source <> if(length(urls) > 1, do: " · #{length(urls)} extracts", else: "")
+  end
+
+  def source_label(_), do: "Source not specified"
 
   defp kind_size("planet"), do: "~1.1 TB"
   defp kind_size("continent"), do: "~460 GB"

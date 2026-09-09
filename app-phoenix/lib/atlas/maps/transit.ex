@@ -66,11 +66,28 @@ defmodule Atlas.Maps.Transit do
           else: "google_polyline5"
         )
     }
+    |> Map.merge(
+      Map.reject(
+        %{
+          realtime: leg["realTime"],
+          cancelled: leg["cancelled"],
+          scheduled_start_time: leg["scheduledStartTime"],
+          scheduled_end_time: leg["scheduledEndTime"]
+        },
+        fn {_, value} -> is_nil(value) end
+      )
+    )
   end
 
   defp leg_place(nil), do: %{name: nil, lat: nil, lon: nil}
 
   defp leg_place(place) when is_map(place) do
     %{name: place["name"], lat: place["lat"], lon: place["lon"]}
+    |> Map.merge(
+      Map.reject(
+        %{track: place["track"] || place["platformCode"], stop_id: place["stopId"]},
+        fn {_, value} -> is_nil(value) end
+      )
+    )
   end
 end

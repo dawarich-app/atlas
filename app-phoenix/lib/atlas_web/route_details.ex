@@ -58,7 +58,54 @@ defmodule AtlasWeb.RouteDetails do
   def label("bicycle"), do: "Bike"
   def label("pedestrian"), do: "Walk"
   def label("transit"), do: "Public transport"
-  def label(mode), do: mode |> to_string() |> String.downcase() |> String.capitalize()
+
+  def label(mode),
+    do:
+      mode |> to_string() |> String.replace("_", " ") |> String.downcase() |> String.capitalize()
+
+  def timestamp(value) when is_integer(value) do
+    case DateTime.from_unix(value, :millisecond) do
+      {:ok, dt} -> DateTime.to_iso8601(dt)
+      _ -> nil
+    end
+  end
+
+  def timestamp(value) when is_binary(value) do
+    case DateTime.from_iso8601(value) do
+      {:ok, dt, _} -> DateTime.to_iso8601(dt)
+      _ -> nil
+    end
+  end
+
+  def timestamp(_), do: nil
+
+  def place_name(%{name: name}, fallback) when name in [nil, "START", "END", ""], do: fallback
+  def place_name(%{name: name}, _), do: name
+  def place_name(_, fallback), do: fallback
+
+  def wait_before(legs, index) when index > 0 do
+    previous = Enum.at(legs, index - 1)
+    current = Enum.at(legs, index)
+
+    with start when not is_nil(start) <- timestamp(current[:start_time]),
+         finish when not is_nil(finish) <- timestamp(previous[:end_time]),
+         {:ok, a, _} <- DateTime.from_iso8601(start),
+         {:ok, b, _} <- DateTime.from_iso8601(finish) do
+      max(0, DateTime.diff(a, b))
+    else
+      _ -> 0
+    end
+  end
+
+  def wait_before(_, _), do: 0
+
+  def time_status(leg) do
+    case leg[:realtime] do
+      true -> "Live prediction"
+      false -> "Scheduled"
+      _ -> "Realtime status unknown"
+    end
+  end
 
   def minutes(seconds) when is_number(seconds), do: "#{max(1, ceil(seconds / 60))} min"
   def minutes(_), do: ""

@@ -37,7 +37,8 @@ defmodule Atlas.Control.Supervisor do
       TilesDownloader,
       RegionApplier,
       SnapshotPersister,
-      ApplyTimeline
+      ApplyTimeline,
+      Atlas.Control.Onboarding
     ]
 
     Supervisor.init(children, strategy: :rest_for_one)

@@ -21,9 +21,9 @@ defmodule AtlasWeb.DegradationBanner do
       role="alert"
     >
       <span>Upstream {@status}. Some features may be unavailable.</span>
-      <.link navigate={~p"/admin/services"} class="link link-hover font-medium">
+      <button type="button" phx-click="open_services" class="link link-hover font-medium">
         open settings
-      </.link>
+      </button>
     </div>
     """
   end

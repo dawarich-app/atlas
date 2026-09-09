@@ -479,4 +479,34 @@ defmodule Atlas.Control.RegionCatalogTest do
       assert by_name["europe"].parent == nil
     end
   end
+
+  test "a multi-region preset sums both extracts without replacing a single region", %{dir: dir} do
+    File.write!(
+      Path.join(dir, "multi.env"),
+      "PBF_URLS=https://example.com/berlin.pbf https://example.com/vienna.pbf\n"
+    )
+
+    File.write!(
+      Path.join(dir, "catalog.json"),
+      Jason.encode!([
+        %{
+          name: "berlin",
+          label: "Berlin",
+          pbf_url: "https://example.com/berlin.pbf",
+          pbf_bytes: 100
+        },
+        %{
+          name: "vienna",
+          label: "Vienna",
+          pbf_url: "https://example.com/vienna.pbf",
+          pbf_bytes: 200
+        }
+      ])
+    )
+
+    regions = RegionCatalog.all(dir)
+    assert length(regions) == 3
+    assert Enum.find(regions, &(&1.name == "multi")).pbf_bytes == 300
+    assert Enum.find(regions, &(&1.name == "berlin")).pbf_bytes == 100
+  end
 end

@@ -59,7 +59,7 @@ defmodule Atlas.Control.ApplyTimelineTest do
     assert item.measure.total == 4096
   end
 
-  test "a second file becomes a second row, and the first is marked done" do
+  test "concurrent file rows stay running until their own completion event" do
     timeline =
       start_timeline()
       |> ApplyTimeline.apply_event(
@@ -83,8 +83,22 @@ defmodule Atlas.Control.ApplyTimelineTest do
 
     assert [a, b] = stage(timeline, :download).items
     assert a.label == "a.pbf"
-    assert a.state == :done
+    assert a.state == :running
     assert b.label == "b.pbf"
+    assert b.state == :running
+
+    timeline =
+      event(
+        timeline,
+        {:apply_progress,
+         %{
+           phase: :downloading,
+           item: %{label: "a.pbf", source: "http://x/a.pbf", current: 10, total: 10, state: :done}
+         }}
+      )
+
+    assert [a, b] = stage(timeline, :download).items
+    assert a.state == :done
     assert b.state == :running
   end
 

@@ -11,6 +11,9 @@ defmodule AtlasWeb.SearchCard do
   alias Atlas.Control.ServiceFormatting, as: SF
   alias AtlasWeb.PlaceIcons
 
+  attr :selected_place, :any, default: false
+  attr :city, :string, default: ""
+  attr :issues, :list, default: []
   attr :id, :string, required: true
   attr :query, :string, required: true
   attr :results, :list, required: true
@@ -67,6 +70,22 @@ defmodule AtlasWeb.SearchCard do
           </span>
         </form>
 
+        <form phx-change="search_city" phx-submit="search_city">
+          <label for="search-city" class="block text-xs text-base-content/65 mb-1">City in address (optional)</label>
+          <input id="search-city" name="city" value={@city} aria-label="City in address" placeholder="City name" phx-debounce="350"
+            class="input input-sm w-full" />
+          <p class="mt-1 text-xs text-base-content/60">A city in the name query does not limit the area. This filter matches address data; use This map area to include places without a city address.</p>
+        </form>
+
+        <section :if={@selected_place} aria-label="Selected place" class="rounded-xl border border-primary/30 p-3">
+          <button phx-click="back_to_results" class="link text-xs">Back to results</button>
+          <h3 class="mt-2 font-semibold">{@selected_place.label}</h3>
+          <p class="text-sm text-base-content/70">{AtlasWeb.SearchMarkers.address_line(@selected_place[:address])}</p>
+          <div class="mt-3 flex flex-wrap gap-2">
+            <button phx-click="route_place" phx-value-id={@selected_place.id} phx-value-field="to" class="btn btn-primary btn-sm">Route here</button>
+            <button phx-click="route_place" phx-value-id={@selected_place.id} phx-value-field="from" class="btn btn-outline btn-sm">Start here</button>
+          </div>
+        </section>
         <AtlasWeb.DiscoveryFilters.filters query={@query} categories={@categories} scope={@scope}
           area_changed={@area_changed} viewport_ready={@viewport_ready} />
         <p :if={not @searched and @query == "" and @categories == []} class="text-sm text-base-content/60">
@@ -74,15 +93,17 @@ defmodule AtlasWeb.SearchCard do
         </p>
         <div :if={@loading or @count > 0} id="search-count" role="status" aria-live="polite" class="text-sm text-base-content/75">
           <span :if={@loading} class="loading loading-spinner loading-xs mr-1"></span>
-          <strong>{@count}</strong> matches on the map
+          <strong>{@count}</strong> matches in search area
           <button :if={@count > 0} type="button" phx-click="show_search_results" class="ml-2 link link-primary text-xs">Show all</button>
           <span :if={@loading}> · {if @scope == "all", do: "Searching all installed data…", else: "Searching the selected area…"}</span>
           <span :if={not @loading and @complete}> · All matches loaded</span>
           <p :if={@count > length(@results)} class="mt-1 text-xs opacity-70">Showing the first {length(@results)} in this list. Zoom into a cluster to explore every place.</p>
         </div>
-        <p :if={@searched and not @loading and not @complete and @count > 0} role="status" class="text-sm text-warning">
-          Some matches could not be loaded. This count is incomplete; try a more specific search.
-        </p>
+        <div :if={@searched and not @loading and not @complete} role="status" class="text-sm text-warning">
+          <p :if={:upstream in @issues}>Some requests failed. The result count is incomplete.</p>
+          <p :if={:ranked_results in @issues or :limit in @issues}>The search engine could not confirm every match in this area. Narrow the area or query to improve completeness.</p>
+          <button :if={@viewport_ready and @scope == "all"} phx-click="search_here" class="link">Search this map area</button>
+        </div>
 
         <div
           :if={@state == :not_installed}
@@ -91,7 +112,7 @@ defmodule AtlasWeb.SearchCard do
           <div class="font-semibold text-base-content">{@service_name} is not installed</div>
           <p class="mt-1 leading-relaxed">
             Search needs the {@service_name} service and its dataset. Install it from
-            <.link navigate="/admin/services" class="link link-hover font-medium">services</.link>.
+            <button type="button" phx-click="open_services" class="link link-hover font-medium">Settings</button>.
           </p>
         </div>
 
@@ -114,7 +135,7 @@ defmodule AtlasWeb.SearchCard do
           <div class="font-semibold text-base-content">{@service_name} is not responding</div>
           <p class="mt-1 leading-relaxed">
             It is installed and running, so this is a fault rather than a missing dataset. Its
-            <.link navigate="/admin/services" class="link link-hover font-medium">logs</.link>
+            <button type="button" phx-click="open_services" class="link link-hover font-medium">service details in Settings</button>
             should say why.
           </p>
         </div>
@@ -131,8 +152,8 @@ defmodule AtlasWeb.SearchCard do
           </button>
         </div>
 
-        <button :if={@searched and not @loading and not @complete} type="button" phx-click="search_retry" class="link link-primary text-sm text-left">Retry search</button>
-        <div :if={@state == :results}>
+        <button :if={@searched and not @loading and not @complete and (:upstream in @issues or @issues == [])} type="button" phx-click="search_retry" class="link link-primary text-sm text-left">Retry search</button>
+        <div :if={@state == :results and @selected_place == false}>
           <div class="mb-1.5 font-mono text-[11px] uppercase tracking-[0.2em] text-base-content/55">
             Results
           </div>
@@ -158,6 +179,7 @@ defmodule AtlasWeb.SearchCard do
                   <span class="block truncate text-sm font-medium leading-tight">
                     {result.label}
                   </span>
+                  <span :if={result[:address]} class="block text-xs text-base-content/65">{AtlasWeb.SearchMarkers.address_line(result[:address])}</span>
                   <span class="mt-0.5 block truncate font-mono text-[10.5px] uppercase tracking-[0.14em] text-base-content/45">
                     {elem(PlaceIcons.for(result[:type]), 1)}
                   </span>
