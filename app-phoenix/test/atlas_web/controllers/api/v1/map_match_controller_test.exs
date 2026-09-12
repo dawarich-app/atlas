@@ -1,7 +1,7 @@
 defmodule AtlasWeb.Api.V1.MapMatchControllerTest do
   use AtlasWeb.ConnCase, async: false
 
-  alias Atlas.Maps.MapMatch
+  alias Atlas.Maps.{MapMatch, MapMatchLimiter}
 
   # Decodes to [{52.5, 13.4}, {52.51, 13.41}] at precision 6.
   @leg_a "_ajccB_{zpX_pR_pR"
@@ -272,6 +272,23 @@ defmodule AtlasWeb.Api.V1.MapMatchControllerTest do
   end
 
   describe "upstream failures" do
+    test "429 when all map matching slots are occupied", %{conn: conn} do
+      tokens =
+        for _ <- 1..MapMatchLimiter.capacity() do
+          {:ok, token} = MapMatchLimiter.checkout()
+          token
+        end
+
+      on_exit(fn -> Enum.each(tokens, &MapMatchLimiter.checkin/1) end)
+
+      conn = submit(conn, %{shape: @shape})
+      resp = json_response(conn, 429)
+
+      assert resp["error"]["code"] == "MAP_MATCH_BUSY"
+      assert resp["error"]["details"]["limit"] == MapMatchLimiter.capacity()
+      assert get_resp_header(conn, "retry-after") == ["1"]
+    end
+
     test "422 rather than 502 when the trace cannot be snapped", %{conn: conn, bypass: bypass} do
       Bypass.expect_once(bypass, "POST", "/trace_attributes", fn c ->
         Plug.Conn.resp(c, 400, ~s({"error_code":171,"error":"No suitable edges near location"}))

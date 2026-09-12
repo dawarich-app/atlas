@@ -122,6 +122,7 @@ services:
       # reaches the app — this service passes an explicit allowlist, not
       # env_file, so an undeclared variable is silently dropped.
       MAP_MATCH_MAX_POINTS: ${MAP_MATCH_MAX_POINTS:-}
+      MAP_MATCH_CONCURRENCY: ${MAP_MATCH_CONCURRENCY:-4}
       VALHALLA_MATCH_TIMEOUT: ${VALHALLA_MATCH_TIMEOUT:-}
       OVERPASS_URL: http://overpass:80
       OTP_URL: ${OTP_URL:-http://otp:8080}

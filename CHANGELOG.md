@@ -11,6 +11,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Changed
 - Map matching now uses Valhalla trace attributes as its canonical result, preserves every matched segment across trace discontinuities, returns `MultiLineString` GeoJSON for segmented traces, and emits one polyline6 leg per segment.
+- Atlas admits at most four map matches at once by default and immediately returns `429 MAP_MATCH_BUSY` above that limit, preventing excess requests from occupying HTTP connections while they wait for Valhalla. `MAP_MATCH_CONCURRENCY` can tune the limit.
 
 ## [0.5.1] - 2026-09-09
 
