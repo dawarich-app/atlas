@@ -377,6 +377,16 @@ paths:
             application/json:
               schema:
                 "$ref": "#/components/schemas/ErrorEnvelope"
+        '429':
+          description: map matching capacity reached; retry later
+          headers:
+            Retry-After:
+              schema: {type: integer}
+              description: Suggested delay in seconds before retrying.
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/ErrorEnvelope"
   "/api/v1/transit":
     get:
       summary: Plan a public-transport journey

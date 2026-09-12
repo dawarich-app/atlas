@@ -64,6 +64,7 @@ defmodule AtlasWeb.Api.V1.MapMatchController do
     responses: %{
       200 => response("Matched trace", "application/json", Schemas.Response),
       400 => response("Missing shape", "application/json", Schemas.Error),
+      429 => response("Map matching capacity reached", "application/json", Schemas.Error),
       422 => response("Invalid or unmatchable trace", "application/json", Schemas.Error),
       502 => response("Upstream error", "application/json", Schemas.Error),
       503 => response("Upstream unavailable", "application/json", Schemas.Error)

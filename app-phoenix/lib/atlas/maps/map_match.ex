@@ -23,7 +23,7 @@ defmodule Atlas.Maps.MapMatch do
   """
 
   alias Atlas.Geometry.Polyline
-  alias Atlas.Maps.{Result, Upstream.Client, Upstream.Valhalla}
+  alias Atlas.Maps.{MapMatchLimiter, Result, Upstream.Client, Upstream.Valhalla}
 
   require Logger
 
@@ -57,8 +57,13 @@ defmodule Atlas.Maps.MapMatch do
   def match(opts) do
     shape = opts[:shape] || []
 
-    with :ok <- validate_shape(shape),
-         {:ok, attributes} <- request_attributes(shape, opts),
+    with :ok <- validate_shape(shape) do
+      MapMatchLimiter.run(fn -> perform_match(shape, opts) end)
+    end
+  end
+
+  defp perform_match(shape, opts) do
+    with {:ok, attributes} <- request_attributes(shape, opts),
          {:ok, directions} <- request_directions(shape, opts) do
       {:ok, build_result(attributes, opts[:format], directions)}
     end

@@ -12,6 +12,7 @@ defmodule AtlasWeb.Api.V1.FallbackController do
   - `{:error, :missing, param}` → 400 `MISSING_PARAM`
   - `{:error, :invalid, message, details}` → 422 `VALIDATION_ERROR`
   - `{:error, :too_many, max}` → 422 `VALIDATION_ERROR`
+  - `{:error, :map_match_busy, limit}` → 429 `MAP_MATCH_BUSY`
   """
   use AtlasWeb, :controller
   alias Atlas.Maps.Upstream.Client.{BadResponse, Unavailable}
@@ -35,5 +36,16 @@ defmodule AtlasWeb.Api.V1.FallbackController do
 
   def call(conn, {:error, :too_many, max}) do
     BaseController.validation_error(conn, "too many items, max #{max}", %{max: max})
+  end
+
+  def call(conn, {:error, :map_match_busy, limit}) do
+    conn
+    |> put_resp_header("retry-after", "1")
+    |> BaseController.error(
+      :too_many_requests,
+      "MAP_MATCH_BUSY",
+      "map matching is at capacity; retry later",
+      %{limit: limit}
+    )
   end
 end
