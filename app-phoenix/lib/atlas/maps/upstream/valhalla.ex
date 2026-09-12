@@ -64,6 +64,25 @@ defmodule Atlas.Maps.Upstream.Valhalla do
   """
   def trace_route(req \\ nil, opts) do
     req = req || match_default()
+    body = trace_body(opts) |> Map.put(:directions_options, %{units: "kilometers"})
+
+    Client.post(req, "/trace_route", body)
+  end
+
+  @doc """
+  Correlate every recorded point with the road network.
+
+  Unlike `/trace_route`, `/trace_attributes` returns one `matched_points`
+  entry for every input point and one encoded shape spanning every matched
+  section. Atlas uses this as the canonical map-matching response; directions
+  remain an optional, separate `/trace_route` request.
+  """
+  def trace_attributes(req \\ nil, opts) do
+    req = req || match_default()
+    Client.post(req, "/trace_attributes", trace_body(opts))
+  end
+
+  defp trace_body(opts) do
     mode = opts[:mode] || "auto"
     shape_match = opts[:shape_match] || "map_snap"
 
@@ -73,16 +92,12 @@ defmodule Atlas.Maps.Upstream.Valhalla do
       raise(ArgumentError, "invalid shape_match #{shape_match}")
     end
 
-    body =
-      %{
-        shape: Enum.map(opts[:shape] || [], &shape_point/1),
-        costing: mode,
-        shape_match: shape_match,
-        directions_options: %{units: "kilometers"}
-      }
-      |> maybe_add_trace_options(opts[:trace_options])
-
-    Client.post(req, "/trace_route", body)
+    %{
+      shape: Enum.map(opts[:shape] || [], &shape_point/1),
+      costing: mode,
+      shape_match: shape_match
+    }
+    |> maybe_add_trace_options(opts[:trace_options])
   end
 
   # Only the keys actually present are emitted: Valhalla rejects a null `time`

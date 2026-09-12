@@ -25,9 +25,13 @@ defmodule AtlasWeb.Api.V1.MapMatchControllerTest do
     |> post(~p"/api/v1/map-match", Jason.encode!(body))
   end
 
-  defp stub_trip(bypass, legs \\ ~s([{"shape":"#{@leg_a}"}])) do
-    Bypass.expect_once(bypass, "POST", "/trace_route", fn conn ->
-      Plug.Conn.resp(conn, 200, ~s({"trip":{"summary":{"length":2.5},"legs":#{legs}}}))
+  defp stub_attributes(bypass) do
+    Bypass.expect_once(bypass, "POST", "/trace_attributes", fn conn ->
+      Plug.Conn.resp(
+        conn,
+        200,
+        ~s({"shape":"#{@leg_a}","edges":[{"length":2.5,"begin_shape_index":0,"end_shape_index":1,"end_node":{"elapsed_time":300}}],"matched_points":[]})
+      )
     end)
   end
 
@@ -36,7 +40,7 @@ defmodule AtlasWeb.Api.V1.MapMatchControllerTest do
       conn: conn,
       bypass: bypass
     } do
-      stub_trip(bypass)
+      stub_attributes(bypass)
 
       resp = conn |> submit(%{shape: @shape, mode: "auto"}) |> json_response(200)
 
@@ -46,12 +50,13 @@ defmodule AtlasWeb.Api.V1.MapMatchControllerTest do
 
       assert resp["meta"]["mode"] == "auto"
       assert resp["meta"]["shape_match"] == "map_snap"
+      assert resp["meta"]["include_directions"] == false
       assert resp["meta"]["points"] == 3
       assert resp["meta"]["max_points"] == MapMatch.max_points()
     end
 
     test "format=geojson returns a decoded LineString", %{conn: conn, bypass: bypass} do
-      stub_trip(bypass)
+      stub_attributes(bypass)
 
       resp =
         conn |> submit(%{shape: @shape, mode: "auto", format: "geojson"}) |> json_response(200)
@@ -65,7 +70,7 @@ defmodule AtlasWeb.Api.V1.MapMatchControllerTest do
     end
 
     test "forwards per-point time and accuracy to Valhalla", %{conn: conn, bypass: bypass} do
-      Bypass.expect_once(bypass, "POST", "/trace_route", fn c ->
+      Bypass.expect_once(bypass, "POST", "/trace_attributes", fn c ->
         {:ok, body, c} = Plug.Conn.read_body(c)
         [first, _, third] = Jason.decode!(body)["shape"]
 
@@ -73,14 +78,14 @@ defmodule AtlasWeb.Api.V1.MapMatchControllerTest do
         assert first["accuracy"] == 8
         refute Map.has_key?(third, "accuracy")
 
-        Plug.Conn.resp(c, 200, ~s({"trip":{"legs":[]}}))
+        Plug.Conn.resp(c, 200, ~s({"shape":"#{@leg_a}","edges":[],"matched_points":[]}))
       end)
 
       assert conn |> submit(%{shape: @shape}) |> json_response(200)
     end
 
     test "forwards trace_options", %{conn: conn, bypass: bypass} do
-      Bypass.expect_once(bypass, "POST", "/trace_route", fn c ->
+      Bypass.expect_once(bypass, "POST", "/trace_attributes", fn c ->
         {:ok, body, c} = Plug.Conn.read_body(c)
 
         assert Jason.decode!(body)["trace_options"] == %{
@@ -89,7 +94,7 @@ defmodule AtlasWeb.Api.V1.MapMatchControllerTest do
                  "breakage_distance" => 2000
                }
 
-        Plug.Conn.resp(c, 200, ~s({"trip":{"legs":[]}}))
+        Plug.Conn.resp(c, 200, ~s({"shape":"#{@leg_a}","edges":[],"matched_points":[]}))
       end)
 
       body = %{
@@ -103,13 +108,33 @@ defmodule AtlasWeb.Api.V1.MapMatchControllerTest do
     end
 
     test "defaults the mode to auto", %{conn: conn, bypass: bypass} do
-      Bypass.expect_once(bypass, "POST", "/trace_route", fn c ->
+      Bypass.expect_once(bypass, "POST", "/trace_attributes", fn c ->
         {:ok, body, c} = Plug.Conn.read_body(c)
         assert Jason.decode!(body)["costing"] == "auto"
-        Plug.Conn.resp(c, 200, ~s({"trip":{"legs":[]}}))
+        Plug.Conn.resp(c, 200, ~s({"shape":"#{@leg_a}","edges":[],"matched_points":[]}))
       end)
 
       assert conn |> submit(%{shape: @shape}) |> json_response(200)
+    end
+
+    test "include_directions keeps every Valhalla directions path", %{conn: conn, bypass: bypass} do
+      stub_attributes(bypass)
+
+      Bypass.expect_once(bypass, "POST", "/trace_route", fn c ->
+        Plug.Conn.resp(
+          c,
+          200,
+          ~s({"trip":{"summary":{"length":1},"legs":[]},"alternates":[{"summary":{"length":2},"legs":[]}]})
+        )
+      end)
+
+      resp =
+        conn
+        |> submit(%{shape: @shape, include_directions: true})
+        |> json_response(200)
+
+      assert Enum.map(resp["data"]["directions"]["paths"], & &1["summary"]["length"]) == [1, 2]
+      assert resp["meta"]["include_directions"] == true
     end
   end
 
@@ -170,6 +195,14 @@ defmodule AtlasWeb.Api.V1.MapMatchControllerTest do
       assert resp["error"]["message"] =~ "format"
     end
 
+    test "422 when include_directions is not boolean", %{conn: conn} do
+      resp =
+        conn |> submit(%{shape: @shape, include_directions: "sometimes"}) |> json_response(422)
+
+      assert resp["error"]["message"] =~ "include_directions"
+      assert resp["error"]["details"]["param"] == "include_directions"
+    end
+
     test "422 when the trace exceeds the point cap", %{conn: conn} do
       System.put_env("MAP_MATCH_MAX_POINTS", "2")
       on_exit(fn -> System.delete_env("MAP_MATCH_MAX_POINTS") end)
@@ -209,13 +242,13 @@ defmodule AtlasWeb.Api.V1.MapMatchControllerTest do
     end
 
     test "still accepts numeric strings and integers", %{conn: conn, bypass: bypass} do
-      Bypass.expect_once(bypass, "POST", "/trace_route", fn c ->
+      Bypass.expect_once(bypass, "POST", "/trace_attributes", fn c ->
         {:ok, body, c} = Plug.Conn.read_body(c)
 
         assert [%{"lat" => 52.5, "lon" => 13.4}, %{"lat" => 53.0, "lon" => 14.0}] =
                  Jason.decode!(body)["shape"]
 
-        Plug.Conn.resp(c, 200, ~s({"trip":{"legs":[]}}))
+        Plug.Conn.resp(c, 200, ~s({"shape":"#{@leg_a}","edges":[],"matched_points":[]}))
       end)
 
       assert conn
@@ -227,7 +260,7 @@ defmodule AtlasWeb.Api.V1.MapMatchControllerTest do
       conn: conn,
       bypass: bypass
     } do
-      Bypass.stub(bypass, "POST", "/trace_route", fn c ->
+      Bypass.stub(bypass, "POST", "/trace_attributes", fn c ->
         flunk("upstream must not be called for a malformed trace")
         Plug.Conn.resp(c, 200, "{}")
       end)
@@ -240,7 +273,7 @@ defmodule AtlasWeb.Api.V1.MapMatchControllerTest do
 
   describe "upstream failures" do
     test "422 rather than 502 when the trace cannot be snapped", %{conn: conn, bypass: bypass} do
-      Bypass.expect_once(bypass, "POST", "/trace_route", fn c ->
+      Bypass.expect_once(bypass, "POST", "/trace_attributes", fn c ->
         Plug.Conn.resp(c, 400, ~s({"error_code":171,"error":"No suitable edges near location"}))
       end)
 
@@ -252,7 +285,7 @@ defmodule AtlasWeb.Api.V1.MapMatchControllerTest do
     end
 
     test "502 when Valhalla errors", %{conn: conn, bypass: bypass} do
-      Bypass.expect_once(bypass, "POST", "/trace_route", fn c ->
+      Bypass.expect_once(bypass, "POST", "/trace_attributes", fn c ->
         Plug.Conn.resp(c, 500, "boom")
       end)
 
@@ -273,6 +306,23 @@ defmodule AtlasWeb.Api.V1.MapMatchControllerTest do
       spec = conn |> get(~p"/api/v1/openapi.json") |> json_response(200)
 
       assert get_in(spec, ["paths", "/api/v1/map-match", "post", "summary"]) =~ "atch"
+      assert get_in(spec, ["paths", "/api/v1/map-match", "post", "requestBody", "required"])
+
+      point_schema =
+        get_in(spec, [
+          "paths",
+          "/api/v1/map-match",
+          "post",
+          "requestBody",
+          "content",
+          "application/json",
+          "schema",
+          "properties",
+          "shape",
+          "items"
+        ])
+
+      assert point_schema["required"] == ["lat", "lon"]
     end
   end
 end

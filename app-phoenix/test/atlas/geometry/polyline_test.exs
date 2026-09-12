@@ -67,4 +67,22 @@ defmodule Atlas.Geometry.PolylineTest do
       assert_in_delta lon, -120.2, 0.00001
     end
   end
+
+  describe "encode/2" do
+    test "encodes the official Google example" do
+      points = [{38.5, -120.2}, {40.7, -120.95}, {43.252, -126.453}]
+
+      assert Polyline.encode(points, 5) == "_p~iF~ps|U_ulLnnqC_mqNvxq`@"
+    end
+
+    test "round-trips Valhalla precision-6 coordinates" do
+      points = [{52.5, 13.4}, {52.51, 13.41}, {52.52, 13.42}]
+
+      assert points == points |> Polyline.encode(6) |> Polyline.decode(6)
+    end
+
+    test "encodes an empty shape" do
+      assert Polyline.encode([], 6) == ""
+    end
+  end
 end

@@ -21,13 +21,15 @@ defmodule AtlasWeb.Api.V1.MapMatchController do
   operation(:create,
     summary: "Map-match a recorded GPS trace onto the road network",
     description: """
-    Takes the points you actually recorded and returns the road geometry you
-    were on. `shape` is an array of `{lat, lon}` objects, optionally carrying
-    `time` (epoch seconds) and `accuracy` (metres) — supplying both materially
-    improves the match.
+    Takes the points you actually recorded and returns every matched road
+    segment plus a correlation result for each input point. `shape` is an array
+    of `{lat, lon}` objects, optionally carrying `time` (epoch seconds) and
+    `accuracy` (metres) — supplying both materially improves the match.
 
-    Set `format` to `geojson` to get a decoded `LineString` instead of
-    Valhalla's encoded polyline legs.
+    Set `format` to `geojson` to get decoded `LineString` or `MultiLineString`
+    geometry instead of encoded polyline segments. Set `include_directions`
+    only when narrative directions are needed; it performs a second Valhalla
+    request and preserves every returned directions path.
     """,
     request_body:
       {"Map match request", "application/json",
@@ -35,15 +37,30 @@ defmodule AtlasWeb.Api.V1.MapMatchController do
          type: :object,
          required: [:shape],
          properties: %{
-           shape: %OpenApiSpex.Schema{type: :array, description: "Recorded points, in order"},
+           shape: %OpenApiSpex.Schema{
+             type: :array,
+             minItems: 2,
+             description: "Recorded points, in order",
+             items: %OpenApiSpex.Schema{
+               type: :object,
+               required: [:lat, :lon],
+               properties: %{
+                 lat: %OpenApiSpex.Schema{type: :number},
+                 lon: %OpenApiSpex.Schema{type: :number},
+                 time: %OpenApiSpex.Schema{type: :integer, description: "Epoch seconds"},
+                 accuracy: %OpenApiSpex.Schema{type: :number, description: "Metres"}
+               }
+             }
+           },
            mode: %OpenApiSpex.Schema{type: :string, enum: Valhalla.modes()},
            shape_match: %OpenApiSpex.Schema{type: :string, enum: Valhalla.shape_matches()},
            format: %OpenApiSpex.Schema{type: :string, enum: @formats},
+           include_directions: %OpenApiSpex.Schema{type: :boolean, default: false},
            search_radius: %OpenApiSpex.Schema{type: :number},
            gps_accuracy: %OpenApiSpex.Schema{type: :number},
            breakage_distance: %OpenApiSpex.Schema{type: :number}
          }
-       }},
+       }, required: true},
     responses: %{
       200 => response("Matched trace", "application/json", Schemas.Response),
       400 => response("Missing shape", "application/json", Schemas.Error),
@@ -59,12 +76,15 @@ defmodule AtlasWeb.Api.V1.MapMatchController do
          {:ok, shape_match} <-
            parse_enum(params["shape_match"], Valhalla.shape_matches(), "shape_match", "map_snap"),
          {:ok, format} <- parse_enum(params["format"], @formats, "format", "polyline6"),
+         {:ok, include_directions} <-
+           parse_boolean(params["include_directions"], "include_directions", false),
          {:ok, result} <-
            MapMatch.match(
              shape: shape,
              mode: mode,
              shape_match: shape_match,
              format: format,
+             include_directions: include_directions,
              trace_options: trace_options(params)
            ) do
       json(conn, %{
@@ -74,6 +94,7 @@ defmodule AtlasWeb.Api.V1.MapMatchController do
             mode: mode,
             shape_match: shape_match,
             format: format,
+            include_directions: include_directions,
             points: length(shape),
             max_points: MapMatch.max_points()
           })
@@ -173,5 +194,14 @@ defmodule AtlasWeb.Api.V1.MapMatchController do
   defp enum_error(allowed, name) do
     {:error, :invalid, "#{name} must be one of #{Enum.join(allowed, ", ")}",
      %{param: name, allowed: allowed}}
+  end
+
+  defp parse_boolean(value, _name, default) when value in [nil, ""], do: {:ok, default}
+  defp parse_boolean(value, _name, _default) when is_boolean(value), do: {:ok, value}
+  defp parse_boolean("true", _name, _default), do: {:ok, true}
+  defp parse_boolean("false", _name, _default), do: {:ok, false}
+
+  defp parse_boolean(_value, name, _default) do
+    {:error, :invalid, "#{name} must be true or false", %{param: name}}
   end
 end

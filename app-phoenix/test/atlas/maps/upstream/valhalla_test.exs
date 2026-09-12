@@ -157,6 +157,47 @@ defmodule Atlas.Maps.Upstream.ValhallaTest do
     end
   end
 
+  describe "trace_attributes/2" do
+    test "POSTs the trace to /trace_attributes", %{bypass: bypass, req: req} do
+      Bypass.expect_once(bypass, "POST", "/trace_attributes", fn conn ->
+        {:ok, body, conn} = Plug.Conn.read_body(conn)
+        json = Jason.decode!(body)
+
+        assert json["costing"] == "bicycle"
+        assert json["shape_match"] == "map_snap"
+
+        assert [
+                 %{"lat" => 52.5, "lon" => 13.4, "time" => 100, "accuracy" => 7},
+                 %{"lat" => 52.6, "lon" => 13.5}
+               ] = json["shape"]
+
+        assert json["trace_options"] == %{"search_radius" => 35}
+        refute Map.has_key?(json, "directions_options")
+
+        Plug.Conn.resp(conn, 200, ~s({"shape":"abc","matched_points":[]}))
+      end)
+
+      assert {:ok, %{"shape" => "abc"}} =
+               Valhalla.trace_attributes(req,
+                 shape: [
+                   %{lat: 52.5, lon: 13.4, time: 100, accuracy: 7},
+                   %{lat: 52.6, lon: 13.5}
+                 ],
+                 mode: "bicycle",
+                 trace_options: %{search_radius: 35}
+               )
+    end
+
+    test "validates shape_match", %{req: req} do
+      assert_raise ArgumentError, ~r/invalid shape_match/, fn ->
+        Valhalla.trace_attributes(req,
+          shape: [%{lat: 52.5, lon: 13.4}, %{lat: 52.6, lon: 13.5}],
+          shape_match: "vibes"
+        )
+      end
+    end
+  end
+
   describe "match_default/0" do
     test "allows a longer receive timeout than point-to-point routing" do
       # A 5000-point trace takes far longer to match than an A-to-B route, so
