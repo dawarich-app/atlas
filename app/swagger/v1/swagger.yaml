@@ -340,8 +340,10 @@ paths:
       tags:
       - Routing
       description: >-
-        Supply every optional trace field when it is available: timestamps and
-        accuracy improve matching, while trace options tune Valhalla's matcher.
+        Returns every matched segment and one correlation result per input
+        point. Supply timestamps and accuracy when available. GeoJSON uses a
+        MultiLineString when the trace contains discontinuities. Directions
+        are optional because they require a second Valhalla request.
       requestBody:
         required: true
         content:
@@ -897,6 +899,10 @@ components:
         mode: {type: string, enum: [auto, bicycle, pedestrian]}
         shape_match: {type: string, enum: [map_snap, walk_or_snap, edge_walk]}
         format: {type: string, enum: [polyline6, geojson]}
+        include_directions:
+          type: boolean
+          default: false
+          description: Include narrative paths using an additional trace_route request.
         search_radius: {type: number}
         gps_accuracy: {type: number}
         breakage_distance: {type: number}
@@ -904,21 +910,48 @@ components:
       type: object
       properties:
         data:
-          oneOf:
-          - type: object
-            properties:
-              summary: {type: object}
-              legs: {type: array, items: {type: object}}
-              shape_format: {type: string, enum: [valhalla_encoded_polyline6]}
-          - type: object
-            properties:
-              summary: {type: object}
-              geometry:
+          type: object
+          properties:
+            summary:
+              type: object
+              properties:
+                length: {type: number, description: Total matched length in kilometres}
+                time: {type: number, description: Total estimated traversal time in seconds}
+            matched_points:
+              type: array
+              items: {$ref: "#/components/schemas/MapMatchedPoint"}
+            stats: {$ref: "#/components/schemas/MapMatchStats"}
+            legs:
+              type: array
+              description: Matched segments encoded as Valhalla polyline6; present for format=polyline6.
+              items:
                 type: object
+                properties:
+                  shape: {type: string}
+                  summary: {type: object}
+            geometry:
+              description: Present for format=geojson. Discontinuous matches use MultiLineString.
+              oneOf:
+              - type: object
                 properties:
                   type: {type: string, enum: [LineString]}
                   coordinates: {type: array, items: {type: array, items: {type: number}}}
-              shape_format: {type: string, enum: [geojson]}
+              - type: object
+                properties:
+                  type: {type: string, enum: [MultiLineString]}
+                  coordinates:
+                    type: array
+                    items: {type: array, items: {type: array, items: {type: number}}}
+            segments:
+              type: array
+              description: Independently drawable GeoJSON segments; present for format=geojson.
+              items: {$ref: "#/components/schemas/MapMatchSegment"}
+            directions:
+              type: object
+              description: Present only when include_directions=true.
+              properties:
+                paths: {type: array, items: {type: object}}
+            shape_format: {type: string, enum: [valhalla_encoded_polyline6, geojson]}
         meta:
           type: object
           properties:
@@ -926,8 +959,43 @@ components:
             mode: {type: string}
             shape_match: {type: string}
             format: {type: string}
+            include_directions: {type: boolean}
             points: {type: integer}
             max_points: {type: integer}
+    MapMatchedPoint:
+      type: object
+      properties:
+        input_index: {type: integer}
+        lat: {type: number, format: double, nullable: true}
+        lon: {type: number, format: double, nullable: true}
+        type: {type: string, enum: [matched, interpolated, unmatched]}
+        edge_index: {type: integer, nullable: true}
+        distance_along_edge: {type: number, nullable: true}
+        distance_from_trace_point:
+          type: number
+          nullable: true
+          description: Distance from the recorded point to its road match in metres.
+    MapMatchStats:
+      type: object
+      properties:
+        matched: {type: integer}
+        interpolated: {type: integer}
+        unmatched: {type: integer}
+        segments: {type: integer}
+        mean_distance_from_trace_point: {type: number, nullable: true}
+        p95_distance_from_trace_point: {type: number, nullable: true}
+        max_distance_from_trace_point: {type: number, nullable: true}
+        confidence_score: {type: number, nullable: true}
+        raw_score: {type: number, nullable: true}
+    MapMatchSegment:
+      type: object
+      properties:
+        summary: {type: object}
+        geometry:
+          type: object
+          properties:
+            type: {type: string, enum: [LineString]}
+            coordinates: {type: array, items: {type: array, items: {type: number}}}
     TransitResponse:
       type: object
       properties:
@@ -1176,6 +1244,7 @@ components:
         mode: auto
         shape_match: map_snap
         format: polyline6
+        include_directions: false
         search_radius: 35
         gps_accuracy: 5
         breakage_distance: 2000
@@ -1186,17 +1255,26 @@ components:
           legs:
           - shape: _ajccB_{zpX_pR_pR
             summary: {length: 2.5, time: 300}
-            maneuvers:
-            - {type: 1, instruction: Drive east, length: 2.5, time: 300, begin_shape_index: 0, end_shape_index: 1}
+          matched_points:
+          - {input_index: 0, lat: 52.5001, lon: 13.4001, type: matched, edge_index: 0, distance_from_trace_point: 7.2}
+          - {input_index: 1, lat: 52.5099, lon: 13.4099, type: interpolated, edge_index: 4, distance_from_trace_point: 5.6}
+          stats: {matched: 1, interpolated: 1, unmatched: 0, segments: 1, mean_distance_from_trace_point: 6.4, p95_distance_from_trace_point: 7.2, max_distance_from_trace_point: 7.2, confidence_score: 1.0}
           shape_format: valhalla_encoded_polyline6
-        meta: {timestamp: '2026-09-06T20:53:10Z', mode: auto, shape_match: map_snap, format: polyline6, points: 2, max_points: 10000}
+        meta: {timestamp: '2026-09-06T20:53:10Z', mode: auto, shape_match: map_snap, format: polyline6, include_directions: false, points: 2, max_points: 10000}
     MapMatchGeoJsonResponse:
       value:
         data:
           summary: {length: 2.5, time: 300}
           geometry: {type: LineString, coordinates: [[13.4000, 52.5000], [13.4100, 52.5100]]}
+          segments:
+          - summary: {length: 2.5, time: 300}
+            geometry: {type: LineString, coordinates: [[13.4000, 52.5000], [13.4100, 52.5100]]}
+          matched_points:
+          - {input_index: 0, lat: 52.5001, lon: 13.4001, type: matched, edge_index: 0, distance_from_trace_point: 7.2}
+          - {input_index: 1, lat: 52.5099, lon: 13.4099, type: interpolated, edge_index: 4, distance_from_trace_point: 5.6}
+          stats: {matched: 1, interpolated: 1, unmatched: 0, segments: 1, mean_distance_from_trace_point: 6.4, p95_distance_from_trace_point: 7.2, max_distance_from_trace_point: 7.2, confidence_score: 1.0}
           shape_format: geojson
-        meta: {timestamp: '2026-09-06T20:53:10Z', mode: auto, shape_match: map_snap, format: geojson, points: 2, max_points: 10000}
+        meta: {timestamp: '2026-09-06T20:53:10Z', mode: auto, shape_match: map_snap, format: geojson, include_directions: false, points: 2, max_points: 10000}
     TransitResponse:
       value:
         data:

@@ -4,6 +4,14 @@ All notable changes to Dawarich Atlas are documented here.
 
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+- Map matching responses include a correlation result for every input point, distance-quality statistics, and an optional `include_directions=true` expansion with maneuvers and alternate routes.
+
+### Changed
+- Map matching now uses Valhalla trace attributes as its canonical result, preserves every matched segment across trace discontinuities, returns `MultiLineString` GeoJSON for segmented traces, and emits one polyline6 leg per segment.
+
 ## [0.5.1] - 2026-09-09
 
 ### Added

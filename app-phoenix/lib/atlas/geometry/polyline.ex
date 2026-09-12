@@ -62,4 +62,42 @@ defmodule Atlas.Geometry.Polyline do
       decode_value(rest, shift + 5, new_result)
     end
   end
+
+  @doc """
+  Encode `{lat, lon}` tuples with Google encoded-polyline encoding.
+
+  Precision 6 is used when Atlas splits a Valhalla map match into multiple
+  independently drawable segments.
+  """
+  @spec encode([{number(), number()}], pos_integer()) :: String.t()
+  def encode(points, precision \\ 5) when is_list(points) and is_integer(precision) do
+    factor = :math.pow(10, precision)
+
+    {encoded, _lat, _lon} =
+      Enum.reduce(points, {[], 0, 0}, fn {lat, lon}, {acc, previous_lat, previous_lon} ->
+        latitude = round(lat * factor)
+        longitude = round(lon * factor)
+
+        {[acc, encode_value(latitude - previous_lat), encode_value(longitude - previous_lon)],
+         latitude, longitude}
+      end)
+
+    IO.iodata_to_binary(encoded)
+  end
+
+  defp encode_value(delta) do
+    delta
+    |> then(fn value -> if value < 0, do: bnot(bsl(value, 1)), else: bsl(value, 1) end)
+    |> encode_chunks([])
+  end
+
+  defp encode_chunks(value, acc) when value >= 0x20 do
+    encode_chunks(bsr(value, 5), [bor(0x20, band(value, 0x1F)) + 63 | acc])
+  end
+
+  defp encode_chunks(value, acc) do
+    acc
+    |> Enum.reverse([value + 63])
+    |> List.to_string()
+  end
 end
