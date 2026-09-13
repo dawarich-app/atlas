@@ -1348,7 +1348,7 @@ components:
               pinned: true
     VersionResponse:
       value:
-        data: {version: 0.5.0, revision: eb22b1a}
+        data: {version: 0.6.0, revision: 0015718}
     HealthResponse:
       value:
         data:

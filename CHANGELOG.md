@@ -4,7 +4,7 @@ All notable changes to Dawarich Atlas are documented here.
 
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.6.0] - 2026-09-13
 
 ### Added
 - Map matching responses include a correlation result for every input point, distance-quality statistics, and an optional `include_directions=true` expansion with maneuvers and alternate routes.
@@ -12,6 +12,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 ### Changed
 - Map matching now uses Valhalla trace attributes as its canonical result, preserves every matched segment across trace discontinuities, returns `MultiLineString` GeoJSON for segmented traces, and emits one polyline6 leg per segment.
 - Atlas admits at most four map matches at once by default and immediately returns `429 MAP_MATCH_BUSY` above that limit, preventing excess requests from occupying HTTP connections while they wait for Valhalla. `MAP_MATCH_CONCURRENCY` can tune the limit.
+- End-user documentation now lives on [atlas.dawarich.app](https://atlas.dawarich.app/); the repository keeps development and release material only.
+
+### Notes
+- The map-matching response contract changed: clients that previously read route maneuvers from `data.legs` must send `include_directions=true` and read `data.directions.paths`. Without that option, `data.legs` contains independently drawable matched segments.
 
 ## [0.5.1] - 2026-09-09
 
@@ -171,6 +175,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 - Caddy reverse proxy fronting the stack on port 8484 and serving offline basemap tiles when present.
 - Multi-arch GitHub Actions CI publishing `ghcr.io/dawarich-app/atlas/app` and `ghcr.io/dawarich-app/atlas/atlas-control` on every push to `main`.
 
+[0.6.0]: https://github.com/dawarich-app/atlas/compare/v0.5.1...v0.6.0
 [0.5.1]: https://github.com/dawarich-app/atlas/compare/v0.5.0...v0.5.1
 [0.5.0]: https://github.com/dawarich-app/atlas/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/dawarich-app/atlas/compare/v0.3.0...v0.4.0
