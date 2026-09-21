@@ -108,6 +108,50 @@ defmodule AtlasWeb.SetupLiveTest do
     assert has_element?(view, "#installation-details-content[hidden]")
   end
 
+  test "installation details open the processing log", %{conn: conn} do
+    start_supervised!(Atlas.Control.ApplyLog)
+    Atlas.Control.ApplyLog.append("region apply phase: converting")
+
+    draft = %{
+      "capabilities" => ["routing"],
+      "regions" => ["berlin"],
+      "backend" => "motis",
+      "step" => 4
+    }
+
+    Onboarding.save_draft(draft)
+
+    Atlas.Settings.set(
+      "setup_job",
+      Jason.encode!(%{"id" => "logs-test", "draft" => draft, "status" => "preparing"})
+    )
+
+    {:ok, view, _} = live(conn, ~p"/setup")
+
+    timeline = %{
+      Atlas.Control.ApplyTimeline.start(["berlin"], ["valhalla"], DateTime.utc_now())
+      | job_id: "logs-test"
+    }
+
+    send(view.pid, {:timeline, timeline})
+    view |> element("#installation-details-toggle") |> render_click()
+
+    view
+    |> element(
+      ~s(#installation-details-content button[phx-click=open_logs][phx-value-name=apply])
+    )
+    |> render_click()
+
+    assert view |> element(~s([data-role="logs-modal"])) |> render() =~
+             "region apply phase: converting"
+
+    send(view.pid, {:log_line, "[=====>     ]  45%"})
+    assert render(view) =~ "45%"
+
+    view |> element("button[phx-click=close_logs]") |> render_click()
+    refute has_element?(view, ~s([data-role="logs-modal"]))
+  end
+
   test "skipping returns to map and suppresses first run", %{conn: conn} do
     {:ok, view, _} = live(conn, ~p"/setup")
     view |> element("header button[phx-click=skip]") |> render_click()

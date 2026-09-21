@@ -38,6 +38,7 @@ defmodule AtlasWeb.SetupLive do
        checking: false,
        timeline: Safe.call(&ApplyTimeline.current/0, nil),
        installation_details_open: false,
+       service_logs: nil,
        statuses: snapshots()
      ), layout: false}
   end
@@ -131,6 +132,11 @@ defmodule AtlasWeb.SetupLive do
 
   def handle_event("dismiss_timeline", _, socket), do: {:noreply, assign(socket, timeline: nil)}
 
+  def handle_event("open_logs", %{"name" => name}, socket),
+    do: {:noreply, AtlasWeb.LogViewer.open(socket, name)}
+
+  def handle_event("close_logs", _, socket), do: {:noreply, AtlasWeb.LogViewer.close(socket)}
+
   @impl true
   def handle_async(:checks, {:ok, checks}, socket),
     do: {:noreply, assign(socket, checks: checks, checking: false)}
@@ -147,6 +153,12 @@ defmodule AtlasWeb.SetupLive do
 
   def handle_info({:timeline, timeline}, socket),
     do: {:noreply, assign(socket, timeline: timeline)}
+
+  def handle_info({:log_line, line}, socket),
+    do: {:noreply, AtlasWeb.LogViewer.line(socket, line)}
+
+  def handle_info({:log_eof, code}, socket),
+    do: {:noreply, AtlasWeb.LogViewer.eof(socket, code)}
 
   def handle_info(_, socket), do: {:noreply, socket}
 
@@ -376,6 +388,12 @@ defmodule AtlasWeb.SetupLive do
           <p class="mt-5 text-center text-sm text-base-content/55">Your choices are saved automatically. Reopen this wizard in Settings.</p>
         </div>
       </main>
+    <AtlasWeb.Settings.LogsModal.logs_modal
+      :if={@service_logs}
+      name={@service_logs.name}
+      logs={@service_logs}
+      show_status={false}
+    />
     </Layouts.app>
     """
   end

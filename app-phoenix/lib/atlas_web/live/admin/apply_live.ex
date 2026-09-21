@@ -24,6 +24,7 @@ defmodule AtlasWeb.Admin.ApplyLive do
        projection: nil,
        missing_region: nil,
        timeline: Safe.call(fn -> ApplyTimeline.current() end, nil),
+       service_logs: nil,
        page_title: "Apply"
      )
      |> assign_status(status)}
@@ -46,6 +47,14 @@ defmodule AtlasWeb.Admin.ApplyLive do
     Safe.call(fn -> ApplyTimeline.dismiss() end)
     {:noreply, assign(socket, timeline: nil)}
   end
+
+  @impl true
+  def handle_event("open_logs", %{"name" => name}, socket),
+    do: {:noreply, AtlasWeb.LogViewer.open(socket, name)}
+
+  @impl true
+  def handle_event("close_logs", _params, socket),
+    do: {:noreply, AtlasWeb.LogViewer.close(socket)}
 
   @impl true
   def handle_event("project", _params, socket) do
@@ -130,6 +139,12 @@ defmodule AtlasWeb.Admin.ApplyLive do
     {:noreply, assign(socket, :timeline, timeline)}
   end
 
+  def handle_info({:log_line, line}, socket),
+    do: {:noreply, AtlasWeb.LogViewer.line(socket, line)}
+
+  def handle_info({:log_eof, code}, socket),
+    do: {:noreply, AtlasWeb.LogViewer.eof(socket, code)}
+
   def handle_info(_other, socket), do: {:noreply, socket}
 
   defp start_apply(regions) do
@@ -161,6 +176,12 @@ defmodule AtlasWeb.Admin.ApplyLive do
     ~H"""
     <h1 class="text-2xl font-bold mb-4">Apply Regions</h1>
     <ApplyTimelineComponent.timeline timeline={@timeline} />
+    <AtlasWeb.Settings.LogsModal.logs_modal
+      :if={@service_logs}
+      name={@service_logs.name}
+      logs={@service_logs}
+      show_status={false}
+    />
     <%= if @selected == [] do %>
       <p>
         No regions selected.

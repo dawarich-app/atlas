@@ -34,7 +34,7 @@ defmodule AtlasWeb.Settings.RegionTab do
 
     ~H"""
     <div>
-      <ApplyTimelineComponent.timeline timeline={@timeline} logs />
+      <ApplyTimelineComponent.timeline timeline={@timeline} />
 
       <p class="mb-3 text-xs text-base-content/65">Extracts from different providers can have different boundaries. Sizes are catalog estimates of source downloads, not installed storage. See Services → Regions and data for files already installed.</p>
       <.selected_tray selection={@selection} by_name={@by_name} />

@@ -1,11 +1,12 @@
 defmodule AtlasWeb.Settings.LogsModal do
   @moduledoc """
-  Full-page streaming log viewer for one service.
+  Full-page streaming log viewer for one service or the region apply.
 
-  Rendered at the MapLive root (NOT inside the side panel) so the overlay
-  covers the whole viewport. All events (`close_logs`) target the root
-  LiveView — no component indirection, and no `stopPropagation` handlers
-  that would swallow clicks before LiveView's delegated listener sees them.
+  Rendered at the LiveView root (NOT inside the side panel) so the overlay
+  covers the whole viewport; state comes from `AtlasWeb.LogViewer`. All
+  events (`close_logs`) target the root LiveView — no component indirection,
+  and no `stopPropagation` handlers that would swallow clicks before
+  LiveView's delegated listener sees them.
   """
 
   use Phoenix.Component

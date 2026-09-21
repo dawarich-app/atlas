@@ -384,6 +384,22 @@ defmodule AtlasWeb.SettingsPanelTest do
     assert render(view) =~ "45%"
   end
 
+  test "the processing log says so when the control plane cannot serve it", %{conn: conn} do
+    {:ok, view, _html} = live(conn, ~p"/")
+
+    send(
+      view.pid,
+      {:timeline, Atlas.Control.ApplyTimeline.start(["Germany"], [], DateTime.utc_now())}
+    )
+
+    view
+    |> element(~s([data-role="apply-timeline"] button[phx-click=open_logs][phx-value-name=apply]))
+    |> render_click()
+
+    assert has_element?(view, ~s([data-role="logs-stream-error"]))
+    refute has_element?(view, ~s([data-role="logs-waiting"]))
+  end
+
   test "an indeterminate measure renders bytes, never a percentage", %{conn: conn} do
     {:ok, view, _html} = live(conn, ~p"/")
 
