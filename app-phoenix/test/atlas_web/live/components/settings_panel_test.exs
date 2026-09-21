@@ -361,6 +361,29 @@ defmodule AtlasWeb.SettingsPanelTest do
     assert html =~ "step 1 of 4"
   end
 
+  test "the apply card opens the processing log", %{conn: conn} do
+    start_supervised!(Atlas.Control.ApplyLog)
+    Atlas.Control.ApplyLog.append("region apply phase: converting")
+
+    {:ok, view, _html} = live(conn, ~p"/")
+
+    timeline =
+      Atlas.Control.ApplyTimeline.start(["Germany"], ["valhalla"], DateTime.utc_now())
+
+    send(view.pid, {:timeline, timeline})
+
+    view
+    |> element(~s([data-role="apply-timeline"] button[phx-click=open_logs][phx-value-name=apply]))
+    |> render_click()
+
+    modal = view |> element(~s([data-role="logs-modal"])) |> render()
+    assert modal =~ "region apply phase: converting"
+    refute modal =~ "off"
+
+    send(view.pid, {:log_line, "[=====>     ]  45%"})
+    assert render(view) =~ "45%"
+  end
+
   test "an indeterminate measure renders bytes, never a percentage", %{conn: conn} do
     {:ok, view, _html} = live(conn, ~p"/")
 

@@ -602,16 +602,7 @@ defmodule AtlasWeb.MapLive do
     end
 
     Phoenix.PubSub.subscribe(Atlas.PubSub, "logs:#{name}")
-
-    tailer =
-      case Safe.call(fn -> Atlas.Control.LogTailer.Supervisor.start_tail(name) end) do
-        :unavailable -> :error
-        _ -> :ok
-      end
-
-    # An already-running tailer (attached at boot) consumed the compose
-    # history before this viewer subscribed — replay its buffer.
-    recent = Safe.call(fn -> Atlas.Control.LogTailer.recent(name) end, [])
+    {tailer, recent} = log_source(name)
     lines = recent |> List.wrap() |> Enum.reverse() |> Enum.take(500)
 
     {:noreply,
@@ -1335,6 +1326,22 @@ defmodule AtlasWeb.MapLive do
     end
   end
 
+  # "apply" is the region pipeline, which runs in-process and has no compose
+  # service to tail.
+  defp log_source("apply"), do: {:ok, Safe.call(fn -> Atlas.Control.ApplyLog.recent() end, [])}
+
+  defp log_source(name) do
+    tailer =
+      case Safe.call(fn -> Atlas.Control.LogTailer.Supervisor.start_tail(name) end) do
+        :unavailable -> :error
+        _ -> :ok
+      end
+
+    # An already-running tailer (attached at boot) consumed the compose
+    # history before this viewer subscribed — replay its buffer.
+    {tailer, Safe.call(fn -> Atlas.Control.LogTailer.recent(name) end, [])}
+  end
+
   @impl true
   def render(assigns) do
     ~H"""
@@ -1408,6 +1415,7 @@ defmodule AtlasWeb.MapLive do
       name={@service_logs.name}
       snapshot={@service_status[@service_logs.name]}
       logs={@service_logs}
+      show_status={@service_logs.name != "apply"}
     />
     """
   end

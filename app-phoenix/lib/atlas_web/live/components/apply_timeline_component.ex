@@ -15,6 +15,10 @@ defmodule AtlasWeb.Components.ApplyTimelineComponent do
 
   attr :timeline, :any, required: true
 
+  attr :logs, :boolean,
+    default: false,
+    doc: "offer the processing log (needs an `open_logs` handler)"
+
   def timeline(assigns) do
     ~H"""
     <div :if={@timeline} data-role="apply-timeline">
@@ -25,10 +29,19 @@ defmodule AtlasWeb.Components.ApplyTimelineComponent do
           · step {@timeline.current_step} of {length(@timeline.stages)}
         </span>
         <button
+          :if={@logs}
+          type="button"
+          phx-click="open_logs"
+          phx-value-name="apply"
+          class="ml-auto text-base-content/45 transition hover:text-base-content"
+        >
+          logs
+        </button>
+        <button
           :if={@timeline.status != :running}
           type="button"
           phx-click="dismiss_timeline"
-          class="ml-auto text-base-content/45 transition hover:text-base-content"
+          class={[!@logs && "ml-auto", "text-base-content/45 transition hover:text-base-content"]}
           title="Dismiss"
           aria-label="Dismiss apply timeline"
         >

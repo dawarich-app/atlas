@@ -13,6 +13,7 @@ defmodule Atlas.Control.Supervisor do
   use Supervisor
 
   alias Atlas.Control.{
+    ApplyLog,
     ApplyTimeline,
     DockerCompose,
     LogTailer,
@@ -38,6 +39,7 @@ defmodule Atlas.Control.Supervisor do
       RegionApplier,
       SnapshotPersister,
       ApplyTimeline,
+      ApplyLog,
       Atlas.Control.Onboarding
     ]
 

@@ -45,6 +45,7 @@ defmodule Atlas.Control.OsmiumTest do
 
     assert args == [
              "merge",
+             "--progress",
              "a.osm.pbf",
              "b.osm.pbf",
              "-O",
@@ -65,7 +66,7 @@ defmodule Atlas.Control.OsmiumTest do
 
     assert_received {:stub, "osmium", args, opts}
 
-    assert args == ["cat", "in.osm.pbf", "-o", "out.osm.bz2", "-O", "-f", "osm.bz2"]
+    assert args == ["cat", "--progress", "in.osm.pbf", "-o", "out.osm.bz2", "-O", "-f", "osm.bz2"]
     assert opts[:cd] == "/work/data/osm"
   end
 
@@ -84,6 +85,25 @@ defmodule Atlas.Control.OsmiumTest do
 
     assert_received {:stub, "osmium", args, _opts}
     assert ["-f", "pbf"] == Enum.slice(args, Enum.find_index(args, &(&1 == "-f")), 2)
+  end
+
+  test "the command and its output land in the apply log" do
+    start_supervised!(Atlas.Control.ApplyLog)
+    Phoenix.PubSub.subscribe(Atlas.PubSub, Atlas.Control.ApplyLog.topic())
+
+    runner = fn _cmd, _args, opts ->
+      opts[:on_line].("[=====>     ]  45%")
+      {"", 0}
+    end
+
+    start_supervised!({Osmium, runner: runner})
+
+    assert {:ok, ""} = Osmium.convert_to_osm_bz2("/work/data/osm", "in.osm.pbf", "out.osm.bz2")
+
+    assert_receive {:log_line, command}
+    assert command =~ "osmium cat --progress in.osm.pbf -o out.osm.bz2"
+    assert_receive {:log_line, progress}
+    assert progress =~ "45%"
   end
 
   test "non-zero exit returns error with code and output" do
@@ -220,6 +240,22 @@ defmodule Atlas.Control.OsmiumTest do
       assert_received {:osmium_os_pid, os_pid} when is_integer(os_pid)
 
       assert {"", 3} = Osmium.spawn_and_collect("sh", ["-c", "exit 3"], cd: File.cwd!())
+    end
+
+    test "spawn_and_collect streams lines as they arrive and keeps progress out of the output" do
+      test_pid = self()
+      script = ~S(printf '[=>   ]   2%% \r[==>  ]   3%% \r\nOpen failed\n'; exit 1)
+
+      assert {"Open failed\n", 1} =
+               Osmium.spawn_and_collect("sh", ["-c", script],
+                 cd: File.cwd!(),
+                 on_line: &send(test_pid, {:line, &1})
+               )
+
+      assert_received {:line, "[=>   ]   2%"}
+      assert_received {:line, "[==>  ]   3%"}
+      assert_received {:line, "Open failed"}
+      refute_received {:line, _}
     end
 
     test "an explicit timeout override is honoured" do

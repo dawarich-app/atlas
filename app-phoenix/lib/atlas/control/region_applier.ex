@@ -42,7 +42,13 @@ defmodule Atlas.Control.RegionApplier do
 
   require Logger
 
-  alias Atlas.Control.{OtpBuildConfig, TransitSourceFiles, TransitSources}
+  alias Atlas.Control.{
+    ApplyLog,
+    OtpBuildConfig,
+    RegionCatalog,
+    TransitSourceFiles,
+    TransitSources
+  }
 
   @topic "control:apply"
   @ingest_services ~w(valhalla overpass)
@@ -123,7 +129,8 @@ defmodule Atlas.Control.RegionApplier do
         job_id = Ecto.UUID.generate()
         entries = Enum.map(regions, state.catalog_find)
         broadcast({:apply_start, %{job_id: job_id, regions: regions}})
-        Logger.info("region apply started: #{Enum.join(regions, ", ")} (job #{job_id})")
+        ApplyLog.clear()
+        note(:info, "region apply started: #{Enum.join(regions, ", ")} (job #{job_id})")
 
         sources = if TransitSources.configured?(), do: TransitSources.enabled(), else: nil
         parent = self()
@@ -164,14 +171,14 @@ defmodule Atlas.Control.RegionApplier do
   def handle_info({:applier_done, job_id, regions, result}, state) do
     case result do
       :ok ->
+        note(:info, "region apply finished: #{Enum.join(regions, ", ")}")
         broadcast({:apply_done, %{job_id: job_id, regions: regions}})
-        Logger.info("region apply finished: #{Enum.join(regions, ", ")}")
         {:noreply, %{state | current: nil, last_failure: nil}}
 
       {:error, phase, reason} ->
         reason = format_reason(reason)
+        note(:warning, "region apply failed during #{phase}: #{reason}")
         broadcast({:apply_error, %{job_id: job_id, phase: phase, reason: reason}})
-        Logger.warning("region apply failed during #{phase}: #{reason}")
 
         failure = %{job_id: job_id, regions: regions, phase: phase, error: reason}
         {:noreply, %{state | current: nil, last_failure: failure}}
@@ -300,6 +307,7 @@ defmodule Atlas.Control.RegionApplier do
     end
 
     report.(0, nil, :running)
+    note(:info, "downloading #{url}")
 
     result =
       fetch_source(state, url, dest, fn current, total -> report.(current, total, :running) end)
@@ -313,6 +321,12 @@ defmodule Atlas.Control.RegionApplier do
           end
 
         report.(size || 0, size, :done)
+
+        note(
+          :info,
+          "downloaded #{Path.basename(dest)} (#{RegionCatalog.format_bytes(size || 0)})"
+        )
+
         {:ok, kind, Path.basename(dest)}
 
       {:error, reason} ->
@@ -330,7 +344,7 @@ defmodule Atlas.Control.RegionApplier do
   end
 
   defp download_error(:gtfs, url, reason) do
-    Logger.warning("timetable download failed: #{url}: #{inspect(reason)}")
+    note(:warning, "timetable download failed: #{url}: #{inspect(reason)}")
     {:ok, :gtfs, nil}
   end
 
@@ -384,14 +398,15 @@ defmodule Atlas.Control.RegionApplier do
             :ok
 
           {:error, reason} ->
-            Logger.error("overpass source conversion reported success but #{partial} is missing")
+            note(:error, "overpass source conversion reported success but #{partial} is missing")
             {:error, :converting, {:promote, reason}}
         end
 
       {:error, code, output} ->
         File.rm(partial)
 
-        Logger.error(
+        note(
+          :error,
           "overpass source conversion failed (#{format_exit(code)}); " <>
             "#{bz2} left untouched and may be stale: #{output}"
         )
@@ -408,7 +423,7 @@ defmodule Atlas.Control.RegionApplier do
       {:ok, entries} ->
         for name <- entries, String.ends_with?(name, ".partial") do
           path = Path.join(osm_dir, name)
-          Logger.info("removing orphaned partial from an interrupted run: #{path}")
+          note(:info, "removing orphaned partial from an interrupted run: #{path}")
           File.rm(path)
         end
 
@@ -565,6 +580,7 @@ defmodule Atlas.Control.RegionApplier do
         state.enabled?.(name) and (is_nil(state.services) or name in state.services)
       end)
 
+    note(:info, "restarting #{Enum.join(enabled, ", ")}")
     broadcast({:apply_restarting, enabled})
 
     case state.restart.(enabled) do
@@ -617,8 +633,14 @@ defmodule Atlas.Control.RegionApplier do
     if Process.get(key) != phase do
       Process.put(key, phase)
       suffix = if region, do: " (#{region})", else: ""
-      Logger.info("region apply phase: #{phase}#{suffix}")
+      note(:info, "region apply phase: #{phase}#{suffix}")
     end
+  end
+
+  # Logger for `docker logs`, ApplyLog for the timeline's log viewer.
+  defp note(level, message) do
+    Logger.log(level, message)
+    ApplyLog.append(message)
   end
 
   defp broadcast(msg), do: Phoenix.PubSub.broadcast(Atlas.PubSub, @topic, msg)
