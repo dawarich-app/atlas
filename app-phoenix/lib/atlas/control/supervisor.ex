@@ -13,6 +13,7 @@ defmodule Atlas.Control.Supervisor do
   use Supervisor
 
   alias Atlas.Control.{
+    ApplyLog,
     ApplyTimeline,
     DockerCompose,
     LogTailer,
@@ -30,6 +31,8 @@ defmodule Atlas.Control.Supervisor do
   def init(_) do
     children = [
       {Registry, keys: :unique, name: Atlas.Control.Registry},
+      # Ahead of its producers: a crash below must not erase the log explaining it.
+      ApplyLog,
       DockerCompose,
       Osmium,
       ServiceSupervisor,

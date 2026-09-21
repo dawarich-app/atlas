@@ -270,7 +270,7 @@ defmodule Atlas.Control.ServiceStateTest do
       {:ok, name: "photon-#{System.unique_integer([:positive])}"}
     end
 
-    test "a string error phase is an error, not a slow start", %{name: name} do
+    test "a string error phase is an error, not a slow start", %{name: _name} do
       assert ServiceState.status_for(true, false, "error") == :error
       assert ServiceState.status_for(true, false, "unhealthy") == :unhealthy
     end

@@ -13,6 +13,10 @@ defmodule Atlas.Control.Osmium do
 
   require Logger
 
+  alias Atlas.Control.ApplyLog
+
+  @progress_bar ~r/\[[=> ]*\] +\d+% \r\n?/
+
   def start_link(opts \\ []) do
     GenServer.start_link(__MODULE__, opts, name: __MODULE__)
   end
@@ -29,7 +33,7 @@ defmodule Atlas.Control.Osmium do
     # interrupted run leaves a file sweep_partials/1 can recognise and clear.
     # Without an explicit format osmium rejects that name outright and every
     # multi-region apply dies at the merge step.
-    args = ["merge"] ++ sources ++ ["-O", "-f", "pbf", "-o", out]
+    args = ["merge", "--progress"] ++ sources ++ ["-O", "-f", "pbf", "-o", out]
     GenServer.call(__MODULE__, {:osmium, data_dir, args}, call_timeout())
   end
 
@@ -38,7 +42,7 @@ defmodule Atlas.Control.Osmium do
   Both paths are relative to `data_dir`.
   """
   def convert_to_osm_bz2(data_dir, in_path, out_path) do
-    args = ["cat", in_path, "-o", out_path, "-O", "-f", "osm.bz2"]
+    args = ["cat", "--progress", in_path, "-o", out_path, "-O", "-f", "osm.bz2"]
     GenServer.call(__MODULE__, {:osmium, data_dir, args}, call_timeout())
   end
 
@@ -66,10 +70,16 @@ defmodule Atlas.Control.Osmium do
   @impl true
   def handle_call({:osmium, data_dir, args}, _from, state) do
     owner = self()
+    ApplyLog.append(Enum.join([state.command | args], " "))
 
     task =
       Task.async(fn ->
-        state.runner.(state.command, args, cd: data_dir, stderr_to_stdout: true, report_to: owner)
+        state.runner.(state.command, args,
+          cd: data_dir,
+          stderr_to_stdout: true,
+          report_to: owner,
+          on_line: &ApplyLog.append/1
+        )
       end)
 
     reply =
@@ -159,7 +169,10 @@ defmodule Atlas.Control.Osmium do
 
   @doc """
   Run `cmd` through a port and block until it exits, returning
-  `{output, exit_status}` like `System.cmd/3`.
+  `{output, exit_status}` like `System.cmd/3`, minus `--progress` bars.
+
+  Each line is handed to `:on_line` as it arrives. The progress bar redraws
+  itself after a carriage return, so that ends a line as well as a newline.
 
   A port rather than `System.cmd/3` because the OS pid is knowable that way:
   `System.cmd/3` gives no handle on the child, and tearing down the calling
@@ -184,13 +197,26 @@ defmodule Atlas.Control.Osmium do
       send(pid, {:osmium_os_pid, os_pid})
     end
 
-    collect_port(port, [])
+    collect_port(port, [], "", Keyword.get(opts, :on_line, fn _line -> :ok end))
   end
 
-  defp collect_port(port, acc) do
+  defp collect_port(port, acc, pending, on_line) do
     receive do
-      {^port, {:data, chunk}} -> collect_port(port, [acc | chunk])
-      {^port, {:exit_status, status}} -> {IO.iodata_to_binary(acc), status}
+      {^port, {:data, chunk}} ->
+        {lines, [pending]} = (pending <> chunk) |> String.split(["\r", "\n"]) |> Enum.split(-1)
+        Enum.each(lines, &emit_line(&1, on_line))
+        collect_port(port, [acc | chunk], pending, on_line)
+
+      {^port, {:exit_status, status}} ->
+        emit_line(pending, on_line)
+        {acc |> IO.iodata_to_binary() |> String.replace(@progress_bar, ""), status}
+    end
+  end
+
+  defp emit_line(line, on_line) do
+    case String.trim(line) do
+      "" -> :ok
+      line -> on_line.(line)
     end
   end
 

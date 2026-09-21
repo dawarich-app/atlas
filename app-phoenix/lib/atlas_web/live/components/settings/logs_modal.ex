@@ -1,11 +1,12 @@
 defmodule AtlasWeb.Settings.LogsModal do
   @moduledoc """
-  Full-page streaming log viewer for one service.
+  Full-page streaming log viewer for one service or the region apply.
 
-  Rendered at the MapLive root (NOT inside the side panel) so the overlay
-  covers the whole viewport. All events (`close_logs`) target the root
-  LiveView — no component indirection, and no `stopPropagation` handlers
-  that would swallow clicks before LiveView's delegated listener sees them.
+  Rendered at the LiveView root (NOT inside the side panel) so the overlay
+  covers the whole viewport; state comes from `AtlasWeb.LogViewer`. All
+  events (`close_logs`) target the root LiveView — no component indirection,
+  and no `stopPropagation` handlers that would swallow clicks before
+  LiveView's delegated listener sees them.
   """
 
   use Phoenix.Component
@@ -18,6 +19,7 @@ defmodule AtlasWeb.Settings.LogsModal do
   attr :name, :string, required: true
   attr :snapshot, :any, default: nil
   attr :logs, :any, default: nil
+  attr :show_status, :boolean, default: true
 
   def logs_modal(assigns) do
     snap = assigns.snapshot
@@ -45,9 +47,12 @@ defmodule AtlasWeb.Settings.LogsModal do
         class="flex max-h-full h-[80vh] w-full max-w-4xl flex-col overflow-hidden rounded-2xl border border-white/10 bg-[#181d18] shadow-2xl"
       >
         <div class="flex items-center gap-2.5 border-b border-white/10 px-4 py-3">
-          <.status_dot status={@status} pulse={@installing} />
+          <.status_dot :if={@show_status} status={@status} pulse={@installing} />
           <span class="font-mono text-[13px] font-semibold text-[#e9e6dc]">{@name}</span>
-          <span class="font-mono text-[11px] uppercase tracking-[0.08em] text-[#9fd6ad]">
+          <span
+            :if={@show_status}
+            class="font-mono text-[11px] uppercase tracking-[0.08em] text-[#9fd6ad]"
+          >
             {SF.status_label(@snapshot)}{if @installing, do: " · #{@pct}%"}
           </span>
           <button

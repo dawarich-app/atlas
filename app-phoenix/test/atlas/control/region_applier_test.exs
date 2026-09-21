@@ -119,6 +119,38 @@ defmodule Atlas.Control.RegionApplierTest do
     refute Atlas.Control.TransitSources.pending?()
   end
 
+  test "the apply log tells the run's story and a new run starts it afresh", %{tmp: tmp} do
+    start_supervised!(Atlas.Control.ApplyLog)
+    Atlas.Control.ApplyLog.append("left over from the previous run")
+    start_applier(tmp)
+
+    assert {:ok, job_id} = RegionApplier.start(["berlin"])
+    assert_receive {:apply_done, %{job_id: ^job_id}}, 2_000
+
+    log = Enum.join(Atlas.Control.ApplyLog.recent(), "\n")
+    refute log =~ "left over"
+    assert log =~ "region apply started: berlin"
+    assert log =~ "downloading http://example.test/berlin-latest.osm.pbf"
+    assert log =~ "downloaded berlin-latest.osm.pbf"
+    assert log =~ "region apply phase: converting"
+    assert log =~ "restarting valhalla, overpass"
+    assert log =~ "region apply finished: berlin"
+  end
+
+  test "a failed apply leaves its reason in the apply log", %{tmp: tmp} do
+    start_supervised!(Atlas.Control.ApplyLog)
+
+    start_applier(tmp,
+      osmium_convert: fn _dir, _in_path, _out -> {:error, 1, "osmium: killed"} end
+    )
+
+    assert {:ok, job_id} = RegionApplier.start(["berlin"])
+    assert_receive {:apply_error, %{job_id: ^job_id}}, 2_000
+
+    log = Enum.join(Atlas.Control.ApplyLog.recent(), "\n")
+    assert log =~ "region apply failed during converting: exit 1: osmium: killed"
+  end
+
   test "wizard routing install leaves transit inputs and Overpass untouched", %{tmp: tmp} do
     File.mkdir_p!(Path.join(tmp, "otp"))
     File.write!(Path.join(tmp, "otp/region.osm.pbf"), "existing transit data")

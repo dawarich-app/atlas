@@ -1,11 +1,12 @@
 defmodule AtlasWeb.Components.ApplyTimelineComponent do
   @moduledoc """
   Renders one `Atlas.Control.ApplyTimeline.Timeline` — the single markup
-  shared by the settings drawer's region tab and the `/admin/apply` page, so
-  both surfaces show identical apply progress detail.
+  shared by the settings drawer's region tab, the setup wizard and the
+  `/admin/apply` page, so every surface shows identical apply progress detail.
 
   Tolerates `timeline: nil` (the server broadcasts `{:timeline, nil}` on boot
-  and after a crash).
+  and after a crash). Its **logs** button sends `open_logs`, which every host
+  LiveView hands to `AtlasWeb.LogViewer`.
   """
 
   use AtlasWeb, :html
@@ -25,10 +26,18 @@ defmodule AtlasWeb.Components.ApplyTimelineComponent do
           · step {@timeline.current_step} of {length(@timeline.stages)}
         </span>
         <button
+          type="button"
+          phx-click="open_logs"
+          phx-value-name="apply"
+          class="ml-auto text-base-content/45 transition hover:text-base-content"
+        >
+          logs
+        </button>
+        <button
           :if={@timeline.status != :running}
           type="button"
           phx-click="dismiss_timeline"
-          class="ml-auto text-base-content/45 transition hover:text-base-content"
+          class="text-base-content/45 transition hover:text-base-content"
           title="Dismiss"
           aria-label="Dismiss apply timeline"
         >

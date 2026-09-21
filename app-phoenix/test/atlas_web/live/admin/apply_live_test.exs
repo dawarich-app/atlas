@@ -233,6 +233,24 @@ defmodule AtlasWeb.Admin.ApplyLiveTest do
     |> render()
   end
 
+  test "the admin apply page opens the processing log", %{conn: conn} do
+    start_supervised!(Atlas.Control.ApplyLog)
+    Atlas.Control.ApplyLog.append("region apply phase: merging")
+
+    {:ok, view, _html} = live(conn, ~p"/admin/apply")
+    send(view.pid, {:timeline, ingesting_timeline(["valhalla"], [])})
+
+    view
+    |> element(~s([data-role="apply-timeline"] button[phx-click=open_logs][phx-value-name=apply]))
+    |> render_click()
+
+    assert view |> element(~s([data-role="logs-modal"])) |> render() =~
+             "region apply phase: merging"
+
+    send(view.pid, {:log_line, "osmium merge --progress a.osm.pbf"})
+    assert render(view) =~ "osmium merge --progress a.osm.pbf"
+  end
+
   test "the admin apply page renders the same timeline detail", %{conn: conn} do
     {:ok, view, _html} = live(conn, ~p"/admin/apply")
 

@@ -596,36 +596,12 @@ defmodule AtlasWeb.MapLive do
   end
 
   @impl true
-  def handle_event("open_logs", %{"name" => name}, socket) do
-    if previous = socket.assigns.service_logs do
-      Phoenix.PubSub.unsubscribe(Atlas.PubSub, "logs:#{previous.name}")
-    end
-
-    Phoenix.PubSub.subscribe(Atlas.PubSub, "logs:#{name}")
-
-    tailer =
-      case Safe.call(fn -> Atlas.Control.LogTailer.Supervisor.start_tail(name) end) do
-        :unavailable -> :error
-        _ -> :ok
-      end
-
-    # An already-running tailer (attached at boot) consumed the compose
-    # history before this viewer subscribed — replay its buffer.
-    recent = Safe.call(fn -> Atlas.Control.LogTailer.recent(name) end, [])
-    lines = recent |> List.wrap() |> Enum.reverse() |> Enum.take(500)
-
-    {:noreply,
-     assign(socket, service_logs: %{name: name, lines: lines, eof: nil, tailer: tailer})}
-  end
+  def handle_event("open_logs", %{"name" => name}, socket),
+    do: {:noreply, AtlasWeb.LogViewer.open(socket, name)}
 
   @impl true
-  def handle_event("close_logs", _params, socket) do
-    if logs = socket.assigns.service_logs do
-      Phoenix.PubSub.unsubscribe(Atlas.PubSub, "logs:#{logs.name}")
-    end
-
-    {:noreply, assign(socket, service_logs: nil)}
-  end
+  def handle_event("close_logs", _params, socket),
+    do: {:noreply, AtlasWeb.LogViewer.close(socket)}
 
   @impl true
   def handle_event("retry_apply", _params, socket) do
@@ -816,23 +792,11 @@ defmodule AtlasWeb.MapLive do
     {:noreply, socket}
   end
 
-  def handle_info({:log_line, line}, socket) do
-    case socket.assigns.service_logs do
-      nil ->
-        {:noreply, socket}
+  def handle_info({:log_line, line}, socket),
+    do: {:noreply, AtlasWeb.LogViewer.line(socket, line)}
 
-      logs ->
-        lines = Enum.take([line | logs.lines], 500)
-        {:noreply, assign(socket, service_logs: %{logs | lines: lines})}
-    end
-  end
-
-  def handle_info({:log_eof, code}, socket) do
-    case socket.assigns.service_logs do
-      nil -> {:noreply, socket}
-      logs -> {:noreply, assign(socket, service_logs: %{logs | eof: code})}
-    end
-  end
+  def handle_info({:log_eof, code}, socket),
+    do: {:noreply, AtlasWeb.LogViewer.eof(socket, code)}
 
   def handle_info({:apply_start, %{job_id: job_id, regions: regions}}, socket) do
     {:noreply,
@@ -1408,6 +1372,7 @@ defmodule AtlasWeb.MapLive do
       name={@service_logs.name}
       snapshot={@service_status[@service_logs.name]}
       logs={@service_logs}
+      show_status={@service_logs.name != "apply"}
     />
     """
   end
