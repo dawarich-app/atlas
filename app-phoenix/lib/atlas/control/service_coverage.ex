@@ -77,8 +77,7 @@ defmodule Atlas.Control.ServiceCoverage do
     entries
     |> Enum.filter(&(&1.kind in @region_kinds))
     |> Enum.map(&present_string(&1.label))
-    |> Enum.reject(&is_nil/1)
-    |> Enum.reject(&(&1 in ["Region name unavailable", "Photon dataset"]))
+    |> Enum.reject(&(&1 in [nil, "Region name unavailable", "Photon dataset"]))
     |> Enum.uniq()
   end
 
