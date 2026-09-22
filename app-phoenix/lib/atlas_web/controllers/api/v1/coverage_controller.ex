@@ -21,7 +21,9 @@ defmodule AtlasWeb.Api.V1.CoverageController do
     timetable coverage is reported separately in `transit_feeds` because it can
     differ from the walking-network regions.
     """,
-    responses: %{200 => response("Capability coverage", "application/json", Schemas.Response)}
+    responses: %{
+      200 => response("Capability coverage", "application/json", Schemas.CoverageResponse)
+    }
   )
 
   def show(conn, _params) do

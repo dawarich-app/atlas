@@ -89,6 +89,44 @@ defmodule Atlas.Control.ServiceCoverageTest do
     assert [%{label: "vbb.gtfs.zip", kind: "Transit timetable"}] = result.entries
   end
 
+  test "keeps walking coverage when transit metadata contains malformed entries", %{dir: dir} do
+    for path <- ~w(valhalla/region.osm.pbf otp/region.osm.pbf osm/current.osm.pbf),
+        do: put(dir, path, "berlin")
+
+    assert :ok = ServiceCoverage.record_inputs(dir, [@berlin])
+
+    put(
+      dir,
+      "otp/atlas-sources.json",
+      Jason.encode!([
+        %{id: "vbb", name: "VBB", coverage: ""},
+        "invalid",
+        %{name: "Missing id"}
+      ])
+    )
+
+    result = ServiceCoverage.read("otp", data_dir: dir, catalog: [@berlin])
+
+    assert Enum.any?(result.entries, &(&1.kind == "Walking network" and &1.label == "Berlin"))
+
+    assert Enum.any?(
+             result.entries,
+             &(&1.kind == "Transit timetable" and &1.source == "vbb")
+           )
+  end
+
+  test "keeps walking coverage when transit metadata is invalid JSON", %{dir: dir} do
+    for path <- ~w(valhalla/region.osm.pbf otp/region.osm.pbf osm/current.osm.pbf),
+        do: put(dir, path, "berlin")
+
+    assert :ok = ServiceCoverage.record_inputs(dir, [@berlin])
+    put(dir, "otp/atlas-sources.json", "not json")
+
+    result = ServiceCoverage.read("otp", data_dir: dir, catalog: [@berlin])
+
+    assert [%{kind: "Walking network", label: "Berlin"}] = result.entries
+  end
+
   test "photon requires a completed download and an index", %{dir: dir} do
     germany = "https://example.test/photon-db-germany-1.0-latest.tar.bz2"
     france = "https://example.test/photon-db-france-1.0-latest.tar.bz2"
@@ -162,5 +200,42 @@ defmodule Atlas.Control.ServiceCoverageTest do
                evidence: "Connected source staged on disk; graph build required"
              }
            ]
+  end
+
+  test "public summary does not launch header probes for missing manifests", %{dir: dir} do
+    for path <- ~w(valhalla/region.osm.pbf otp/region.osm.pbf osm/current.osm.pbf),
+        do: put(dir, path, "not a real pbf")
+
+    result =
+      ServiceCoverage.summary(
+        data_dir: dir,
+        catalog: [@berlin],
+        probe: fn _ -> flunk("summary must not execute an osmium probe") end,
+        transit_backend: "otp",
+        health: %{capabilities: %{}}
+      )
+
+    assert [%{evidence: "Input file present; metadata unavailable"}] =
+             result.capabilities.routing.datasets
+
+    assert result.capabilities.routing.coverage_status == "unknown"
+  end
+
+  test "blank provenance labels do not count as known coverage", %{dir: dir} do
+    for path <- ~w(valhalla/region.osm.pbf otp/region.osm.pbf osm/current.osm.pbf),
+        do: put(dir, path, "region")
+
+    blank = %RegionCatalog{@berlin | label: "  "}
+    assert :ok = ServiceCoverage.record_inputs(dir, [blank])
+
+    result =
+      ServiceCoverage.summary(
+        data_dir: dir,
+        transit_backend: "otp",
+        health: %{capabilities: %{"routing" => "up"}}
+      )
+
+    assert result.capabilities.routing.regions == []
+    assert result.capabilities.routing.coverage_status == "unknown"
   end
 end

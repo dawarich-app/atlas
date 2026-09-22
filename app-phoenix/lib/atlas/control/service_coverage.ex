@@ -10,7 +10,13 @@ defmodule Atlas.Control.ServiceCoverage do
   def summary(opts \\ []) do
     health = Keyword.get_lazy(opts, :health, &Health.summary/0)
     transit_service = Keyword.get_lazy(opts, :transit_backend, &Settings.transit_backend/0)
-    read_opts = Keyword.drop(opts, [:health, :transit_backend])
+
+    read_opts =
+      opts
+      |> Keyword.drop([:health, :transit_backend])
+      |> Keyword.put_new(:catalog, [])
+      |> Keyword.put(:probe, &skip_header_probe/1)
+
     statuses = Map.get(health, :capabilities, %{})
 
     routing = capability("valhalla", Map.get(statuses, "routing", "down"), read_opts)
@@ -70,7 +76,8 @@ defmodule Atlas.Control.ServiceCoverage do
   defp region_labels(entries) do
     entries
     |> Enum.filter(&(&1.kind in @region_kinds))
-    |> Enum.map(& &1.label)
+    |> Enum.map(&present_string(&1.label))
+    |> Enum.reject(&is_nil/1)
     |> Enum.reject(&(&1 in ["Region name unavailable", "Photon dataset"]))
     |> Enum.uniq()
   end
@@ -242,20 +249,47 @@ defmodule Atlas.Control.ServiceCoverage do
   defp find_source_region(_, _), do: nil
 
   defp transit_entries(dir) do
-    case File.read(Path.join(dir, "atlas-sources.json")) do
-      {:ok, json} ->
-        for s <- Jason.decode!(json),
-            do: %{
-              label: s["name"],
-              kind: "Transit timetable",
-              source: s["coverage"] || s["id"],
-              evidence: "Connected source staged on disk; graph build required"
-            }
-
+    with {:ok, json} <- File.read(Path.join(dir, "atlas-sources.json")),
+         {:ok, sources} when is_list(sources) <- Jason.decode(json) do
+      Enum.flat_map(sources, &transit_entry/1)
+    else
       {:error, :enoent} ->
         legacy_transit_entries(dir)
+
+      _ ->
+        []
     end
   end
+
+  defp transit_entry(source) when is_map(source) do
+    id = present_string(source["id"])
+    label = present_string(source["name"]) || id
+    coverage = present_string(source["coverage"]) || id
+
+    if label && coverage do
+      [
+        %{
+          label: label,
+          kind: "Transit timetable",
+          source: coverage,
+          evidence: "Connected source staged on disk; graph build required"
+        }
+      ]
+    else
+      []
+    end
+  end
+
+  defp transit_entry(_), do: []
+
+  defp present_string(value) when is_binary(value) do
+    case String.trim(value) do
+      "" -> nil
+      string -> string
+    end
+  end
+
+  defp present_string(_), do: nil
 
   defp legacy_transit_entries(dir) do
     Path.wildcard(Path.join(dir, "*.zip"))
@@ -377,6 +411,8 @@ defmodule Atlas.Control.ServiceCoverage do
       _ -> {:error, :unavailable}
     end
   end
+
+  defp skip_header_probe(_path), do: {:error, :not_probed}
 
   defp unknown(note), do: %{entries: [], note: note}
 end
