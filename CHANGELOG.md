@@ -4,7 +4,7 @@ All notable changes to Dawarich Atlas are documented here.
 
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.6.1] - 2026-09-22
 
 ### Added
 - The region apply progress card has a **logs** button that streams the processing log: each download, stage change, osmium command and its live progress, service restarts, and the reason a run failed.
@@ -181,6 +181,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 - Caddy reverse proxy fronting the stack on port 8484 and serving offline basemap tiles when present.
 - Multi-arch GitHub Actions CI publishing `ghcr.io/dawarich-app/atlas/app` and `ghcr.io/dawarich-app/atlas/atlas-control` on every push to `main`.
 
+[0.6.1]: https://github.com/dawarich-app/atlas/compare/v0.6.0...v0.6.1
 [0.6.0]: https://github.com/dawarich-app/atlas/compare/v0.5.1...v0.6.0
 [0.5.1]: https://github.com/dawarich-app/atlas/compare/v0.5.0...v0.5.1
 [0.5.0]: https://github.com/dawarich-app/atlas/compare/v0.4.0...v0.5.0
