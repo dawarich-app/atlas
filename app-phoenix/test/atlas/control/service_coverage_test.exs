@@ -108,4 +108,59 @@ defmodule Atlas.Control.ServiceCoverageTest do
     assert [%{label: "Germany", source: ^germany}] =
              ServiceCoverage.read("photon", data_dir: dir, catalog: []).entries
   end
+
+  test "summarizes installed coverage by public capability", %{dir: dir} do
+    for path <- ~w(valhalla/region.osm.pbf otp/region.osm.pbf osm/current.osm.pbf),
+        do: put(dir, path, "berlin")
+
+    assert :ok = ServiceCoverage.record_inputs(dir, [@berlin])
+
+    photon_source = "https://example.test/photon-db-germany-1.0-latest.tar.bz2"
+
+    put(
+      dir,
+      "photon/logs/photon.log",
+      "Using constructed location for download: #{photon_source}\n" <>
+        "Sequential download process completed successfully.\n"
+    )
+
+    File.mkdir_p!(Path.join(dir, "photon/photon_data"))
+
+    put(
+      dir,
+      "otp/atlas-sources.json",
+      Jason.encode!([%{id: "vbb", name: "VBB", coverage: "Berlin and Brandenburg"}])
+    )
+
+    result =
+      ServiceCoverage.summary(
+        data_dir: dir,
+        catalog: [@berlin],
+        transit_backend: "otp",
+        health: %{
+          capabilities: %{
+            "geocoding" => "up",
+            "routing" => "up",
+            "pois" => "down",
+            "transit" => "up"
+          }
+        }
+      )
+
+    assert result.capabilities.geocoding.regions == ["Germany"]
+    assert result.capabilities.routing.regions == ["Berlin"]
+    assert result.capabilities.routing.available
+    assert result.capabilities.map_matching.regions == ["Berlin"]
+    assert result.capabilities.map_matching.inherits == "routing"
+    refute result.capabilities.pois.available
+    assert result.capabilities.transit.regions == ["Berlin"]
+
+    assert result.capabilities.transit.transit_feeds == [
+             %{
+               name: "VBB",
+               coverage: "Berlin and Brandenburg",
+               evidence: "Connected source staged on disk; graph build required"
+             }
+           ]
+  end
 end

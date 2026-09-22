@@ -14,6 +14,7 @@ defmodule AtlasWeb.ApiSpecTest do
     assert is_map(spec["paths"]["/api/v1/pois"])
     assert is_map(spec["paths"]["/api/v1/pois/categories"])
     assert is_map(spec["paths"]["/api/v1/geocode"])
+    assert is_map(spec["paths"]["/api/v1/coverage"])
   end
 
   test "Place schema documents the canonical geocoding fields" do

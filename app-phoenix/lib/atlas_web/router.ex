@@ -40,6 +40,7 @@ defmodule AtlasWeb.Router do
 
     get "/version", VersionController, :show
     get "/health", HealthController, :show
+    get "/coverage", CoverageController, :show
   end
 
   scope "/api" do

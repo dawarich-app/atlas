@@ -1,7 +1,35 @@
 defmodule Atlas.Control.ServiceCoverage do
   @moduledoc "Reads service-specific dataset provenance; never uses the draft region selection."
 
-  alias Atlas.Control.RegionCatalog
+  alias Atlas.Control.{Health, RegionCatalog}
+  alias Atlas.Settings
+
+  @region_kinds ["Imported search dataset", "Road data", "OSM import source", "Walking network"]
+
+  @doc "Build public, capability-oriented coverage from installed datasets and live health."
+  def summary(opts \\ []) do
+    health = Keyword.get_lazy(opts, :health, &Health.summary/0)
+    transit_service = Keyword.get_lazy(opts, :transit_backend, &Settings.transit_backend/0)
+    read_opts = Keyword.drop(opts, [:health, :transit_backend])
+    statuses = Map.get(health, :capabilities, %{})
+
+    routing = capability("valhalla", Map.get(statuses, "routing", "down"), read_opts)
+
+    %{
+      capabilities: %{
+        geocoding: capability("photon", Map.get(statuses, "geocoding", "down"), read_opts),
+        routing: routing,
+        map_matching: Map.put(routing, :inherits, "routing"),
+        pois: capability("overpass", Map.get(statuses, "pois", "down"), read_opts),
+        transit:
+          transit_capability(
+            transit_service,
+            Map.get(statuses, "transit", "down"),
+            read_opts
+          )
+      }
+    }
+  end
 
   @doc "Inspect local data for one known service. Run outside the LiveView process."
   def read(name, opts \\ []) do
@@ -11,6 +39,48 @@ defmodule Atlas.Control.ServiceCoverage do
     inspect_service(name, dir, catalog, probe)
   rescue
     _ -> unknown("Dataset metadata could not be read. The service may still be available.")
+  end
+
+  defp capability(service, status, opts) do
+    coverage = read(service, opts)
+    regions = region_labels(coverage.entries)
+
+    %{
+      available: status == "up",
+      coverage_status: if(regions == [], do: "unknown", else: "known"),
+      datasets: coverage.entries,
+      note: coverage.note,
+      regions: regions,
+      service: service,
+      status: status
+    }
+  end
+
+  defp transit_capability(service, status, opts) do
+    capability = capability(service, status, opts)
+
+    feeds =
+      capability.datasets
+      |> Enum.filter(&(&1.kind == "Transit timetable"))
+      |> Enum.map(&transit_feed/1)
+
+    Map.put(capability, :transit_feeds, feeds)
+  end
+
+  defp region_labels(entries) do
+    entries
+    |> Enum.filter(&(&1.kind in @region_kinds))
+    |> Enum.map(& &1.label)
+    |> Enum.reject(&(&1 in ["Region name unavailable", "Photon dataset"]))
+    |> Enum.uniq()
+  end
+
+  defp transit_feed(entry) do
+    %{
+      coverage: entry.source,
+      evidence: entry.evidence,
+      name: entry.label
+    }
   end
 
   defp inspect_service("libpostal", _dir, _catalog, _probe) do
