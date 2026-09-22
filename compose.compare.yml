@@ -101,6 +101,7 @@ services:
       PLACEHOLDER_URL: http://placeholder:3000
       LIBPOSTAL_URL:   http://libpostal:4400
       VALHALLA_URL:    http://valhalla:8002
+      VALHALLA_COVERAGE_REGIONS: ${VALHALLA_COVERAGE_REGIONS:-}
       OVERPASS_URL:    http://overpass:80
       OTP_URL:         http://otp:8080
       TILES_URL:    ${TILES_URL:-}
