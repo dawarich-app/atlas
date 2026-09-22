@@ -17,6 +17,13 @@ test('Valhalla has a safe worker cap and nofile limit by default', () => {
   assert.match(compose, /ulimits:\n\s+nofile:\n\s+soft:\s+1048576\n\s+hard:\s+1048576/);
 });
 
+test('Valhalla coverage metadata reaches the app in standard and Dokploy Compose', () => {
+  for (const file of ['compose.yml', 'compose.dokploy.yml']) {
+    const compose = readFileSync(new URL(`../${file}`, import.meta.url), 'utf8');
+    assert.match(compose, /VALHALLA_COVERAGE_REGIONS:\s+\$\{VALHALLA_COVERAGE_REGIONS:-\}/);
+  }
+});
+
 test('Overpass diff updates are opt-in by default', () => {
   const compose = readFileSync(new URL('../compose.yml', import.meta.url), 'utf8');
 

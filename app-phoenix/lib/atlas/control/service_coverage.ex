@@ -13,13 +13,16 @@ defmodule Atlas.Control.ServiceCoverage do
 
     read_opts =
       opts
-      |> Keyword.drop([:health, :transit_backend])
+      |> Keyword.drop([:health, :transit_backend, :valhalla_regions])
       |> Keyword.put_new(:catalog, [])
       |> Keyword.put(:probe, &skip_header_probe/1)
 
     statuses = Map.get(health, :capabilities, %{})
 
-    routing = capability("valhalla", Map.get(statuses, "routing", "down"), read_opts)
+    routing =
+      "valhalla"
+      |> capability(Map.get(statuses, "routing", "down"), read_opts)
+      |> use_declared_regions(valhalla_regions(opts), "VALHALLA_COVERAGE_REGIONS")
 
     %{
       capabilities: %{
@@ -86,6 +89,54 @@ defmodule Atlas.Control.ServiceCoverage do
       coverage: entry.source,
       evidence: entry.evidence,
       name: entry.label
+    }
+  end
+
+  defp valhalla_regions(opts) do
+    opts
+    |> Keyword.get_lazy(:valhalla_regions, fn -> System.get_env("VALHALLA_COVERAGE_REGIONS") end)
+    |> normalize_regions()
+  end
+
+  defp normalize_regions(regions) when is_binary(regions) do
+    regions
+    |> String.split(",")
+    |> normalize_regions()
+  end
+
+  defp normalize_regions(regions) when is_list(regions) do
+    regions
+    |> Enum.map(&present_string/1)
+    |> Enum.reject(&is_nil/1)
+    |> Enum.uniq()
+  end
+
+  defp normalize_regions(_regions), do: []
+
+  defp use_declared_regions(%{regions: [_ | _]} = capability, _regions, _source),
+    do: capability
+
+  defp use_declared_regions(capability, [], _source), do: capability
+
+  defp use_declared_regions(capability, regions, source) do
+    datasets =
+      Enum.map(regions, fn region ->
+        %{
+          label: region,
+          kind: "Declared service coverage",
+          evidence: "Declared by the Atlas operator; not inspected from the remote service",
+          source: source
+        }
+      end)
+
+    %{
+      capability
+      | coverage_status: "known",
+        datasets: capability.datasets ++ datasets,
+        note:
+          capability.note <>
+            " Region coverage is declared by the operator via #{source}.",
+        regions: regions
     }
   end
 

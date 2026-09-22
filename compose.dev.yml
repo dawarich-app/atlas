@@ -62,6 +62,7 @@ services:
       PLACEHOLDER_URL: http://placeholder:3000
       LIBPOSTAL_URL: http://libpostal:4400
       VALHALLA_URL: http://valhalla:8002
+      VALHALLA_COVERAGE_REGIONS: ${VALHALLA_COVERAGE_REGIONS:-}
       # Map matching knobs. Declared here so a value set in .env actually
       # reaches the app — this service passes an explicit allowlist, not
       # env_file, so an undeclared variable is silently dropped.

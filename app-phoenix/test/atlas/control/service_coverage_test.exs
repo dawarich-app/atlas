@@ -174,6 +174,7 @@ defmodule Atlas.Control.ServiceCoverageTest do
       ServiceCoverage.summary(
         data_dir: dir,
         catalog: [@berlin],
+        valhalla_regions: "Germany",
         transit_backend: "otp",
         health: %{
           capabilities: %{
@@ -200,6 +201,33 @@ defmodule Atlas.Control.ServiceCoverageTest do
                evidence: "Connected source staged on disk; graph build required"
              }
            ]
+  end
+
+  test "uses declared Valhalla coverage when remote dataset provenance is unavailable", %{
+    dir: dir
+  } do
+    result =
+      ServiceCoverage.summary(
+        data_dir: dir,
+        valhalla_regions: " Germany, Europe, Germany,  ",
+        transit_backend: "motis",
+        health: %{capabilities: %{"routing" => "up"}}
+      )
+
+    assert result.capabilities.routing.regions == ["Germany", "Europe"]
+    assert result.capabilities.routing.coverage_status == "known"
+    assert result.capabilities.routing.available
+    assert result.capabilities.map_matching.regions == ["Germany", "Europe"]
+    assert result.capabilities.map_matching.inherits == "routing"
+
+    assert Enum.map(result.capabilities.routing.datasets, & &1.label) == ["Germany", "Europe"]
+
+    assert Enum.all?(
+             result.capabilities.routing.datasets,
+             &(&1.source == "VALHALLA_COVERAGE_REGIONS")
+           )
+
+    assert result.capabilities.routing.note =~ "declared by the operator"
   end
 
   test "public summary does not launch header probes for missing manifests", %{dir: dir} do

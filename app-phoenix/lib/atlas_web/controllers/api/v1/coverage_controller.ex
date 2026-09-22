@@ -19,7 +19,9 @@ defmodule AtlasWeb.Api.V1.CoverageController do
     an empty list with `coverage_status=unknown` does not prove that the service
     has no coverage. Map matching inherits routing's Valhalla coverage. Transit
     timetable coverage is reported separately in `transit_feeds` because it can
-    differ from the walking-network regions.
+    differ from the walking-network regions. An external Valhalla whose files
+    are not mounted into Atlas can declare its regions with
+    `VALHALLA_COVERAGE_REGIONS`.
     """,
     responses: %{
       200 => response("Capability coverage", "application/json", Schemas.CoverageResponse)
