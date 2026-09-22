@@ -14,6 +14,38 @@ defmodule AtlasWeb.ApiSpecTest do
     assert is_map(spec["paths"]["/api/v1/pois"])
     assert is_map(spec["paths"]["/api/v1/pois/categories"])
     assert is_map(spec["paths"]["/api/v1/geocode"])
+    assert is_map(spec["paths"]["/api/v1/coverage"])
+
+    assert get_in(spec, [
+             "paths",
+             "/api/v1/coverage",
+             "get",
+             "responses",
+             "200",
+             "content",
+             "application/json",
+             "schema",
+             "$ref"
+           ]) == "#/components/schemas/CoverageResponse"
+
+    coverage = spec["components"]["schemas"]["CoverageCapability"]
+
+    assert coverage["required"] ==
+             ~w(available coverage_status datasets note regions service status)
+
+    assert coverage["properties"]["coverage_status"]["enum"] == ~w(known unknown)
+    assert coverage["properties"]["status"]["enum"] == ~w(up down starting)
+
+    assert get_in(spec, [
+             "components",
+             "schemas",
+             "CoverageResponse",
+             "properties",
+             "meta",
+             "properties",
+             "timestamp",
+             "format"
+           ]) == "date-time"
   end
 
   test "Place schema documents the canonical geocoding fields" do

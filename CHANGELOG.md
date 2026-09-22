@@ -8,6 +8,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Added
 - The region apply progress card has a **logs** button that streams the processing log: each download, stage change, osmium command and its live progress, service restarts, and the reason a run failed.
+- `GET /api/v1/coverage` reports live readiness and verified installed regions for geocoding, routing, map matching, POIs, and transit, including separate timetable coverage for transit.
 
 ## [0.6.0] - 2026-09-13
 
