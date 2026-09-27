@@ -116,6 +116,7 @@ services:
       # photon-net network this is http://photon:2322 (bypasses the API-key
       # proxy). A keyless public endpoint would be https://photon.example.com.
       PHOTON_URL: ${PHOTON_URL:-http://photon:2322}
+      PHOTON_COVERAGE_REGIONS: ${PHOTON_COVERAGE_REGIONS:-}
       # Internal names — resolve once you uncomment the services at the bottom.
       VALHALLA_URL: http://valhalla:8002
       VALHALLA_COVERAGE_REGIONS: ${VALHALLA_COVERAGE_REGIONS:-}

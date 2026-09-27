@@ -4,7 +4,7 @@ defmodule Atlas.MixProject do
   def project do
     [
       app: :atlas,
-      version: "0.6.1",
+      version: "0.6.2",
       elixir: "~> 1.15",
       elixirc_paths: elixirc_paths(Mix.env()),
       compilers: Mix.compilers() ++ [:boundary],

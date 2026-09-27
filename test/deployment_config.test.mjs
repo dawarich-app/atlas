@@ -24,6 +24,13 @@ test('Valhalla coverage metadata reaches the app in standard and Dokploy Compose
   }
 });
 
+test('Photon coverage metadata reaches the app in standard and Dokploy Compose', () => {
+  for (const file of ['compose.yml', 'compose.dokploy.yml']) {
+    const compose = readFileSync(new URL(`../${file}`, import.meta.url), 'utf8');
+    assert.match(compose, /PHOTON_COVERAGE_REGIONS:\s+\$\{PHOTON_COVERAGE_REGIONS:-\}/);
+  }
+});
+
 test('Overpass diff updates are opt-in by default', () => {
   const compose = readFileSync(new URL('../compose.yml', import.meta.url), 'utf8');
 
