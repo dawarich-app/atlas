@@ -43,6 +43,7 @@ services:
       DOCKER_GID: ${DOCKER_GID:-999}
       DATABASE_URL: ${DATABASE_URL:-}
       PHOTON_URL: http://photon:2322
+      PHOTON_COVERAGE_REGIONS: ${PHOTON_COVERAGE_REGIONS:-}
       PLACEHOLDER_URL: http://placeholder:3000
       LIBPOSTAL_URL: http://libpostal:4400
       VALHALLA_URL: http://valhalla:8002

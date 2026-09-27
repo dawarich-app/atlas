@@ -15,13 +15,14 @@ defmodule AtlasWeb.Api.V1.CoverageController do
     summary: "List available regions for each maps capability",
     description: """
     Combines live service health with provenance from the datasets installed on
-    this Atlas instance. `regions` contains only region names Atlas can verify;
+    this Atlas instance. `regions` contains locally verified or operator-declared names;
     an empty list with `coverage_status=unknown` does not prove that the service
     has no coverage. Map matching inherits routing's Valhalla coverage. Transit
     timetable coverage is reported separately in `transit_feeds` because it can
     differ from the walking-network regions. An external Valhalla whose files
     are not mounted into Atlas can declare its regions with
-    `VALHALLA_COVERAGE_REGIONS`.
+    `VALHALLA_COVERAGE_REGIONS`. External Photon can be declared with
+    `PHOTON_COVERAGE_REGIONS`; its status API does not report geographic scope.
     """,
     responses: %{
       200 => response("Capability coverage", "application/json", Schemas.CoverageResponse)

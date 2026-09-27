@@ -230,6 +230,51 @@ defmodule Atlas.Control.ServiceCoverageTest do
     assert result.capabilities.routing.note =~ "declared by the operator"
   end
 
+  test "uses declared Photon coverage when an external index has no local provenance", %{
+    dir: dir
+  } do
+    result =
+      ServiceCoverage.summary(
+        data_dir: dir,
+        photon_regions: " Worldwide, Germany, Worldwide,  ",
+        transit_backend: "otp",
+        health: %{capabilities: %{"geocoding" => "up"}}
+      )
+
+    assert result.capabilities.geocoding.regions == ["Worldwide", "Germany"]
+    assert result.capabilities.geocoding.coverage_status == "known"
+    assert result.capabilities.geocoding.available
+
+    assert Enum.all?(
+             result.capabilities.geocoding.datasets,
+             &(&1.source == "PHOTON_COVERAGE_REGIONS")
+           )
+  end
+
+  test "local Photon import provenance takes precedence over a declaration", %{dir: dir} do
+    source = "https://example.test/photon-db-germany-1.0-latest.tar.bz2"
+
+    put(
+      dir,
+      "photon/logs/photon.log",
+      "Using constructed location for download: #{source}\n" <>
+        "Sequential download process completed successfully.\n"
+    )
+
+    File.mkdir_p!(Path.join(dir, "photon/photon_data"))
+
+    result =
+      ServiceCoverage.summary(
+        data_dir: dir,
+        photon_regions: "Worldwide",
+        transit_backend: "otp",
+        health: %{capabilities: %{"geocoding" => "up"}}
+      )
+
+    assert result.capabilities.geocoding.regions == ["Germany"]
+    assert [%{source: ^source}] = result.capabilities.geocoding.datasets
+  end
+
   test "public summary does not launch header probes for missing manifests", %{dir: dir} do
     for path <- ~w(valhalla/region.osm.pbf otp/region.osm.pbf osm/current.osm.pbf),
         do: put(dir, path, "not a real pbf")

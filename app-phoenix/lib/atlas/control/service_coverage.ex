@@ -13,7 +13,7 @@ defmodule Atlas.Control.ServiceCoverage do
 
     read_opts =
       opts
-      |> Keyword.drop([:health, :transit_backend, :valhalla_regions])
+      |> Keyword.drop([:health, :transit_backend, :photon_regions, :valhalla_regions])
       |> Keyword.put_new(:catalog, [])
       |> Keyword.put(:probe, &skip_header_probe/1)
 
@@ -26,7 +26,10 @@ defmodule Atlas.Control.ServiceCoverage do
 
     %{
       capabilities: %{
-        geocoding: capability("photon", Map.get(statuses, "geocoding", "down"), read_opts),
+        geocoding:
+          "photon"
+          |> capability(Map.get(statuses, "geocoding", "down"), read_opts)
+          |> use_declared_regions(photon_regions(opts), "PHOTON_COVERAGE_REGIONS"),
         routing: routing,
         map_matching: Map.put(routing, :inherits, "routing"),
         pois: capability("overpass", Map.get(statuses, "pois", "down"), read_opts),
@@ -95,6 +98,12 @@ defmodule Atlas.Control.ServiceCoverage do
   defp valhalla_regions(opts) do
     opts
     |> Keyword.get_lazy(:valhalla_regions, fn -> System.get_env("VALHALLA_COVERAGE_REGIONS") end)
+    |> normalize_regions()
+  end
+
+  defp photon_regions(opts) do
+    opts
+    |> Keyword.get_lazy(:photon_regions, fn -> System.get_env("PHOTON_COVERAGE_REGIONS") end)
     |> normalize_regions()
   end
 

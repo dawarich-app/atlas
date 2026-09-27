@@ -45,6 +45,7 @@ straight to the `photon` container instead, which has no auth:
    |---|---|
    | `ATLAS_HOST` | `atlas.example.com` (domain; Traefik + `PHX_HOST`) |
    | `PHOTON_URL` | `http://photon:2322` (the container, over `photon-net`) |
+   | `PHOTON_COVERAGE_REGIONS` | Optional comma-separated labels for a verified external Photon dataset, e.g. `Worldwide` |
    | `SECRET_KEY_BASE` | `openssl rand -hex 64` |
    | `ADMIN_USERNAME` / `ADMIN_PASSWORD` | for `/admin` |
 
@@ -52,6 +53,12 @@ straight to the `photon` container instead, which has no auth:
 
 `PHOTON_URL` points at the Photon **root** — the app appends `/api`,
 `/reverse`, … itself.
+
+Atlas checks the configured Photon's live `/status` endpoint for API readiness.
+Photon does not report its geographic scope there. When Photon is managed outside
+Atlas, set `PHOTON_COVERAGE_REGIONS` only after confirming its imported dataset;
+Atlas-generated local import metadata takes precedence. This setting supplies
+coverage labels, not a health check.
 
 ### Or a keyless public URL (no shared network)
 
