@@ -69,6 +69,7 @@ defmodule AtlasWeb.MapLive do
        transit_switching: nil,
        transit_backend: Settings.transit_backend(),
        tiles_download: Safe.call(fn -> TilesDownloader.status() end, nil),
+       local_archives: TilesDownloader.local_archives(),
        basemap_confirm: nil,
        apply_status: Safe.call(fn -> RegionApplier.status() end, nil),
        timeline: Safe.call(fn -> ApplyTimeline.current() end, nil),
@@ -486,19 +487,28 @@ defmodule AtlasWeb.MapLive do
 
   @impl true
   def handle_event("save_settings", %{"tiles_url" => url, "theme" => theme}, socket) do
-    Settings.set("tiles_url", url)
+    if String.trim(url) == "",
+      do: Settings.unset("tiles_url"),
+      else: Settings.set("tiles_url", String.trim(url))
+
     Settings.set("tiles_theme", theme)
+    effective_url = Settings.tiles_url()
 
     {:noreply,
      socket
-     |> assign(tiles_url: url, theme: theme)
+     |> assign(tiles_url: effective_url, theme: theme)
+     |> push_event("map:set_style", %{url: effective_url, theme: theme})
      |> put_flash(:info, "Settings saved")}
   end
 
   @impl true
   def handle_event("update_theme", %{"theme" => theme}, socket) do
     Settings.set("tiles_theme", theme)
-    {:noreply, assign(socket, theme: theme)}
+
+    {:noreply,
+     socket
+     |> assign(theme: theme)
+     |> push_event("map:set_style", %{url: socket.assigns.tiles_url, theme: theme})}
   end
 
   @impl true
@@ -515,6 +525,32 @@ defmodule AtlasWeb.MapLive do
   @impl true
   def handle_event("cancel_basemap_confirm", _params, socket) do
     {:noreply, assign(socket, basemap_confirm: nil)}
+  end
+
+  def handle_event("cancel_basemap_download", _params, socket) do
+    case Safe.call(fn -> TilesDownloader.cancel() end) do
+      {:ok, _job_id} -> {:noreply, assign(socket, tiles_download: %{status: :cancelling})}
+      _ -> {:noreply, put_flash(socket, :error, "No tile pack download is running")}
+    end
+  end
+
+  def handle_event("refresh_local_basemaps", _params, socket) do
+    {:noreply, assign(socket, local_archives: TilesDownloader.local_archives())}
+  end
+
+  def handle_event("use_local_basemap", %{"url" => url}, socket) do
+    archives = TilesDownloader.local_archives()
+
+    if Enum.any?(archives, &(&1.url == url)) do
+      Settings.set("tiles_url", url)
+
+      {:noreply,
+       socket
+       |> assign(tiles_url: url, local_archives: archives)
+       |> push_event("map:set_style", %{url: url, theme: socket.assigns.theme})}
+    else
+      {:noreply, put_flash(socket, :error, "Tile pack is no longer available")}
+    end
   end
 
   @impl true
@@ -555,8 +591,12 @@ defmodule AtlasWeb.MapLive do
   @impl true
   def handle_event("use_env_tiles", _params, socket) do
     env_url = System.get_env("TILES_URL") || ""
-    Settings.set("tiles_url", env_url)
-    {:noreply, assign(socket, tiles_url: env_url)}
+    Settings.unset("tiles_url")
+
+    {:noreply,
+     socket
+     |> assign(tiles_url: env_url)
+     |> push_event("map:set_style", %{url: env_url, theme: socket.assigns.theme})}
   end
 
   @impl true
@@ -848,6 +888,7 @@ defmodule AtlasWeb.MapLive do
      socket
      |> assign(
        tiles_url: local_url,
+       local_archives: TilesDownloader.local_archives(),
        tiles_download: %{status: :done, job_id: job_id, dest: dest, progress: 1.0}
      )
      |> push_event("map:set_style", %{url: local_url})
@@ -859,6 +900,13 @@ defmodule AtlasWeb.MapLive do
      socket
      |> assign(tiles_download: %{status: :error, job_id: job_id, reason: reason})
      |> put_flash(:error, "Tile pack download failed: #{reason}")}
+  end
+
+  def handle_info({:cancelled, job_id}, socket) do
+    {:noreply,
+     socket
+     |> assign(tiles_download: %{status: :cancelled, job_id: job_id})
+     |> put_flash(:info, "Tile pack download cancelled.")}
   end
 
   def handle_info({:timeline, timeline}, socket) do
@@ -1345,6 +1393,7 @@ defmodule AtlasWeb.MapLive do
         transit_backend={@transit_backend}
         transit_switching={@transit_switching}
         tiles_download={@tiles_download}
+        local_archives={@local_archives}
         basemap_confirm={@basemap_confirm}
         timeline={@timeline}
       />

@@ -34,6 +34,36 @@ defmodule AtlasWeb.MapLiveTest do
     assert html =~ ~s(phx-hook="Map")
   end
 
+  test "saving a PMTiles URL updates the map style immediately", %{conn: conn} do
+    {:ok, view, _html} = live(conn, ~p"/?tab=settings")
+    url = "/tiles/20261030.pmtiles"
+
+    render_hook(view, "save_settings", %{"tiles_url" => url, "theme" => "atlas-dark"})
+
+    assert Atlas.Settings.tiles_url() == url
+    assert_push_event(view, "map:set_style", %{url: ^url, theme: "atlas-dark"})
+  end
+
+  test "server default clears the stored tile URL override", %{conn: conn} do
+    previous_url = System.get_env("TILES_URL")
+    System.put_env("TILES_URL", "/tiles/server.pmtiles")
+
+    on_exit(fn ->
+      if previous_url,
+        do: System.put_env("TILES_URL", previous_url),
+        else: System.delete_env("TILES_URL")
+    end)
+
+    Atlas.Settings.set("tiles_url", "/tiles/old.pmtiles")
+    {:ok, view, _html} = live(conn, ~p"/?tab=settings")
+
+    render_hook(view, "use_env_tiles", %{})
+
+    assert Atlas.Settings.get("tiles_url") == nil
+    assert Atlas.Settings.tiles_url() == "/tiles/server.pmtiles"
+    assert_push_event(view, "map:set_style", %{url: "/tiles/server.pmtiles"})
+  end
+
   test "directions can be submitted with a button", %{conn: conn} do
     {:ok, view, _html} = live(conn, ~p"/")
 

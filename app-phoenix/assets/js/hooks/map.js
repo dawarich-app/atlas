@@ -2,31 +2,18 @@ import maplibregl from "../../vendor/maplibre-gl"
 import SearchClusters from "./search_clusters"
 import RouteEndpoints from "./route_endpoints"
 import RouteLabels from "./route_labels"
-
-// Hardcoded OSM raster fallback — used when no TILES_URL is configured.
-// Matches the Rails JS controller's OSM_RASTER_FALLBACK byte-for-byte.
-const OSM_RASTER_FALLBACK = {
-  version: 8,
-  sources: {
-    osm: {
-      type: "raster",
-      tiles: ["https://tile.openstreetmap.org/{z}/{x}/{y}.png"],
-      tileSize: 256,
-      attribution: "© OpenStreetMap contributors"
-    }
-  },
-  layers: [{ id: "osm", type: "raster", source: "osm" }]
-}
+import { buildBasemapStyle, registerPmtiles } from "../lib/basemap"
 
 export default {
   mounted() {
+    registerPmtiles(maplibregl)
     const tilesUrl = this.el.dataset.tilesUrl
     const theme = this.el.dataset.theme || "forest-patina"
     const initialCenter = JSON.parse(this.el.dataset.center || "[10.4515, 51.1657]")
     const initialBounds = this.el.dataset.bounds ? JSON.parse(this.el.dataset.bounds) : null
     const initialZoom = parseFloat(this.el.dataset.zoom || "5")
 
-    const style = tilesUrl ? tilesUrl : OSM_RASTER_FALLBACK
+    const style = buildBasemapStyle(tilesUrl, theme)
 
     this.map = new maplibregl.Map({
       container: this.el,
@@ -148,9 +135,10 @@ export default {
       this.map.on("click", this._pickerClickHandler)
     })
 
-    this.handleEvent("map:set_style", ({ url }) => {
+    this.handleEvent("map:set_style", ({ url, theme }) => {
       this._tilesUrl = url || null
-      const nextStyle = url ? url : OSM_RASTER_FALLBACK
+      this._theme = theme || this._theme || this.el.dataset.theme || "light"
+      const nextStyle = buildBasemapStyle(url, this._theme)
 
       // The cluster source restores itself from its current dataset on style.load.
       this.map.once("style.load", () => {

@@ -82,8 +82,7 @@ defmodule AtlasWeb.StaticMapControllerTest do
     conn = get(conn, ~p"/static_map")
     body = html_response(conn, 200)
 
-    assert body =~ "__atlasStaticMapReady"
-    assert body =~ "atlas:static-map-ready"
+    assert body =~ ~s(src="/assets/static_map.js")
   end
 
   test "GET /static_map handles invalid query params via fallbacks", %{conn: conn} do

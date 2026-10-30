@@ -33,6 +33,8 @@ atlas-*.tar
 /priv/static/assets/app.js
 /priv/static/assets/app.css
 /priv/static/assets/app.js.map
+/priv/static/assets/static_map.js
+/priv/static/assets/static_map.js.map
 /priv/static/assets/app.css.map
 /priv/static/cache_manifest.json
 
@@ -41,3 +43,4 @@ atlas-*.tar
 /priv/static/favicon-*.ico
 /priv/static/robots-*.txt*
 /priv/static/*.gz
+/assets/node_modules/

@@ -43,6 +43,7 @@ defmodule AtlasWeb.SidePanel do
   attr :transit_switching, :string, default: nil
   attr :pending_services, :map, default: %{}
   attr :tiles_download, :any, default: nil
+  attr :local_archives, :list, default: []
   attr :timeline, :any, default: nil
   attr :basemap_confirm, :any, default: nil
 
@@ -124,6 +125,7 @@ defmodule AtlasWeb.SidePanel do
               pending_services={@pending_services}
               transit_switching={@transit_switching}
               tiles_download={@tiles_download}
+              local_archives={@local_archives}
               timeline={@timeline}
               basemap_confirm={@basemap_confirm}
             />

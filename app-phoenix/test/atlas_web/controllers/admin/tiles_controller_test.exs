@@ -66,4 +66,25 @@ defmodule AtlasWeb.Admin.TilesControllerTest do
 
     assert resp["error"]["code"] == "BAD_REQUEST"
   end
+
+  test "blank URL clears the override and uses TILES_URL", %{conn: conn} do
+    Settings.set("tiles_url", "/tiles/old.pmtiles")
+    previous_url = System.get_env("TILES_URL")
+    System.put_env("TILES_URL", "/tiles/server.pmtiles")
+
+    on_exit(fn ->
+      if previous_url,
+        do: System.put_env("TILES_URL", previous_url),
+        else: System.delete_env("TILES_URL")
+    end)
+
+    resp =
+      conn
+      |> put_req_header("content-type", "application/json")
+      |> post(~p"/admin/tiles.json", Jason.encode!(%{"tiles_url" => ""}))
+      |> json_response(200)
+
+    assert Settings.get("tiles_url") == nil
+    assert resp["data"]["tiles_url"] == "/tiles/server.pmtiles"
+  end
 end

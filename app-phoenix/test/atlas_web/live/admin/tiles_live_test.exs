@@ -99,5 +99,6 @@ defmodule AtlasWeb.Admin.TilesLiveTest do
 
     html = render(view)
     assert html =~ ~s(<progress class="progress mt-2")
+    assert html =~ "Cancel download"
   end
 end

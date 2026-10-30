@@ -2,10 +2,16 @@ ARG ELIXIR_VERSION=1.19.5
 ARG OTP_VERSION=28.5
 ARG DEBIAN_VERSION=bookworm-20260518-slim
 
+FROM node:22-bookworm-slim AS node
+
 FROM hexpm/elixir:${ELIXIR_VERSION}-erlang-${OTP_VERSION}-debian-${DEBIAN_VERSION} AS builder
 
 RUN apt-get update -y && apt-get install -y build-essential git ca-certificates && \
     apt-get clean && rm -f /var/lib/apt/lists/*_*
+
+COPY --from=node /usr/local/bin/node /usr/local/bin/node
+COPY --from=node /usr/local/lib/node_modules/npm /usr/local/lib/node_modules/npm
+RUN ln -s /usr/local/lib/node_modules/npm/bin/npm-cli.js /usr/local/bin/npm
 
 WORKDIR /app
 ENV MIX_ENV=prod
@@ -20,11 +26,12 @@ COPY priv priv
 COPY lib lib
 COPY rel rel
 COPY assets assets
+RUN cd assets && npm ci --omit=dev
 RUN mix compile
 
 # Build CSS/JS bundles (Tailwind v4 + DaisyUI + esbuild + MapLibre) and
 # digest static assets. esbuild_elixir/tailwind_elixir download their
-# own native binaries on first install — no Node runtime needed.
+# own native binaries on first install. Node installs the PMTiles style packages.
 RUN mix assets.setup && mix assets.deploy
 
 COPY config/runtime.exs config/
