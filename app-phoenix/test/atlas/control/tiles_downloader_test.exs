@@ -91,6 +91,57 @@ defmodule Atlas.Control.TilesDownloaderTest do
              "/tiles/basemap.pmtiles"
   end
 
+  test "cancel stops a running task, removes only its partial file, and permits another download" do
+    test_pid = self()
+    dir = Path.join(System.tmp_dir!(), "atlas-cancel-#{System.unique_integer([:positive])}")
+    File.mkdir_p!(dir)
+    on_exit(fn -> File.rm_rf!(dir) end)
+    finished = Path.join(dir, "finished.pmtiles")
+    File.write!(finished, "complete")
+
+    downloader = fn _url, dest, _progress ->
+      File.write!(dest <> ".partial", "incomplete")
+      send(test_pid, :download_started)
+
+      receive do
+        :continue -> {:ok, dest}
+      end
+    end
+
+    start_downloader(
+      dest_dir: dir,
+      downloader: downloader,
+      on_success: fn _url, _dest -> send(test_pid, :activated) end
+    )
+
+    Phoenix.PubSub.subscribe(Atlas.PubSub, TilesDownloader.topic())
+
+    assert {:ok, job_id, dest} =
+             TilesDownloader.download("https://example.com/unfinished.pmtiles")
+
+    assert_receive :download_started
+    assert {:ok, ^job_id} = TilesDownloader.cancel()
+    assert_receive {:cancelled, ^job_id}
+    refute File.exists?(dest <> ".partial")
+    refute File.exists?(dest)
+    assert File.read!(finished) == "complete"
+    refute_receive :activated
+    assert %{status: :cancelled, job_id: ^job_id} = TilesDownloader.status()
+    assert {:error, :idle} = TilesDownloader.cancel()
+  end
+
+  test "local_archives lists completed PMTiles files, not partial downloads" do
+    dir = Path.join(System.tmp_dir!(), "atlas-local-#{System.unique_integer([:positive])}")
+    File.mkdir_p!(dir)
+    on_exit(fn -> File.rm_rf!(dir) end)
+    File.write!(Path.join(dir, "20261030.pmtiles"), "complete")
+    File.write!(Path.join(dir, "20261029.pmtiles.partial"), "incomplete")
+
+    assert TilesDownloader.local_archives(dir) == [
+             %{name: "20261030.pmtiles", url: "/tiles/20261030.pmtiles"}
+           ]
+  end
+
   test "lifecycle is visible in the app log (docker logs)" do
     import ExUnit.CaptureLog
 

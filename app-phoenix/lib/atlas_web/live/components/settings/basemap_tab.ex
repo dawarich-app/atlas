@@ -12,6 +12,7 @@ defmodule AtlasWeb.Settings.BasemapTab do
   attr :presets, :list, required: true
   attr :tiles_url, :string, default: nil
   attr :tiles_download, :any, default: nil
+  attr :local_archives, :list, default: []
   attr :basemap_confirm, :any, default: nil
   attr :themes, :list, required: true
   attr :theme, :string, required: true
@@ -23,6 +24,14 @@ defmodule AtlasWeb.Settings.BasemapTab do
     <div>
       <p class="mb-2 text-sm" role="status"><strong>Current map:</strong> {@current_source}</p>
       <p class="mb-4 text-sm text-base-content/65">Choose a map source. Online maps need an internet connection; downloaded maps use local storage.</p>
+      <button
+        :if={@tiles_download && @tiles_download.status == :running}
+        type="button"
+        phx-click="cancel_basemap_download"
+        class="btn btn-sm btn-outline mb-4"
+      >
+        Cancel download
+      </button>
       <div class="flex flex-col gap-2.5">
         <.preset_card
           :for={preset <- @presets}
@@ -33,6 +42,26 @@ defmodule AtlasWeb.Settings.BasemapTab do
         />
       </div>
 
+      <div class="mt-4">
+        <div class="flex items-center justify-between">
+          <h3 class="text-sm font-semibold">Local tile packs</h3>
+          <button type="button" phx-click="refresh_local_basemaps" class="btn btn-xs btn-ghost">Refresh</button>
+        </div>
+        <p :if={@local_archives == []} class="mt-1 text-xs text-base-content/55">No PMTiles files found in data/tiles/.</p>
+        <div :for={archive <- @local_archives} class="mt-2 flex items-center justify-between gap-2 text-sm">
+          <span class="min-w-0 truncate font-mono" title={archive.name}>{archive.name}</span>
+          <button
+            type="button"
+            phx-click="use_local_basemap"
+            phx-value-url={archive.url}
+            disabled={@tiles_url == archive.url}
+            class="btn btn-xs btn-outline"
+          >
+            {if @tiles_url == archive.url, do: "In use", else: "Use"}
+          </button>
+        </div>
+      </div>
+
       <form phx-submit="save_settings" class="mt-3.5 flex items-stretch gap-2">
         <div class="min-w-0 flex-1">
           <input
@@ -40,7 +69,7 @@ defmodule AtlasWeb.Settings.BasemapTab do
             name="tiles_url"
             aria-label="Custom map style URL"
             value={@tiles_url}
-            placeholder="Custom style or pmtiles URL…"
+            placeholder="MapLibre style or Protomaps PMTiles URL…"
             class="w-full rounded-2xl border-2 border-base-content/10 bg-base-300/40 px-4 py-3 font-mono text-sm text-base-content outline-none transition focus:border-base-content"
           />
         </div>

@@ -40,6 +40,7 @@ defmodule AtlasWeb.SettingsPanel do
      |> assign_new(:transit_switching, fn -> nil end)
      |> assign_new(:pending_services, fn -> %{} end)
      |> assign_new(:tiles_download, fn -> nil end)
+     |> assign_new(:local_archives, fn -> [] end)
      |> assign_new(:timeline, fn -> nil end)
      |> assign_new(:basemap_confirm, fn -> nil end)
      |> assign_new(:region_query, fn -> "" end)
@@ -221,6 +222,7 @@ defmodule AtlasWeb.SettingsPanel do
             presets={@basemap_presets}
             tiles_url={@tiles_url}
             tiles_download={@tiles_download}
+            local_archives={@local_archives}
             basemap_confirm={@basemap_confirm}
             themes={@themes}
             theme={@theme}

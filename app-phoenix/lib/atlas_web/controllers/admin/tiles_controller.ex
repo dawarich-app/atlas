@@ -23,7 +23,12 @@ defmodule AtlasWeb.Admin.TilesController do
   def update(conn, params) do
     with {:ok, url} <- fetch_url(params),
          {:ok, theme} <- fetch_theme(params) do
-      if url, do: Settings.set("tiles_url", url)
+      case url do
+        :clear -> Settings.unset("tiles_url")
+        nil -> :ok
+        value -> Settings.set("tiles_url", value)
+      end
+
       if theme, do: Settings.set("tiles_theme", theme)
       json(conn, %{data: current_state()})
     else
@@ -36,7 +41,7 @@ defmodule AtlasWeb.Admin.TilesController do
 
   defp fetch_url(%{"tiles_url" => url}) when is_binary(url) do
     case String.trim(url) do
-      "" -> {:ok, nil}
+      "" -> {:ok, :clear}
       trimmed -> {:ok, trimmed}
     end
   end
