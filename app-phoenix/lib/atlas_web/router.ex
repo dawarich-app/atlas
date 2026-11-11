@@ -38,6 +38,8 @@ defmodule AtlasWeb.Router do
     get "/photon/lookup", PhotonController, :lookup
     get "/photon/status", PhotonController, :status
 
+    get "/valhalla/route", ValhallaController, :route
+
     get "/version", VersionController, :show
     get "/health", HealthController, :show
     get "/coverage", CoverageController, :show

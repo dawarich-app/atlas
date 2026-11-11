@@ -4,6 +4,11 @@ All notable changes to Dawarich Atlas are documented here.
 
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+- `GET /api/v1/valhalla/route` passes a Valhalla `/route` request through unchanged and returns Valhalla's status and body untouched, the way `/api/v1/photon/*` does for Photon. Every Valhalla route option is available, including alternates, via points and costing options, and Valhalla's own errors reach the caller. Only `/route` is mirrored.
+
 ## [0.6.2] - 2026-09-27
 
 ### Added
