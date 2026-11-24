@@ -60,12 +60,13 @@ defmodule Atlas.Maps.Transport do
   end
 
   def departures(id) do
-    # Exact platform avoids showing another bay's services for a tapped stop.
+    # MOTIS 2.11.2 can omit the queried rail platform from a zero-radius search.
+    # Use one meter and filter by ID to exclude co-located platforms.
     params = [
       stopId: id,
       n: 20,
       arriveBy: false,
-      radius: 0,
+      radius: 1,
       exactRadius: true,
       time: DateTime.utc_now() |> DateTime.truncate(:second) |> DateTime.to_iso8601()
     ]
@@ -73,7 +74,14 @@ defmodule Atlas.Maps.Transport do
     case Client.get(Motis.default(), "/api/v6/stoptimes", params) do
       {:ok, %{"stopTimes" => times, "place" => place} = body}
       when is_list(times) and is_map(place) ->
-        {:ok, Map.put(body, "stopTimes", Enum.take(times, 40)), %{truncated: length(times) > 40}}
+        departures =
+          Enum.filter(times, fn
+            %{"place" => %{"stopId" => ^id}} -> true
+            _ -> false
+          end)
+
+        {:ok, Map.put(body, "stopTimes", Enum.take(departures, 40)),
+         %{truncated: length(departures) > 40}}
 
       {:ok, _} ->
         malformed()

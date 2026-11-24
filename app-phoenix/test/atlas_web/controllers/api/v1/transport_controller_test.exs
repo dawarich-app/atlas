@@ -75,25 +75,35 @@ defmodule AtlasWeb.Api.V1.TransportControllerTest do
     assert result["meta"]["zoom_in"]
   end
 
-  test "departure board encodes platform IDs and uses exact stop with second-precision time", %{
-    conn: conn,
-    bypass: bypass
-  } do
+  test "departure board encodes platform IDs and retains only the queried platform with second-precision time",
+       %{
+         conn: conn,
+         bypass: bypass
+       } do
     Bypass.expect_once(bypass, "GET", "/api/v6/stoptimes", fn c ->
       c = Plug.Conn.fetch_query_params(c)
       assert c.query_params["stopId"] == "vbb_stop:1/2"
       assert c.query_params["n"] == "20"
-      assert c.query_params["radius"] == "0"
+      assert c.query_params["radius"] == "1"
       assert c.query_params["exactRadius"] == "true"
       refute Map.has_key?(c.query_params, "window")
       assert {:ok, %{microsecond: {0, 0}}, 0} = DateTime.from_iso8601(c.query_params["time"])
-      Plug.Conn.resp(c, 200, Jason.encode!(%{place: %{stopId: "vbb_stop:1/2"}, stopTimes: []}))
+
+      board = %{
+        place: %{stopId: "vbb_stop:1/2"},
+        stopTimes: [
+          %{place: %{stopId: "vbb_stop:1/3"}, displayName: "U2"},
+          %{place: %{stopId: "vbb_stop:1/2"}, displayName: "U5"}
+        ]
+      }
+
+      Plug.Conn.resp(c, 200, Jason.encode!(board))
     end)
 
     result =
       conn |> get("/api/v1/transport/departures?stop_id=vbb_stop%3A1%2F2") |> json_response(200)
 
-    assert result["data"]["stopTimes"] == []
+    assert [%{"displayName" => "U5"}] = result["data"]["stopTimes"]
   end
 
   test "trip requests detailed intermediate stops", %{conn: conn, bypass: bypass} do
