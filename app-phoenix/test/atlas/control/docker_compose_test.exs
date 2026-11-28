@@ -31,6 +31,20 @@ defmodule Atlas.Control.DockerComposeTest do
     assert_received {:stub, "docker", ["compose", "restart", "valhalla"]}
   end
 
+  test "restart rejects an empty Compose project instead of claiming success" do
+    start_compose({"", 0})
+    assert {:error, 1, message} = DockerCompose.restart("motis")
+    assert message =~ "HOST_PROJECT_DIR"
+    assert_received {:stub, "docker", ["compose", "ps", "-a", "-q", "motis"]}
+    refute_received {:stub, "docker", ["compose", "restart", "motis"]}
+  end
+
+  test "restart propagates container lookup errors without attempting restart" do
+    start_compose({"daemon unavailable", 1})
+    assert {:error, 1, "daemon unavailable"} = DockerCompose.restart("motis")
+    refute_received {:stub, "docker", ["compose", "restart", "motis"]}
+  end
+
   test "logs/2 invokes `docker compose logs --tail=<n> <name>`" do
     start_compose()
     assert {:ok, "ok"} = DockerCompose.logs("photon", 50)

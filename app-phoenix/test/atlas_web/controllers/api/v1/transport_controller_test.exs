@@ -93,17 +93,35 @@ defmodule AtlasWeb.Api.V1.TransportControllerTest do
         place: %{stopId: "vbb_stop:1/2"},
         stopTimes: [
           %{place: %{stopId: "vbb_stop:1/3"}, displayName: "U2"},
-          %{place: %{stopId: "vbb_stop:1/2"}, displayName: "U5"}
+          %{
+            place: %{
+              stopId: "vbb_stop:1/2",
+              scheduledDeparture: "2026-11-28T09:00:00Z",
+              departure: "2026-11-28T09:05:00Z",
+              scheduledTrack: "1",
+              track: "3"
+            },
+            displayName: "U5",
+            realTime: true,
+            tripCancelled: false
+          }
         ]
       }
 
       Plug.Conn.resp(c, 200, Jason.encode!(board))
     end)
 
-    result =
-      conn |> get("/api/v1/transport/departures?stop_id=vbb_stop%3A1%2F2") |> json_response(200)
+    conn = get(conn, "/api/v1/transport/departures?stop_id=vbb_stop%3A1%2F2")
+    assert get_resp_header(conn, "cache-control") == ["no-store"]
+    result = json_response(conn, 200)
 
-    assert [%{"displayName" => "U5"}] = result["data"]["stopTimes"]
+    assert [%{"displayName" => "U5", "realTime" => true, "place" => place}] =
+             result["data"]["stopTimes"]
+
+    assert place["scheduledDeparture"] == "2026-11-28T09:00:00Z"
+    assert place["departure"] == "2026-11-28T09:05:00Z"
+    assert place["scheduledTrack"] == "1"
+    assert place["track"] == "3"
   end
 
   test "trip requests detailed intermediate stops", %{conn: conn, bypass: bypass} do

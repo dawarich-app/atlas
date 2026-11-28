@@ -9,6 +9,11 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 ### Added
 - MOTIS-backed transport map API for platform stops, service line shapes, exact-stop departure boards, and detailed service stop lists. Local-area limits, capped results, and dense-area zoom hints keep transport overlays usable; OTP deployments return an explicit unsupported response.
 
+
+### Fixed
+- Departure boards prevent HTTP caching while preserving scheduled and predicted times, cancellations, and platform changes.
+- Service restarts reject empty Compose projects instead of silently reporting success without loading refreshed timetables. Transport documentation explains matching GTFS feeds, daily refresh, and `HOST_PROJECT_DIR` configuration.
+
 ## [0.6.2] - 2026-09-27
 
 ### Added

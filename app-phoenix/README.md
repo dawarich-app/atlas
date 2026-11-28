@@ -42,3 +42,9 @@ square degrees, with neither side exceeding 0.5 degrees. Responses include
 whole seconds to avoid its fractional-timestamp parsing bug. Upstream failures
 retain the API's existing structured 502/503 behavior. No arbitrary upstream
 paths or URLs are accepted.
+
+### Live departure timetables
+
+Transport departure boards preserve MOTIS scheduled and predicted departure times, realtime flags, cancellations, and scheduled/current platforms. Responses use `Cache-Control: no-store`; the response metadata timestamp is the API retrieval time, not the last provider update. Live predictions require matching static GTFS and GTFS-Realtime feeds.
+
+Keep connected timetables current using the transport sources refresh action and optional daily automatic refresh. If MOTIS logs many `trip_resolve_error` events, refresh static GTFS before troubleshooting live predictions. Set `HOST_PROJECT_DIR` in the project `.env` to the absolute **Atlas backend checkout** path, then recreate the app service after changing it. An incorrect path can select an empty Compose project; restart commands now report missing containers as errors. A timetable download only takes effect after the transit engine restarts and finishes importing.

@@ -67,7 +67,7 @@ defmodule AtlasWeb.Api.V1.TransportController do
 
   def departures(conn, params) do
     with {:ok, id} <- identifier(params["stop_id"], "stop_id"),
-         do: respond(conn, Transport.departures(id))
+         do: respond(put_resp_header(conn, "cache-control", "no-store"), Transport.departures(id))
   end
 
   def trip(conn, params) do
