@@ -143,7 +143,20 @@ defmodule Atlas.Control.DockerCompose do
     {:reply, result, state}
   end
 
-  def handle_call({:compose, [op | rest] = args}, _from, state) when op in ["up", "restart"] do
+  # Compose exits successfully when a project has no matching containers.
+  # Treat that as a configuration error rather than claiming a refreshed
+  # timetable was loaded. HOST_PROJECT_DIR must name the Atlas checkout.
+  def handle_call({:compose, ["restart", name] = args}, _from, state) do
+    reply =
+      with {:ok, output} <- run(state, ["ps", "-a", "-q", name]),
+           :ok <- require_container(output, name) do
+        if name in ~w(otp motis), do: start_selected(state, name, args), else: run(state, args)
+      end
+
+    {:reply, reply, state}
+  end
+
+  def handle_call({:compose, ["up" | rest] = args}, _from, state) do
     name = List.last(rest)
 
     reply =
@@ -173,6 +186,14 @@ defmodule Atlas.Control.DockerCompose do
       {output, 0} -> {:ok, output}
       {output, code} -> {:error, code, output}
     end
+  end
+
+  defp require_container(output, name) do
+    if String.trim(output) == "",
+      do:
+        {:error, 1,
+         "No container found for #{name}. Check HOST_PROJECT_DIR and the Compose project before refreshing timetables."},
+      else: :ok
   end
 
   defp other_transit("otp"), do: "motis"

@@ -28,6 +28,10 @@ defmodule AtlasWeb.Router do
     get "/route", RouteController, :show
     post "/map-match", MapMatchController, :create
     get "/transit", TransitController, :show
+    get "/transport/stops", TransportController, :stops
+    get "/transport/lines", TransportController, :lines
+    get "/transport/departures", TransportController, :departures
+    get "/transport/trip", TransportController, :trip
     get "/whats-here", WhatsHereController, :index
     get "/pois", PoisController, :index
     get "/pois/categories", PoisController, :categories
